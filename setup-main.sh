@@ -1137,12 +1137,14 @@ function install(){
     echo "========== MENJALANKAN FUNGSI INSTALL UTAMA =========="
     clear
     first_setup
-    make_folder_xray
-    nginx_install
     base_package
+    make_folder_xray
     pasang_domain
+    menu
+    profile
     password_default
     pasang_ssl
+    nginx_install
     install_openvpn
     install_xray
     ssh
@@ -1156,8 +1158,6 @@ function install(){
     ins_Fail2ban
     ins_epro
     ins_restart
-    menu
-    profile
     enable_services
     restart_system
     echo "========== FUNGSI INSTALL UTAMA SELESAI =========="
