@@ -390,8 +390,34 @@ function install_xray() {
     curl -s ipinfo.io/org | cut -d " " -f 2-10 >>/etc/xray/isp
     print_install "Memasang Konfigurasi Packet"
     echo "Mengunduh konfigurasi HAProxy dan Nginx..."
-    wget -O /etc/haproxy/haproxy.cfg "${REPO}cfg_conf_js/haproxy.cfg" || echo "ERROR: Gagal mengunduh haproxy.cfg."
+
+    # --- Modifikasi dimulai di sini ---
+    # Tentukan file konfigurasi HAProxy berdasarkan versi Ubuntu
+    if [[ "$OS_ID" == "ubuntu" ]]; then
+        # Dapatkan versi Ubuntu (misal, 20.04, 22.04)
+        UBUNTU_VERSION=$(lsb_release -rs)
+        # Bandingkan versi: jika kurang dari 22.04, gunakan haproxy1.cfg
+        if [[ $(echo "$UBUNTU_VERSION < 22.04" | bc -l) -eq 1 ]]; then
+            HAPROXY_CONFIG_FILE="haproxy20.cfg"
+            echo "Mendeteksi Ubuntu $UBUNTU_VERSION. Menggunakan konfigurasi: $HAPROXY_CONFIG_FILE"
+        else
+            HAPROXY_CONFIG_FILE="haproxyUp.cfg"
+            echo "Mendeteksi Ubuntu $UBUNTU_VERSION. Menggunakan konfigurasi: $HAPROXY_CONFIG_FILE"
+        fi
+    else
+        # Untuk Debian atau OS lain, gunakan haproxy.cfg default (Anda bisa menyesuaikan logikanya jika perlu)
+        HAPROXY_CONFIG_FILE="haproxy.cfg"
+        echo "OS bukan Ubuntu. Menggunakan konfigurasi default: $HAPROXY_CONFIG_FILE"
+    fi
+
+    # Unduh file HAProxy yang sesuai
+    wget -O /etc/haproxy/haproxy.cfg "${REPO}cfg_conf_js/${HAPROXY_CONFIG_FILE}" || echo "ERROR: Gagal mengunduh ${HAPROXY_CONFIG_FILE}."
+    # --- Modifikasi berakhir di sini ---
+
+    # Unduh konfigurasi Nginx (tetap seperti sebelumnya)
     wget -O /etc/nginx/conf.d/xray.conf "${REPO}cfg_conf_js/xray.conf" || echo "ERROR: Gagal mengunduh xray.conf Nginx."
+
+    # Lakukan substitusi variabel seperti sebelumnya
     sed -i "s/xxx/${domain}/g" /etc/haproxy/haproxy.cfg
     sed -i "s/xxx/${domain}/g" /etc/nginx/conf.d/xray.conf
     curl ${REPO}cfg_conf_js/nginx.conf > /etc/nginx/nginx.conf || echo "ERROR: Gagal mengunduh nginx.conf utama."
