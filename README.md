@@ -16,14 +16,9 @@
 ### SLOW DNS
 <pre><code>wget https://raw.githubusercontent.com/fisabiliyusri/SLDNS/main/slowdns/install-sldns && chmod +x install-sldns && ./install-sldns</code></pre>
 
-### UNINSTALL SC
-<pre><code>wget https://raw.githubusercontent.com/bowowiwendi/WendyVpn/refs/heads/ABSTRAK/uninstall.sh && chmod +x uninstall.sh && ./uninstall.sh</code></pre>
-
 ### TESTED ON OS 
 - UBUNTU 20
 - DEBIAN 10 ( Recomended )
-### Setup Server
-<pre><code>wget https://raw.githubusercontent.com/bowowiwendi/WendyVpn/refs/heads/ABSTRAK/setup_vpn_server.sh && chmod +x setup_vpn_server.sh && ./setup_vpn_server.sh</code></pre>
 
 ### PORT INFO
 ```
