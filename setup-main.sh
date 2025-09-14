@@ -401,7 +401,7 @@ function install_xray() {
             HAPROXY_CONFIG_FILE="haproxy20.cfg"
             echo "Mendeteksi Ubuntu $UBUNTU_VERSION. Menggunakan konfigurasi: $HAPROXY_CONFIG_FILE"
         else
-            HAPROXY_CONFIG_FILE="haproxyUp.cfg"
+            HAPROXY_CONFIG_FILE="haproxy.cfg"
             echo "Mendeteksi Ubuntu $UBUNTU_VERSION. Menggunakan konfigurasi: $HAPROXY_CONFIG_FILE"
         fi
     else
