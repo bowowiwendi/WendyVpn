@@ -169,6 +169,77 @@ function print_success() {
     fi
 }
 
+# --- DEFINISIKAN VARIABEL GLOBAL DOMAIN ---
+DOMAIN=""
+
+# --- FUNGSI pasang_domain DIMODIFIKASI ---
+function pasang_domain() {
+    echo "========== MENJALANKAN pasang_domain =========="
+    clear
+    echo -e "==============================="
+    echo -e "   |\e[1;32mPlease Select a Domain Type Below \e[0m|"
+    echo -e "==============================="
+    echo -e "     \e[1;32m1)\e[0m Your Domain"
+    echo -e "     \e[1;32m2)\e[0m Random Domain "
+    echo -e "==============================="
+    read -p "   Please select numbers 1-2 or Any Button(Random) : " host
+    echo ""
+    
+    if [[ $host == "1" ]]; then
+        clear
+        echo -e "\e[1;32m===============================$NC"
+        echo -e "\e[1;36m     INPUT SUBDOMAIN $NC"
+        echo -e "\e[1;32m===============================$NC"
+        echo -e "\033[91;1m contoh subdomain :\033[0m \033[93 wendi.ssh.cloud\033[0m"
+        read -p "SUBDOMAIN :  " host1
+        DOMAIN="$host1"
+        echo "IP=" >> /var/lib/kyt/ipvps.conf
+        echo "$host1" > /etc/xray/domain
+        echo "$host1" > /etc/xray/scdomain
+        echo "$host1" > /root/domain
+        echo "$host1" > /root/scdomain
+        echo ""
+        print_install "Subdomain/Domain is Used"
+        echo "Domain kustom digunakan: $DOMAIN"
+        clear
+    elif [[ $host == "2" ]]; then
+        echo "Mengunduh dan menjalankan random.sh..."
+        wget ${REPO}files/random.sh && chmod +x random.sh && ./random.sh || echo "ERROR: Gagal menjalankan random.sh."
+        rm -f /root/random.sh
+        # Asumsi random.sh menulis domain ke /root/domain
+        if [[ -f "/root/domain" ]]; then
+            DOMAIN=$(cat /root/domain)
+            echo "Domain acak digunakan: $DOMAIN"
+        else
+            echo "ERROR: random.sh gagal menghasilkan file /root/domain."
+            exit 1
+        fi
+        clear
+        print_install "Random Subdomain/Domain is Used"
+    else
+        host="2"
+        print_install "Random Subdomain/Domain is Used"
+        echo "Domain acak digunakan (default)."
+        # Asumsi random.sh menulis domain ke /root/domain
+        if [[ -f "/root/domain" ]]; then
+            DOMAIN=$(cat /root/domain)
+            echo "Domain acak digunakan: $DOMAIN"
+        else
+            echo "ERROR: random.sh gagal menghasilkan file /root/domain."
+            exit 1
+        fi
+        clear
+    fi
+    
+    # Pastikan DOMAIN tidak kosong
+    if [[ -z "$DOMAIN" ]]; then
+        echo "ERROR: Domain tidak bisa didefinisikan. Keluar dari skrip."
+        exit 1
+    fi
+    
+    echo "========== pasang_domain SELESAI =========="
+}
+
 # --- Fungsi Instalasi Utama ---
 function first_setup() {
     echo "========== MENJALANKAN first_setup =========="
@@ -249,49 +320,6 @@ function base_package() {
     echo "========== base_package SELESAI =========="
 }
 
-function pasang_domain() {
-    echo "========== MENJALANKAN pasang_domain =========="
-    clear
-    echo -e "==============================="
-    echo -e "   |\e[1;32mPlease Select a Domain Type Below \e[0m|"
-    echo -e "==============================="
-    echo -e "     \e[1;32m1)\e[0m Your Domain"
-    echo -e "     \e[1;32m2)\e[0m Random Domain "
-    echo -e "==============================="
-    read -p "   Please select numbers 1-2 or Any Button(Random) : " host
-    echo ""
-    if [[ $host == "1" ]]; then
-        clear
-        echo -e "\e[1;32m===============================$NC"
-        echo -e "\e[1;36m     INPUT SUBDOMAIN $NC"
-        echo -e "\e[1;32m===============================$NC"
-        echo -e "\033[91;1m contoh subdomain :\033[0m \033[93 wendi.ssh.cloud\033[0m"
-        read -p "SUBDOMAIN :  " host1
-        echo "IP=" >> /var/lib/kyt/ipvps.conf
-        echo $host1 > /etc/xray/domain
-        echo $host1 > /etc/xray/scdomain
-        #echo $host1 > /etc/v2ray/domain
-        echo $host1 > /root/domain
-        echo $host1 > /root/scdomain
-        echo ""
-        print_install "Subdomain/Domain is Used"
-        echo "Domain kustom digunakan: $host1"
-        clear
-    elif [[ $host == "2" ]]; then
-        echo "Mengunduh dan menjalankan random.sh..."
-        wget ${REPO}files/random.sh && chmod +x random.sh && ./random.sh || echo "ERROR: Gagal menjalankan random.sh."
-        rm -f /root/random.sh
-        clear
-        print_install "Random Subdomain/Domain is Used"
-        echo "Domain acak digunakan."
-    else
-        host="2"
-        print_install "Random Subdomain/Domain is Used"
-        echo "Domain acak digunakan (default)."
-        clear
-    fi
-    echo "========== pasang_domain SELESAI =========="
-}
 
 function pasang_ssl() {
     echo "========== MENJALANKAN pasang_ssl =========="
@@ -1166,10 +1194,10 @@ function install_openvpn() {
 function install(){
     echo "========== MENJALANKAN FUNGSI INSTALL UTAMA =========="
     clear
+    pasang_domain
     first_setup
     base_package
     make_folder_xray
-    pasang_domain
     menu
     profile
     password_default
