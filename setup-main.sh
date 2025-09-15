@@ -194,6 +194,7 @@ function pasang_domain() {
         read -p "SUBDOMAIN :  " host1
         DOMAIN="$host1"
         echo "IP=" >> /var/lib/kyt/ipvps.conf
+        mkdir -p /etc/xray
         echo "$host1" > /etc/xray/domain
         echo "$host1" > /root/domain
         echo "$host1" > /root/scdomain
@@ -357,7 +358,6 @@ function make_folder_xray() {
     rm -rf /etc/ssh/.ssh.db
     rm -rf /etc/bot/.bot.db
     mkdir -p /etc/bot
-    mkdir -p /etc/xray
     mkdir -p /etc/vmess
     mkdir -p /etc/vless
     mkdir -p /etc/trojan
