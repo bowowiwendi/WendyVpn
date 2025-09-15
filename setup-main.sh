@@ -326,7 +326,7 @@ function pasang_ssl() {
     print_install "Memasang SSL Pada Domain"
     rm -rf /etc/xray/xray.key
     rm -rf /etc/xray/xray.crt
-    domain=$(cat /root/domain)
+    domain="$DOMAIN"
     echo "Domain untuk SSL: $domain"
     STOPWEBSERVER=$(lsof -i:80 | cut -d' ' -f1 | awk 'NR==2 {print $1}')
     rm -rf /root/.acme.sh
@@ -413,8 +413,8 @@ function install_xray() {
     echo "Mengunduh konfigurasi Xray..."
     wget -O /etc/xray/config.json "${REPO}cfg_conf_js/config.json" || echo "ERROR: Gagal mengunduh config.json Xray."
     wget -O /etc/systemd/system/runn.service "${REPO}files/runn.service" || echo "ERROR: Gagal mengunduh runn.service."
-    domain=$(cat /etc/xray/domain)
-    IPVS=$(cat /etc/xray/ipvps)
+    domain="$DOMAIN"
+    IPVS="$ipsaya"
     print_success "Core Xray 1.8.1 Latest Version"
     clear
     curl -s ipinfo.io/city >>/etc/xray/city
@@ -1039,7 +1039,7 @@ TIMES=30
     fi
 
     # --- Perbaikan: Ambil domain dari /etc/xray/domain ---
-    local domain=$(cat /etc/xray/domain 2>/dev/null)
+    local domain="$DOMAIN"
     if [ -z "$domain" ]; then
         domain="Tidak Ditemukan"
         echo "WARNING: Domain tidak ditemukan di /etc/xray/domain untuk notifikasi Telegram."
