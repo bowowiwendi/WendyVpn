@@ -403,36 +403,56 @@ EOF
 function install_xray() {
     echo "========== MENJALANKAN install_xray =========="
     clear
-    print_install "Core Xray 1.8.1 Latest Version"
-    domainSock_dir="/run/xray";! [ -d $domainSock_dir ] && mkdir  $domainSock_dir
-    chown www-data.www-data $domainSock_dir
-    latest_version="$(curl -s https://api.github.com/repos/XTLS/Xray-core/releases | grep tag_name | sed -E 's/.*"v(.*)".*/\1/' | head -n 1)"
-    echo "Versi Xray terbaru yang ditemukan: $latest_version"
-    echo "Mengunduh dan menjalankan skrip instalasi Xray resmi..."
-    bash -c "$(curl -L https://github.com/XTLS/Xray-install/raw/main/install-release.sh)" @ install -u www-data --version $latest_version || echo "ERROR: Gagal menginstal Xray."
-    echo "Mengunduh konfigurasi Xray..."
-    wget -O /etc/xray/config.json "${REPO}cfg_conf_js/config.json" || echo "ERROR: Gagal mengunduh config.json Xray."
-    wget -O /etc/systemd/system/runn.service "${REPO}files/runn.service" || echo "ERROR: Gagal mengunduh runn.service."
+    print_install "Core Xray 25.1.30"
+
+    # --- Konfigurasi Versi Stabil ---
+    XRAY_VERSION="v25.1.30"  # ← Ganti dengan versi stabil yang diuji
+
+    domainSock_dir="/run/xray"
+    ! [ -d "$domainSock_dir" ] && mkdir "$domainSock_dir"
+    chown www-data.www-data "$domainSock_dir"
+
+    echo "Memaksa menginstal Xray versi: $XRAY_VERSION"
+
+    # Instalasi Xray dengan versi spesifik
+    bash -c "$(curl -L https://github.com/XTLS/Xray-install/raw/main/install-release.sh)" \
+        @ install -u www-data --version "$XRAY_VERSION" || {
+            echo "❌ ERROR: Gagal menginstal Xray versi $XRAY_VERSION"
+            exit 1
+        }
+
+    # Verifikasi instalasi
+    echo "Memverifikasi versi Xray..."
+    /usr/local/bin/xray version
+
+    # Unduh konfigurasi
+    wget -O /etc/xray/config.json "${REPO}cfg_conf_js/config.json" || echo "ERROR: Gagal mengunduh config.json"
+    wget -O /etc/systemd/system/runn.service "${REPO}files/runn.service" || echo "ERROR: Gagal mengunduh runn.service"
+
+    # Gunakan sumber kebenaran DOMAIN dan IPVS
     domain="$DOMAIN"
     IPVS="$ipsaya"
-    print_success "Core Xray 1.8.1 Latest Version"
+
+    print_success "Core Xray $XRAY_VERSION"
     clear
+
     curl -s ipinfo.io/city >>/etc/xray/city
     curl -s ipinfo.io/org | cut -d " " -f 2-10 >>/etc/xray/isp
+
     print_install "Memasang Konfigurasi Packet"
-    echo "Mengunduh konfigurasi HAProxy dan Nginx..."
-    # Unduh file HAProxy yang sesuai
+
+    # HAProxy & Nginx
     wget -O /etc/haproxy/haproxy.cfg "${REPO}cfg_conf_js/haproxy.cfg"
-    # Unduh konfigurasi Nginx (tetap seperti sebelumnya)
     wget -O /etc/nginx/conf.d/xray.conf "${REPO}cfg_conf_js/xray.conf"
-    # Lakukan substitusi variabel seperti sebelumnya
     sed -i "s/xxx/${domain}/g" /etc/haproxy/haproxy.cfg
     sed -i "s/xxx/${domain}/g" /etc/nginx/conf.d/xray.conf
-    curl ${REPO}cfg_conf_js/nginx.conf > /etc/nginx/nginx.conf
+    curl "${REPO}cfg_conf_js/nginx.conf" > /etc/nginx/nginx.conf
     cat /etc/xray/xray.crt /etc/xray/xray.key | tee /etc/haproxy/hap.pem
+
     chmod +x /etc/systemd/system/runn.service
     rm -rf /etc/systemd/system/xray.service.d
-    # Perbaiki konfigurasi systemd service
+
+    # Service systemd
     cat >/etc/systemd/system/xray.service <<EOF
 [Unit]
 Description=Xray Service
@@ -451,6 +471,7 @@ LimitNOFILE=1000000
 [Install]
 WantedBy=multi-user.target
 EOF
+
     print_success "Konfigurasi Packet"
     echo "========== install_xray SELESAI =========="
 }
