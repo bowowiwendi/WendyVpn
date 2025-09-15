@@ -52,7 +52,6 @@ echo ""
 # done
 
 # --- Deteksi Arsitektur dan OS ---
-# --- Deteksi Arsitektur dan OS ---
 if [[ $( uname -m | awk '{print $1}' ) == "x86_64" ]]; then
     echo -e "${OK} Your Architecture Is Supported ( ${green}$( uname -m )${NC} )"
 else
