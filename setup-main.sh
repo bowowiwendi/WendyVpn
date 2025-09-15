@@ -1210,20 +1210,20 @@ sudo hostnamectl set-hostname "$username" # Pastikan $username didefinisikan
 echo "Hostname diatur ke: $username"
 # Tampilkan pesan sukses
 clear
+# --- Final Output dan Reboot Otomatis ---
+clear
 echo -e ""
 echo -e "\033[96m===============================\033[0m"
 echo -e "\033[92m        INSTALL SUCCESS\033[0m"
 echo -e "\033[96m===============================\033[0m"
 echo -e ""
 echo "========== SETUP SELESAI =========="
-echo "Sistem akan reboot sekarang."
+echo "Sistem akan reboot sekarang secara otomatis..."
 echo -e "\033[93mSystem setup is complete.\033[0m"
-echo -e "\033[93mThe system will NOT reboot automatically.\033[0m"
-echo -e "\033[93mPress [Enter] to confirm and reboot the server...\033[0m"
-echo -e "\033[93m(Tekan [Enter] untuk konfirmasi dan reboot server...)\033[0m"
-# Tunggu input pengguna
-read dummy
-# Lakukan reboot setelah Enter ditekan
-echo "Reboot diminta oleh pengguna."
-echo "Rebooting the server..."
+echo -e "\033[93mRebooting server in 5 seconds...\033[0m"
+
+# Tunggu 5 detik sebelum reboot (opsional, agar user sempat membaca pesan)
+sleep 5
+
+# Reboot otomatis tanpa intervensi
 reboot
