@@ -31,13 +31,13 @@ jobs:
             local ip="$2"
             local exp="$3"
             local TEXT="<code>──────────────────────────────────</code>
-<b>⚠️ YOUR VPS EXPIRED ⚠️</b>
+            <b> YOUR VPS EXPIRED </b>
 USER        : $user
 VPS IP      : $ip
 DATE        : $exp
 <code>──────────────────────────────────</code>"
-            curl -s --max-time $TIME -d "chat_id=$CHATID&disable_web_page_preview=1&text=$TEXT&parse_mode=html" "$URL" > /dev/null
-          }
+curl -s --max-time $TIME -d "chat_id=$CHATID&disable_web_page_preview=1&text=$TEXT&parse_mode=html" "$URL" > /dev/null
+}
 
           # Ambil data sekali
           raw_data=$(curl -sS "$REPO")
