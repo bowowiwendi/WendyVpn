@@ -30,12 +30,11 @@ jobs:
             local user="$1"
             local ip="$2"
             local exp="$3"
-            local TEXT="<code>──────────────────────────────────</code>
+            local TEXT="
             <b> YOUR VPS EXPIRED </b>
 USER        : $user
 VPS IP      : $ip
-DATE        : $exp
-<code>──────────────────────────────────</code>"
+DATE        : $exp "
 curl -s --max-time $TIME -d "chat_id=$CHATID&disable_web_page_preview=1&text=$TEXT&parse_mode=html" "$URL" > /dev/null
 }
 
@@ -68,3 +67,4 @@ curl -s --max-time $TIME -d "chat_id=$CHATID&disable_web_page_preview=1&text=$TE
             fi
 
           done <<< "$raw_data"
+
