@@ -20,37 +20,38 @@ echo -e "\033[96;1m                  WENDY VPN TUNNELING\033[0m"
 echo -e "${YELLOW}----------------------------------------------------------${NC}"
 echo ""
 
-# --- Bagian Password ---
-while true; do
-    echo "Select an option/Pilih opsi:"
-    echo "1. Ubah Password/Change Password"
-    echo "2. or Enter, Lewati/Skip"
-    read -p "Masukkan pilihan/Input option(1/2): " pilihan
-    if [[ "$pilihan" == "1" ]]; then
-        while true; do
-            read -s -p "Password : " passwd
-            echo
-            read -s -p "Konfirmasi Password : " passwd_confirm
-            echo
-            if [[ -n "$passwd" && "$passwd" == "$passwd_confirm" ]]; then
-                echo "$passwd" > /etc/.password.txt
-                echo "Password root berhasil diubah."
-                break
-            else
-                echo "Password harus diisi dan harus sama. Silakan coba lagi."
-            fi
-        done
-        echo root:$passwd | sudo chpasswd root > /dev/null 2>&1
-        sudo systemctl restart sshd > /dev/null 2>&1
-        break
-    elif [[ "$pilihan" == "2" || -z "$pilihan" ]]; then
-        echo "Proses pengubahan password dilewati."
-        break
-    else
-        echo "Pilihan tidak valid. Silakan coba lagi."
-    fi
-done
+# # --- Bagian Password ---
+# while true; do
+#     echo "Select an option/Pilih opsi:"
+#     echo "1. Ubah Password/Change Password"
+#     echo "2. or Enter, Lewati/Skip"
+#     read -p "Masukkan pilihan/Input option(1/2): " pilihan
+#     if [[ "$pilihan" == "1" ]]; then
+#         while true; do
+#             read -s -p "Password : " passwd
+#             echo
+#             read -s -p "Konfirmasi Password : " passwd_confirm
+#             echo
+#             if [[ -n "$passwd" && "$passwd" == "$passwd_confirm" ]]; then
+#                 echo "$passwd" > /etc/.password.txt
+#                 echo "Password root berhasil diubah."
+#                 break
+#             else
+#                 echo "Password harus diisi dan harus sama. Silakan coba lagi."
+#             fi
+#         done
+#         echo root:$passwd | sudo chpasswd root > /dev/null 2>&1
+#         sudo systemctl restart sshd > /dev/null 2>&1
+#         break
+#     elif [[ "$pilihan" == "2" || -z "$pilihan" ]]; then
+#         echo "Proses pengubahan password dilewati."
+#         break
+#     else
+#         echo "Pilihan tidak valid. Silakan coba lagi."
+#     fi
+# done
 
+# --- Deteksi Arsitektur dan OS ---
 # --- Deteksi Arsitektur dan OS ---
 if [[ $( uname -m | awk '{print $1}' ) == "x86_64" ]]; then
     echo -e "${OK} Your Architecture Is Supported ( ${green}$( uname -m )${NC} )"
@@ -72,13 +73,12 @@ fi
 ipsaya=$(wget -qO- ipinfo.io/ip)
 if [[ -z "$ipsaya" ]]; then
     echo -e "${EROR} IP Address ( ${RED}Not Detected${NC} )"
+    exit 1  # <-- Tambahkan exit jika IP tidak terdeteksi
 else
     echo -e "${OK} IP Address ( ${green}$ipsaya${NC} )"
 fi
-echo ""
-read -p "$( echo -e "Press ${GRAY}[ ${NC}${green}Enter${NC} ${GRAY}]${NC} For Starting Installation") "
-echo ""
-clear
+
+echo ""  # Baris kosong sebagai pemisah estetika
 
 # --- Cek Root dan Virtualisasi ---
 if [ "${EUID}" -ne 0 ]; then
@@ -89,6 +89,11 @@ if [ "$(systemd-detect-virt)" == "openvz" ]; then
     echo "OpenVZ is not supported"
     exit 1
 fi
+
+# --- SEMUA PENGECEKAN SUDAH LULUS → LANJUTKAN INSTALASI SECARA OTOMATIS ---
+echo -e "${GREENBG} ALL CHECKS PASSED. STARTING INSTALLATION... ${FONT}"
+sleep 2  # Opsional: beri jeda 2 detik agar pengguna bisa membaca pesan sukses
+clear
 
 MYIP=$(curl -sS ipv4.icanhazip.com)
 echo -e "\e[32mloading...\e[0m"
@@ -266,7 +271,7 @@ function pasang_domain() {
         echo "IP=" >> /var/lib/kyt/ipvps.conf
         echo $host1 > /etc/xray/domain
         echo $host1 > /etc/xray/scdomain
-        echo $host1 > /etc/v2ray/domain
+        #echo $host1 > /etc/v2ray/domain
         echo $host1 > /root/domain
         echo $host1 > /root/scdomain
         echo ""
