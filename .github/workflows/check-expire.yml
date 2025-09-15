@@ -32,7 +32,6 @@ jobs:
             local exp="$3"
             local TEXT="<code>──────────────────────────────────</code>
 <b>⚠️ YOUR VPS EXPIRED ⚠️</b>
-<code>──────────────────────────────────</code>
 USER        : $user
 VPS IP      : $ip
 DATE        : $exp
@@ -67,4 +66,5 @@ DATE        : $exp
                 echo "❌ Tanggal invalid: $exp untuk $user"
               fi
             fi
+
           done <<< "$raw_data"
