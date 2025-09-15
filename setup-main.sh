@@ -195,7 +195,6 @@ function pasang_domain() {
         DOMAIN="$host1"
         echo "IP=" >> /var/lib/kyt/ipvps.conf
         echo "$host1" > /etc/xray/domain
-        echo "$host1" > /etc/xray/scdomain
         echo "$host1" > /root/domain
         echo "$host1" > /root/scdomain
         echo ""
