@@ -191,13 +191,13 @@ function pasang_domain() {
         echo -e "\e[1;36m     INPUT SUBDOMAIN $NC"
         echo -e "\e[1;32m===============================$NC"
         echo -e "\033[91;1m contoh subdomain :\033[0m \033[93 wendi.ssh.cloud\033[0m"
-        read -p "SUBDOMAIN :  " host1
-        DOMAIN="$host1"
+        read -p "SUBDOMAIN :  " DOMAIN
+        DOMAIN="$DOMAIN"
         echo "IP=" >> /var/lib/kyt/ipvps.conf
         mkdir -p /etc/xray
-        echo "$host1" > /etc/xray/domain
-        echo "$host1" > /root/domain
-        echo "$host1" > /root/scdomain
+        echo "$DOMAIN" > /etc/xray/domain
+        echo "$DOMAIN" > /root/domain
+        echo "$DOMAIN" > /root/scdomain
         echo ""
         print_install "Subdomain/Domain is Used"
         echo "Domain kustom digunakan: $DOMAIN"
