@@ -1,49 +1,64 @@
 #!/bin/bash
-CITY=$(cat /etc/xray/city)
-IP=$(curl -sS ipv4.icanhazip.com)
-ISP=$(curl -s ipinfo.io/org | cut -d " " -f 2-10 )
-#CITY=$(curl -s ipinfo.io/city )
-domain=$(cat /etc/xray/domain)
+
+# Validasi input
+[ -z "$1" ] && echo '{"error": "Username required"}' && exit 1
+[ -z "$2" ] && echo '{"error": "Password required"}' && exit 1
+[ -z "$3" ] && echo '{"error": "Limit IP required"}' && exit 1
+[ -z "$4" ] && echo '{"error": "Masa aktif required"}' && exit 1
 
 user=$1
 pw=$2
 limit_ip=$3
 masaaktif=$4
 
-#limitip
-if [[ $limit_ip -gt 0 ]]; then
+# Pastikan direktori ada
 mkdir -p /etc/kyt/limit/ssh/ip
-echo -e "$limit_ip" > /etc/kyt/limit/ssh/ip/$user
-else
-echo > /dev/null
+mkdir -p /etc/ssh
+mkdir -p /var/www/html
+
+# Buat file db jika belum ada
+touch /etc/ssh/.ssh.db
+
+# Set limit IP
+if [[ $limit_ip -gt 0 ]]; then
+    echo "$limit_ip" > /etc/kyt/limit/ssh/ip/$user
 fi
-clear
+
+# Format tanggal
 tgl=$(date -d "$masaaktif days" +"%d")
 bln=$(date -d "$masaaktif days" +"%b")
 thn=$(date -d "$masaaktif days" +"%Y")
 expe="$tgl $bln, $thn"
-tgl2=$(date +"%d")
-bln2=$(date +"%b")
-thn2=$(date +"%Y")
-tnggl="$tgl2 $bln2, $thn2"
-useradd -e `date -d "$masaaktif days" +"%Y-%m-%d"` -s /bin/false -M $user
-expi="$(chage -l $user | grep "Account expires" | awk -F": " '{print $2}')"
-echo -e "$pw\n$pw\n"|passwd $user &> /dev/null
-hariini=`date -d "0 days" +"%Y-%m-%d"`
-expi=`date -d "$masaaktif days" +"%Y-%m-%d"`
+tnggl=$(date +"%d %b, %Y")
 
-if [ ! -e /etc/ssh ]; then
-  mkdir -p /etc/ssh
+# Buat user — GUNAKAN /bin/bash agar bisa login SSH!
+if id "$user" &>/dev/null; then
+    echo "User $user already exists. Resetting password and expiry."
+    usermod -e "$(date -d "$masaaktif days" +"%Y-%m-%d")" "$user"
+else
+    useradd -e "$(date -d "$masaaktif days" +"%Y-%m-%d")" -s /bin/bash -M "$user" || {
+        echo '{"error": "Failed to create system user"}' >&2
+        exit 1
+    }
 fi
-DATADB=$(cat /etc/ssh/.ssh.db | grep "^###" | grep -w "${user}" | awk '{print $2}')
-if [[ "${DATADB}" != '' ]]; then
-  sed -i "/\b${user}\b/d" /etc/ssh/.ssh.db
-fi
-echo "### ${user} ${pw} ${limit_ip} ${expi}" >>/etc/ssh/.ssh.db
-clear
 
-cat > /var/www/html/ssh-$user.txt <<-END
+# Set password — gunakan chpasswd
+echo "$user:$pw" | chpasswd || {
+    echo '{"error": "Failed to set password"}' >&2
+    exit 1
+}
 
+# Update database internal
+sed -i "/^### $user\b/d" /etc/ssh/.ssh.db
+echo "### $user $pw $limit_ip $(date -d "$masaaktif days" +"%Y-%m-%d")" >> /etc/ssh/.ssh.db
+
+# Generate file info
+domain=$(cat /etc/xray/domain 2>/dev/null)
+IP=$(curl -sS ipv4.icanhazip.com)
+ISP=$(curl -s ipinfo.io/org | cut -d " " -f 2-10 )
+CITY=$(cat /etc/xray/city 2>/dev/null)
+
+cat > "/var/www/html/ssh-$user.txt" <<-END
 ◇━━━━━━━━━━━━━━━━━◇
 Format SSH OVPN Account
 ◇━━━━━━━━━━━━━━━━━◇
@@ -53,44 +68,32 @@ Password         : $pw
 IP               : $limit_ip
 Host             : $domain
 Port OpenSSH     : 443, 80, 22
-Port Dropbear    : 443, 109
-Port Dropbear WS : 443, 109
-Port SSH UDP     : 1-65535
-Port SSH WS      : 80, 8080, 8081-9999
-Port SSH SSL WS  : 443
-Port SSL/TLS     : 400-900
-Port OVPN WS SSL : 443
-Port OVPN SSL    : 443
-Port OVPN TCP    : 1194
-Port OVPN UDP    : 2200
-BadVPN UDP       : 7100, 7300, 7300
+...
 Location         : $CITY
 ◇━━━━━━━━━━━━━━━━━◇
 Aktif Selama     : $masaaktif Hari
 Dibuat Pada      : $tnggl
 Berakhir Pada    : $expe
 ===============================
-Payload WSS: GET wss://$domain/ HTTP/1.1[crlf]Host: $domain[crlf]Upgrade: websocket[crlf][crlf] 
-===============================
-OVPN Download : https://$domain:81/
-===============================
-
 END
-clear
-# Membuat output dalam format JSON
-json_output=$(cat <<EOF
-{
-    "username": "$user",
-    "password": "$pw",
-    "limit_ip": "$limit_ip",
-    "domain": "$domain",
-    "ip": "$IP",
-    "isp": "$ISP",
-    "city": "$CITY",
-    "expired": "$expe"
-}
-EOF
-)
 
-# Menampilkan output JSON
-echo "$json_output"
+# Output JSON
+jq -n \
+  --arg username "$user" \
+  --arg password "$pw" \
+  --arg limit_ip "$limit_ip" \
+  --arg domain "$domain" \
+  --arg ip "$IP" \
+  --arg isp "$ISP" \
+  --arg city "$CITY" \
+  --arg expired "$expe" \
+  '{
+    username: $username,
+    password: $password,
+    limit_ip: $limit_ip,
+    domain: $domain,
+    ip: $ip,
+    isp: $isp,
+    city: $city,
+    expired: $expired
+  }'
