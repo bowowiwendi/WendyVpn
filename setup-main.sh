@@ -193,7 +193,7 @@ function pasang_domain() {
         echo -e "\033[91;1m contoh subdomain :\033[0m \033[93 wendi.ssh.cloud\033[0m"
         read -p "SUBDOMAIN :  " DOMAIN
         DOMAIN="$DOMAIN"
-        echo "IP=" >> /var/lib/kyt/ipvps.conf
+        #echo "IP=" >> /var/lib/kyt/ipvps.conf
         mkdir -p /etc/xray
         echo "$DOMAIN" > /etc/xray/domain
         echo "$DOMAIN" > /root/domain
