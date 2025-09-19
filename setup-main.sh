@@ -94,8 +94,7 @@ echo -e "${GREENBG} ALL CHECKS PASSED. STARTING INSTALLATION... ${FONT}"
 sleep 2  # Opsional: beri jeda 2 detik agar pengguna bisa membaca pesan sukses
 clear
 
-MYIP=$(curl -sS ipv4.icanhazip.com)
-echo -e "\e[32mloading...\e[0m"
+pasang_domain
 clear
 
 # --- Pengambilan Data Pengguna ---
