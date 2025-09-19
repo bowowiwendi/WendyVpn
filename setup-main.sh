@@ -1191,11 +1191,10 @@ function install_openvpn() {
 function install(){
     echo "========== MENJALANKAN FUNGSI INSTALL UTAMA =========="
     clear
-    pasang_domain
+    #pasang_domain
     first_setup
     base_package
     make_folder_xray
-    menu
     profile
     password_default
     pasang_ssl
@@ -1212,6 +1211,7 @@ function install(){
     ins_swab
     ins_Fail2ban
     ins_epro
+    menu
     ins_restart
     enable_services
     restart_system
