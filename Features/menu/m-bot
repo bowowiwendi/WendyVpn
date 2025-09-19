@@ -110,6 +110,7 @@ wget https://raw.githubusercontent.com/bowowiwendi/WendyVpn/ABSTRAK/bot/kyt.zip
 unzip kyt.zip
 pip3 install -r kyt/requirements.txt
 apt install python3-telethon
+apt install python3-requests
 rm -rf kyt.zip
 clear
 echo -e "\033[1;36m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m"
