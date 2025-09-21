@@ -94,9 +94,6 @@ echo -e "${GREENBG} ALL CHECKS PASSED. STARTING INSTALLATION... ${FONT}"
 sleep 2  # Opsional: beri jeda 2 detik agar pengguna bisa membaca pesan sukses
 clear
 
-pasang_domain
-clear
-
 # --- Pengambilan Data Pengguna ---
 rm -f /usr/bin/user
 username=$(curl -s https://raw.githubusercontent.com/bowowiwendi/ipvps/main/ip | grep $MYIP | awk '{print $2}')
@@ -1190,7 +1187,7 @@ function install_openvpn() {
 function install(){
     echo "========== MENJALANKAN FUNGSI INSTALL UTAMA =========="
     clear
-    #pasang_domain
+    pasang_domain
     first_setup
     base_package
     make_folder_xray
