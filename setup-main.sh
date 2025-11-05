@@ -1058,6 +1058,9 @@ TIMES=30
 👤 <b>Username :</b> <code>root</code>
 🔑 <b>Password :</b> $passwd_display
 
+🖥️ <b>Panel Manajemen SSH</b> 🖥️
+🌐 <b>URL Panel :</b> <code>https://panel.$domain</code>
+
 💾 <b>Simpan informasi ini baik-baik!</b> 💾
 <i>Informasi ini tidak akan dikirim ulang.</i>
 
@@ -1165,6 +1168,7 @@ function install(){
     ins_swab
     ins_Fail2ban
     ins_epro
+    install_ssh_panel
     menu
     ins_restart
     enable_services
