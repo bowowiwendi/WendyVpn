@@ -382,7 +382,167 @@ EOF
     print_ok "Folder dan file Xray berhasil dibuat."
     print_ok "make_folder_xray SELESAI"
 }
+# Fungsi untuk menginstal panel manajemen SSH
+function install_ssh_panel() {
+    print_install "MENJALANKAN install_ssh_panel"
+    
+    # Cek apakah domain sudah tersedia
+    if [ -z "$DOMAIN" ]; then
+        print_error "Domain tidak ditemukan. Tidak dapat melanjutkan instalasi panel SSH."
+        return 1
+    fi
+    
+    print_ok "Menginstal panel manajemen SSH untuk domain: $DOMAIN"
+    
+    # Install dependencies untuk panel
+    apt install -y python3 python3-pip python3-dev python3-setuptools python3-venv python3-wheel build-essential libssl-dev libffi-dev || print_error "Gagal menginstal dependencies Python"
+    
+    # Buat direktori untuk panel
+    mkdir -p /var/www/ssh-panel
+    cd /var/www/ssh-panel
+    
+    # Download dan install panel SSH
+    print_ok "Mengunduh file panel SSH..."
+    wget -O ssh-panel.zip "${REPO}panel/ssh-panel.zip" || print_error "Gagal mengunduh panel SSH"
+    unzip -o ssh-panel.zip || print_error "Gagal mengekstrak panel SSH"
+    rm ssh-panel.zip
+    
+    # Install Python requirements
+    if [ -f "requirements.txt" ]; then
+        print_ok "Menginstal requirements Python untuk panel SSH..."
+        pip3 install -r requirements.txt || print_error "Gagal menginstal requirements Python"
+    fi
+    
+    # Konfigurasi Nginx untuk panel SSH
+    print_ok "Mengkonfigurasi Nginx untuk panel SSH..."
+    cat > /etc/nginx/conf.d/ssh-panel.conf << EOF
+server {
+    listen 80;
+    server_name panel.$DOMAIN;
+    root /var/www/ssh-panel;
+    index index.py index.html;
+    
+    location / {
+        try_files \$uri @wsgi;
+    }
+    
+    location @wsgi {
+        include uwsgi_params;
+        uwsgi_pass unix:/var/www/ssh-panel/ssh-panel.sock;
+    }
+    
+    location /static {
+        alias /var/www/ssh-panel/static;
+        expires 30d;
+    }
+}
+EOF
+    
+    # Konfigurasi uWSGI untuk panel SSH
+    print_ok "Mengkonfigurasi uWSGI untuk panel SSH..."
+    cat > /etc/uwsgi/apps-available/ssh-panel.ini << EOF
+[uwsgi]
+project = ssh-panel
+base = /var/www/ssh-panel
 
+app = app
+module = %(app)
+
+home = %(base)/venv
+pythonpath = %(base)
+
+socket = %(base)/%(project).sock
+chmod-socket = 666
+
+callable = app
+
+processes = 2
+threads = 2
+
+vacuum = true
+die-on-term = true
+EOF
+    
+    # Buat link untuk konfigurasi uWSGI
+    ln -s /etc/uwsgi/apps-available/ssh-panel.ini /etc/uwsgi/apps-enabled/
+    
+    # Install SSL untuk panel SSH
+    print_ok "Menginstal SSL untuk panel SSH..."
+    /root/.acme.sh/acme.sh --issue -d panel.$DOMAIN --standalone -k ec-256 || print_error "Gagal menerbitkan sertifikat SSL untuk panel.$DOMAIN"
+    /root/.acme.sh/acme.sh --installcert -d panel.$DOMAIN --fullchainpath /etc/ssl/certs/ssh-panel.crt --keypath /etc/ssl/private/ssh-panel.key --ecc || print_error "Gagal menginstal sertifikat SSL untuk panel.$DOMAIN"
+    
+    # Update konfigurasi Nginx untuk SSL
+    cat > /etc/nginx/conf.d/ssh-panel.conf << EOF
+server {
+    listen 80;
+    server_name panel.$DOMAIN;
+    return 301 https://\$host\$request_uri;
+}
+
+server {
+    listen 443 ssl http2;
+    server_name panel.$DOMAIN;
+    root /var/www/ssh-panel;
+    index index.py index.html;
+    
+    ssl_certificate /etc/ssl/certs/ssh-panel.crt;
+    ssl_certificate_key /etc/ssl/private/ssh-panel.key;
+    ssl_session_cache shared:SSL:10m;
+    ssl_session_timeout 10m;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_ciphers 'EECDH+AESGCM:EDH+AESGCM:AES256+EECDH:AES256+EDH';
+    ssl_prefer_server_ciphers on;
+    
+    location / {
+        try_files \$uri @wsgi;
+    }
+    
+    location @wsgi {
+        include uwsgi_params;
+        uwsgi_pass unix:/var/www/ssh-panel/ssh-panel.sock;
+    }
+    
+    location /static {
+        alias /var/www/ssh-panel/static;
+        expires 30d;
+    }
+}
+EOF
+    
+    # Buat service systemd untuk uWSGI
+    print_ok "Membuat service systemd untuk uWSGI..."
+    cat > /etc/systemd/system/ssh-panel.service << EOF
+[Unit]
+Description=uWSGI instance for SSH Panel
+After=network.target
+
+[Service]
+User=www-data
+Group=www-data
+WorkingDirectory=/var/www/ssh-panel
+Environment="PATH=/var/www/ssh-panel/venv/bin"
+ExecStart=/var/www/ssh-panel/venv/bin/uwsgi --ini ssh-panel.ini
+
+[Install]
+WantedBy=multi-user.target
+EOF
+    
+    # Set permission
+    chown -R www-data:www-data /var/www/ssh-panel
+    chmod -R 755 /var/www/ssh-panel
+    
+    # Enable dan start service
+    systemctl daemon-reload
+    systemctl enable ssh-panel.service
+    systemctl start ssh-panel.service || print_error "Gagal memulai service SSH Panel"
+    
+    # Restart Nginx
+    systemctl restart nginx || print_error "Gagal merestart Nginx"
+    
+    print_success "SSH Panel Installation"
+    print_ok "Panel SSH dapat diakses di: https://panel.$DOMAIN"
+    print_ok "install_ssh_panel SELESAI"
+}
 function install_xray() {
     print_install "MENJALANKAN install_xray"
     XRAY_VERSION="v25.1.30"
