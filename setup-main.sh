@@ -1050,52 +1050,68 @@ function password_default() {
 }
 function restart_system() {
     log "========== MENJALANKAN restart_system =========="
-    # Pastikan variabel yang dibutuhkan telah didefinisikan sebelum fungsi ini dipanggil
-    domain=$(cat /root/domain 2>/dev/null) # Tangkap error jika file tidak ada
+    
+    # Pastikan variabel yang dibutuhkan telah didefinisikan
+    domain=$(cat /root/domain 2>/dev/null)
     if [ -z "$domain" ]; then
         log "WARNING: Domain tidak ditemukan untuk notifikasi Telegram."
+        domain="tidak tersedia"
     fi
-    USRSC=$(wget -qO- https://raw.githubusercontent.com/bowowiwendi/ipvps/main/main/ip | grep "$ipsaya" | awk '{print $2}')
-    EXPSC=$(wget -qO- https://raw.githubusercontent.com/bowowiwendi/ipvps/main/main/ip | grep "$ipsaya" | awk '{print $3}')
+    
+    # Ambil data dari GitHub dengan penanganan error
+    USRSC=$(wget -qO- https://raw.githubusercontent.com/bowowiwendi/ipvps/main/main/ip | grep "$ipsaya" | awk '{print $2}' 2>/dev/null)
+    EXPSC=$(wget -qO- https://raw.githubusercontent.com/bowowiwendi/ipvps/main/main/ip | grep "$ipsaya" | awk '{print $3}' 2>/dev/null)
+    
+    # Pastikan password tersedia
+    if [ -z "$passwd" ]; then
+        passwd="tidak diubah"
+    fi
+    
     # Format tanggal dan waktu
     DATE_FORMAT=$(date '+%d-%m-%Y')
     TIME_FORMAT=$(date '+%H:%M:%S')
-    # Membangun pesan teks
-    TEXT="ð     <b>â  ¨ VPS SETUP COMPLETE â  ¨</b> ð     
-<b>ð     INFORMATION DETAILS ð     </b>
-ð   ¤ ID       : <code>$USRSC</code>
-ð     Domain   : <code>$domain</code>
-ð     Wildcard : <code>*.$domain</code>
-ð     Date     : <code>$DATE_FORMAT</code>
-â  ° Time     : <code>$TIME_FORMAT</code>
-ð     IP VPS   : <code>$MYIP</code>
-â  ³ Exp Sc   : <code>$EXPSC</code>
-ð     User     : <code>root</code>
-ð     Password : <code>$passwd</code>
-ð    ð   ¢ð   ¡ð   §ð    ð    ð   § :
-ð   ¬ð   §ð    ð    ð    ð    ð   ¥ð    ð    
-â    @WendiVpn
-ð   ¬ð   ªð    ð    ð   §ð   ¦ð    ð   £ð   £
-â    +6283153170199
-<i>Simpan Baik-baik informasi ini tidak akan di kirim Ulang </i>"
-    # Membangun reply markup sebagai variabel terpisah untuk kejelasan
-    REPLY_MARKUP='{"inline_keyboard":[[{"text":"á´  Ê  á´  á´  Ê  ","url":"https://t.me/wendivpn"},{"text":"Contack","url":"https://wa.me/6283153170199"}]]}'
+    
+    # Membangun pesan teks dengan ikon yang lebih jelas
+    TEXT="✅ <b>🎉 VPS SETUP COMPLETE 🎉</b> ✅
+    
+<b>📋 INFORMATION DETAILS 📋</b>
+👤 ID       : <code>${USRSC:-tidak tersedia}</code>
+🌐 Domain   : <code>$domain</code>
+🔗 Wildcard : <code>*.$domain</code>
+📅 Date     : <code>$DATE_FORMAT</code>
+⏰ Time     : <code>$TIME_FORMAT</code>
+🖥️ IP VPS   : <code>${MYIP:-tidak tersedia}</code>
+⏳ Exp Sc   : <code>${EXPSC:-tidak tersedia}</code>
+👤 User     : <code>root</code>
+🔐 Password : <code>$passwd</code>
+
+📞 Kontak:
+🔹 Telegram: @WendiVpn
+🔹 WhatsApp: +6283153170199
+
+<i>Simpan baik-baik informasi ini, tidak akan dikirim ulang</i>"
+    
+    # Membangun reply markup
+    REPLY_MARKUP='{"inline_keyboard":[[{"text":"📱 Telegram","url":"https://t.me/wendivpn"},{"text":"📞 WhatsApp","url":"https://wa.me/6283153170199"}]]}'
+    
     # Mengirim pesan melalui curl
     log "Mengirim notifikasi ke Telegram..."
-    curl -s --max-time "$TIMES" \
+    response=$(curl -s --max-time "$TIMES" \
          -d "chat_id=$CHATID" \
          -d "disable_web_page_preview=1" \
          -d "text=$TEXT" \
          -d "parse_mode=html" \
          -d "reply_markup=$REPLY_MARKUP" \
-         "$URL" >> "$LOG_FILE" 2>&1
+         "$URL" 2>> "$LOG_FILE")
+    
     # Periksa apakah curl berhasil
     if [ $? -ne 0 ]; then
         echo "Gagal mengirim notifikasi ke Telegram."
-        log "ERROR: Gagal mengirim notifikasi ke Telegram."
+        log "ERROR: Gagal mengirim notifikasi ke Telegram. Response: $response"
     else
         log "Notifikasi Telegram berhasil dikirim."
     fi
+    
     log "========== restart_system SELESAI =========="
 }
 # --- Fungsi Utama Install ---
