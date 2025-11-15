@@ -3,7 +3,7 @@
 # --- Konfigurasi ---
 # Ganti dengan versi Dropbear 2019 yang sesuai untuk sistem Anda
 # Temukan versi yang tersedia dengan: apt-cache policy dropbear
-DROPBEAR_VERSION="2019.78-1" 
+DROPBEAR_VERSION="2019.78" 
 URL_CONFIG="https://raw.githubusercontent.com/bowowiwendi/WendyVpn/ABSTRAK/cfg_conf_js/dropbear.conf"
 
 # --- Eksekusi ---
