@@ -1,44 +1,66 @@
 #!/bin/bash
 
-# --- Konfigurasi ---
-# Ganti dengan versi Dropbear 2019 yang sesuai untuk sistem Anda
-# Temukan versi yang tersedia dengan: apt-cache policy dropbear
-DROPBEAR_VERSION="2019.78" 
-URL_CONFIG="https://raw.githubusercontent.com/bowowiwendi/WendyVpn/ABSTRAK/cfg_conf_js/dropbear.conf"
+# === Konfigurasi ===
+DROPBEAR_VERSION="2019.78"
+DROPBEAR_DEB_URL="https://raw.githubusercontent.com/bowowiwendi/WendyVpn/ABSTRAK/cfg_conf_js/dropbear_2019.78-0ubuntu1_amd64.deb"
+DROPBEAR_CONFIG_URL="https://raw.githubusercontent.com/bowowiwendi/WendyVpn/ABSTRAK/cfg_conf_js/dropbear.conf"
 
-# --- Eksekusi ---
-# Keluar dari script jika ada perintah yang gagal
-set -e
+# === Fungsi Bantu ===
+log_info() {
+    echo "[INFO] $1"
+}
 
-echo "Memulai proses instalasi Dropbear versi ${DROPBEAR_VERSION}..."
+log_error() {
+    echo "[ERROR] $1" >&2
+}
 
-# 1. Update daftar paket
-echo "Mengupdate daftar paket..."
-apt-get update
+# === Eksekusi Utama ===
+log_info "Memulai instalasi Dropbear versi ${DROPBEAR_VERSION}..."
 
-# 2. Instal Dropbear dengan versi spesifik
-echo "Menginstal dropbear versi ${DROPBEAR_VERSION}..."
-apt-get install dropbear=${DROPBEAR_VERSION} -y
+# 1. Backup konfigurasi dan kunci host
+log_info "Backup konfigurasi dan kunci host Dropbear..."
+sudo cp /etc/default/dropbear /etc/default/dropbear.bak 2>/dev/null || true
+sudo cp /etc/dropbear/dropbear_rsa_host_key /etc/dropbear/dropbear_rsa_host_key.bak 2>/dev/null || true
+sudo cp /etc/dropbear/dropbear_dss_host_key /etc/dropbear/dropbear_dss_host_key.bak 2>/dev/null || true
+sudo cp /etc/dropbear/dropbear_ecdsa_host_key /etc/dropbear/dropbear_ecdsa_host_key.bak 2>/dev/null || true
 
-# 3. Unduh file konfigurasi
-echo "Mengunduh file konfigurasi..."
-wget -q -O /etc/default/dropbear "${URL_CONFIG}"
+# 2. Hapus versi dropbear saat ini
+log_info "Menghapus Dropbear versi saat ini..."
+sudo apt remove -y dropbear 2>/dev/null || true
+sudo apt autoremove -y
 
-# 4. Setel izin file konfigurasi yang benar (bukan eksekusi)
-echo "Mengatur izin file konfigurasi..."
-chmod 644 /etc/default/dropbear
+# 3. Unduh paket Dropbear
+log_info "Mengunduh Dropbear ${DROPBEAR_VERSION} dari: ${DROPBEAR_DEB_URL}..."
+wget -q -O "dropbear_${DROPBEAR_VERSION}_amd64.deb" "${DROPBEAR_DEB_URL}"
 
-# 5. Restart layanan Dropbear untuk menerapkan konfigurasi
-echo "Me-restart layanan Dropbear..."
-systemctl restart dropbear
+# 4. Instal paket dropbear
+log_info "Menginstal Dropbear ${DROPBEAR_VERSION}..."
+sudo dpkg -i "dropbear_${DROPBEAR_VERSION}_amd64.deb"
 
-# 6. Cek status layanan
-echo "Menampilkan status layanan Dropbear..."
-systemctl status dropbear --no-pager
+# 5. Perbaiki dependensi jika ada
+log_info "Memperbaiki dependensi (jika ada)..."
+sudo apt --fix-broken install -y
 
-# 7. "Hold" paket untuk mencegah upgrade otomatis
-echo "Menahan paket dropbear agar tidak diperbarui otomatis..."
-apt-mark hold dropbear
+# 6. Unduh konfigurasi (opsional, jika ingin mengganti konfigurasi default)
+log_info "Mengunduh file konfigurasi dari: ${DROPBEAR_CONFIG_URL}..."
+sudo wget -q -O /etc/default/dropbear "${DROPBEAR_CONFIG_URL}"
 
-echo "Instalasi dan konfigurasi Dropbear versi ${DROPBEAR_VERSION} selesai!"
-echo "Catatan: Script ini mempertahankan dropbear versi 2019 sesuai keinginan."
+# 7. Setel izin file konfigurasi
+log_info "Mengatur izin file konfigurasi..."
+sudo chmod 644 /etc/default/dropbear
+
+# 8. Restart layanan Dropbear
+log_info "Me-restart layanan Dropbear..."
+sudo systemctl enable dropbear
+sudo systemctl restart dropbear
+
+# 9. Cek status layanan
+log_info "Memeriksa status layanan Dropbear..."
+sudo systemctl status dropbear --no-pager
+
+# 10. Tahan paket agar tidak diperbarui otomatis
+log_info "Menahan paket dropbear agar tidak diperbarui otomatis..."
+sudo apt-mark hold dropbear
+
+log_info "Instalasi Dropbear versi ${DROPBEAR_VERSION} selesai!"
+log_info "Konfigurasi telah diterapkan dan upgrade otomatis dinonaktifkan."
