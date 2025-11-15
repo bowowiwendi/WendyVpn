@@ -1,8 +1,8 @@
 #!/bin/bash
 
 # === Konfigurasi ===
-DROPBEAR_VERSION="2019.78"
-DROPBEAR_DEB_URL="https://raw.githubusercontent.com/bowowiwendi/WendyVpn/ABSTRAK/cfg_conf_js/dropbear_2019.78-0ubuntu1_amd64.deb"
+DROPBEAR_VERSION="2019.76"
+DROPBEAR_DEB_URL="http://archive.ubuntu.com/ubuntu/pool/universe/d/dropbear/dropbear-bin_2019.76-2build1_amd64.deb"
 DROPBEAR_CONFIG_URL="https://raw.githubusercontent.com/bowowiwendi/WendyVpn/ABSTRAK/cfg_conf_js/dropbear.conf"
 
 # === Fungsi Bantu ===
@@ -15,7 +15,7 @@ log_error() {
 }
 
 # === Eksekusi Utama ===
-log_info "Memulai instalasi Dropbear versi ${DROPBEAR_VERSION}..."
+log_info "Memulai instalasi Dropbear versi ${DROPBEAR_VERSION} (tahun 2019)..."
 
 # 1. Backup konfigurasi dan kunci host
 log_info "Backup konfigurasi dan kunci host Dropbear..."
@@ -29,7 +29,7 @@ log_info "Menghapus Dropbear versi saat ini..."
 sudo apt remove -y dropbear 2>/dev/null || true
 sudo apt autoremove -y
 
-# 3. Unduh paket Dropbear
+# 3. Unduh paket Dropbear 2019.76
 log_info "Mengunduh Dropbear ${DROPBEAR_VERSION} dari: ${DROPBEAR_DEB_URL}..."
 wget -q -O "dropbear_${DROPBEAR_VERSION}_amd64.deb" "${DROPBEAR_DEB_URL}"
 
@@ -62,5 +62,5 @@ sudo systemctl status dropbear --no-pager
 log_info "Menahan paket dropbear agar tidak diperbarui otomatis..."
 sudo apt-mark hold dropbear
 
-log_info "Instalasi Dropbear versi ${DROPBEAR_VERSION} selesai!"
+log_info "Instalasi Dropbear versi ${DROPBEAR_VERSION} (tahun 2019) selesai!"
 log_info "Konfigurasi telah diterapkan dan upgrade otomatis dinonaktifkan."
