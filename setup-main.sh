@@ -436,7 +436,7 @@ EOF
     print_ok "install_xray SELESAI"
 }
 
-function ssh(){
+function setup_ssh(){
     print_install "MENJALANKAN ssh"
     print_ok "Mengunduh konfigurasi common-password..."
     wget -O /etc/pam.d/common-password "${REPO}files/password" || print_error "Gagal mengunduh common-password."
@@ -995,7 +995,7 @@ function install(){
     nginx_install
     install_openvpn
     install_xray
-    ssh
+    setup_ssh
     udp_mini
     ssh_slow
     ins_SSHD
