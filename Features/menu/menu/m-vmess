@@ -1,0 +1,1064 @@
+#!/bin/bash
+#IZIN SCRIPT
+MYIP=$(curl -sS ipv4.icanhazip.com) 
+# Getting bot
+CHATID=$(grep -E "^#bot# " "/etc/bot/.bot.db" | cut -d ' ' -f 3)
+KEY=$(grep -E "^#bot# " "/etc/bot/.bot.db" | cut -d ' ' -f 2)
+export TIME="5"
+export URL="https://api.telegram.org/bot$KEY/sendMessage"
+NS=$(cat /root/nsdomain > /dev/null 2>&1)
+PUB=$(cat /etc/slowdns/server.pub > /dev/null 2>&1)
+# Valid Script
+ipsaya=$(wget -qO- ipinfo.io/ip) 
+data_server=$(curl -v --insecure --silent https://google.com/ 2>&1 | grep Date | sed -e 's/< Date: //')  
+date_list=$(date +"%Y-%m-%d" -d "$data_server") 
+data_ip="https://raw.githubusercontent.com/bowowiwendi/ipvps/main/main/ip"
+checking_sc() {
+  useexp=$(wget -qO- $data_ip | grep $ipsaya | awk '{print $3}')
+  if [[ $date_list < $useexp ]]; then
+    echo -ne
+  else
+    echo -e "\033[1;93m────────────────────────────────────────────\033[0m"
+    echo -e "\033[42m          404 NOT FOUND AUTOSCRIPT          \033[0m"
+    echo -e "\033[1;93m────────────────────────────────────────────\033[0m"
+    echo -e ""
+    echo -e "            ${RED}PERMISSION DENIED !${NC}"
+    echo -e "   \033[0;33mYour VPS${NC} $ipsaya \033[0;33mHas been Banned${NC}"
+    echo -e "     \033[0;33mBuy access permissions for scripts${NC}"
+    echo -e "             \033[0;33mContact Admin :${NC}"
+    echo -e "      \033[0;36mTelegram${NC} t.me/WendiVpn"
+    echo -e "      ${GREEN}WhatsApp${NC} wa.me/6283153170199"
+    echo -e "\033[1;93m────────────────────────────────────────────\033[0m"
+    exit
+  fi
+}
+checking_sc
+clear
+
+# // addws
+function addws(){
+clear
+MYIP=$(curl -sS ipv4.icanhazip.com)
+red() { echo -e "\\033[32;1m${*}\\033[0m"; }
+# Getting bot
+CHATID=$(grep -E "^#bot# " "/etc/bot/.bot.db" | cut -d ' ' -f 3)
+KEY=$(grep -E "^#bot# " "/etc/bot/.bot.db" | cut -d ' ' -f 2)
+export TIME="1"
+export URL="https://api.telegram.org/bot$KEY/sendMessage"
+NS=$(cat /root/nsdomain > /dev/null 2>&1)
+PUB=$(cat /etc/slowdns/server.pub > /dev/null 2>&1)
+clear
+source /var/lib/kyt/ipvps.conf
+if [[ "$IP" = "" ]]; then
+domain=$(cat /etc/xray/domain)
+else
+domain=$IP
+fi
+tls="$(cat ~/log-install.txt | grep -w "Vmess TLS" | cut -d: -f2|sed 's/ //g')"
+none="$(cat ~/log-install.txt | grep -w "Vmess None TLS" | cut -d: -f2|sed 's/ //g')"
+until [[ $user =~ ^[a-zA-Z0-9_]+$ && ${CLIENT_EXISTS} == '0' ]]; do
+clear
+  echo -e "\033[1;93m┌──────────────────────────────────────────┐\033[0m"
+  echo -e "       CREATE TITLE  XRAY / VMESS   "
+  echo -e "\033[1;93m└──────────────────────────────────────────┘\033[0m"
+  echo -e ""
+		read -rp "USERNAME :  " -e user
+		CLIENT_EXISTS=$(grep -w $user /etc/xray/config.json | wc -l)
+
+		if [[ ${CLIENT_EXISTS} == '1' ]]; then
+clear
+            echo ""
+            echo ""
+			echo -e "\033[1;91mSorry, this name already exists"
+			echo ""
+      addws
+		fi
+	done
+ISP=$(cat /etc/xray/isp)
+CITY=$(cat /etc/xray/city)
+uuid=$(cat /proc/sys/kernel/random/uuid)
+read -p "EXPIRED (DAY): " masaaktif
+read -p "LIMIT QUOTA (GB): " Quota
+read -p "LIMIT DEVIC (IP): " iplimit
+echo -e "Kosongkan bug tdk masalah di atur nanti"
+read -p "ISI BUG (bug.com): " bug
+if [[ -z "$bug" ]]; then
+bug="bug.com"
+fi
+clear
+echo -e "Keterangan Pembayaran Kosongkan Tdk Masalah"
+read -p "Harga : " harga
+read -p "Payment (Contoh: Qris)  : " pembayaran
+if [ ! -e /etc/vmess ]; then
+mkdir -p /etc/vmess
+fi
+if [[ $iplimit -gt 0 ]]; then
+mkdir -p /etc/kyt/limit/vmess/ip
+echo -e "$iplimit" > /etc/kyt/limit/vmess/ip/$user
+else
+echo > /dev/null
+fi
+if [ -z ${Quota} ]; then
+  Quota="0"
+fi
+
+c=$(echo "${Quota}" | sed 's/[^0-9]*//g')
+d=$((${c} * 1024 * 1024 * 1024))
+
+if [[ ${c} != "0" ]]; then
+  echo "${d}" >/etc/vmess/${user}
+fi
+DATADB=$(cat /etc/vmess/.vmess.db | grep "^###" | grep -w "${user}" | awk '{print $2}')
+if [[ "${DATADB}" != '' ]]; then
+  sed -i "/\b${user}\b/d" /etc/vmess/.vmess.db
+fi
+tgl=$(date -d "$masaaktif days" +"%d")
+bln=$(date -d "$masaaktif days" +"%b")
+thn=$(date -d "$masaaktif days" +"%Y")
+expe="$tgl $bln, $thn"
+tgl2=$(date +"%d")
+bln2=$(date +"%b")
+thn2=$(date +"%Y")
+tnggl="$tgl2 $bln2, $thn2"
+exp=`date -d "$masaaktif days" +"%Y-%m-%d"`
+sed -i '/#vmess$/a\### '"$user $exp"'\
+},{"id": "'""$uuid""'","alterId": '"0"',"email": "'""$user""'"' /etc/xray/config.json
+echo "### ${user} ${exp} ${uuid} ${Quota} ${iplimit}" >>/etc/vmess/.vmess.db
+sed -i '/#vmessgrpc$/a\## '"$user $exp"'\
+},{"id": "'""$uuid""'","alterId": '"0"',"email": "'""$user""'"' /etc/xray/config.json
+clear
+asu=`cat<<EOF
+      {
+      "v": "2",
+      "ps": "${user}",
+      "add": "${bug}",
+      "port": "443",
+      "id": "${uuid}",
+      "aid": "0",
+      "net": "ws",
+      "path": "/vmess",
+      "type": "none",
+      "host": "${domain}",
+      "tls": "tls"
+}
+EOF`
+ask=`cat<<EOF
+      {
+      "v": "2",
+      "ps": "${user}",
+      "add": "${bug}",
+      "port": "80",
+      "id": "${uuid}",
+      "aid": "0",
+      "net": "ws",
+      "path": "/vmess",
+      "type": "none",
+      "host": "${domain}",
+      "tls": "none"
+}
+EOF`
+grpc=`cat<<EOF
+      {
+      "v": "2",
+      "ps": "${user}",
+      "add": "${domain}",
+      "port": "443",
+      "id": "${uuid}",
+      "aid": "0",
+      "net": "grpc",
+      "path": "vmess-grpc",
+      "type": "none",
+      "host": "${domain}",
+      "tls": "tls"
+}
+EOF`
+asik=`cat<<EOF
+      {
+      "v": "2",
+      "ps": "${user}",
+      "add": "quiz.int.vidio.com",
+      "port": "80",
+      "id": "${uuid}",
+      "aid": "0",
+      "net": "ws",
+      "path": "/vmess",
+      "type": "none",
+      "host": "${domain}",
+      "tls": "none"
+}  
+EOF`
+vmess_base641=$( base64 -w 0 <<< $vmess_json1)
+vmess_base642=$( base64 -w 0 <<< $vmess_json2)
+vmess_base643=$( base64 -w 0 <<< $vmess_json3)
+vmess_base644=$( base64 -w 0 <<< $vmess_json4)
+vmesslink1="vmess://$(echo $asu | base64 -w 0)"
+vmesslink2="vmess://$(echo $ask | base64 -w 0)"
+vmesslink3="vmess://$(echo $grpc | base64 -w 0)"
+vmesslink4="vmess://$(echo $asik | base64 -w 0)"
+systemctl restart xray > /dev/null 2>&1
+service cron restart > /dev/null 2>&1
+
+
+cat >/var/www/html/vmess-$user.txt <<-END
+---------------------------------------------------
+# Format Vmess WS TLS
+---------------------------------------------------
+proxies:
+  - name: Vmess-$user-WS TLS
+    server: ${domain}
+    port: 443
+    type: vmess
+    uuid: ${uuid}
+    alterId: 0
+    cipher: auto
+    tls: true
+    skip-cert-verify: true
+    servername: ${bug}
+    network: ws
+    ws-opts:
+      path: /vmess
+      headers:
+        Host: ${domain}
+    udp: true
+    
+---------------------------------------------------
+# Format Vmess WS Non TLS
+---------------------------------------------------
+proxies:
+  - name: Vmess-$user-WS Non TLS
+    server: ${bug}
+    port: 80
+    type: vmess
+    uuid: ${uuid}
+    alterId: 0
+    cipher: auto
+    tls: false
+    skip-cert-verify: true
+    servername: ${domain}
+    network: ws
+    ws-opts:
+      path: /vmess
+      headers:
+        Host: ${domain}
+    udp: true
+    
+# Format Vmess gRPC
+---------------------------------------------------
+proxies:
+  - name: Vmess-$user-gRPC (SNI)
+    server: ${domain}
+    port: 443
+    type: vmess
+    uuid: ${uuid}
+    alterId: 0
+    cipher: auto
+    tls: true
+    skip-cert-verify: true
+    servername: ${domain}
+    network: grpc
+    grpc-opts:
+      grpc-service-name: vmess-grpc
+    udp: true
+
+◇━━━━━━━━━━━━━━━━━◇
+   Vmess Account 
+◇━━━━━━━━━━━━━━━━━◇
+Remarks          : ${user}
+Domain           : ${domain}
+User Quota       : ${Quota} GB
+User Ip          : ${iplimit} IP
+Port TLS         : 400-900
+Port none TLS    : 80, 8080, 8081-9999
+id               : ${uuid}
+Xray Dns         : ${NS}
+Pubkey           : ${PUB}
+alterId          : 0
+Security         : auto
+Network          : ws
+Path             : /Multi-Path
+Dynamic          : https://bugmu.com/path
+ServiceName      : vmess-grpc
+Location         : $CITY
+---------------------------------------------------
+ Link Akun Vmess                   
+---------------------------------------------------
+Link TLS         : 
+${vmesslink1}
+---------------------------------------------------
+Link none TLS    : 
+${vmesslink2}
+---------------------------------------------------
+Link GRPC        : 
+${vmesslink3}
+---------------------------------------------------
+
+END
+
+
+clear
+CHATID="$CHATID"
+KEY="$KEY"
+TIME="$TIME"
+URL="$URL"
+TEXT="
+<code>---------------------------------------------------</code>
+<code>      XRAY/VMESS</code>
+<code>---------------------------------------------------</code>
+<code>Remarks : ${user}
+Iplimit : ${iplimit}
+Domain : ${domain}
+Host XrayDNS: ${NS}
+Pub Key: ${PUB}
+Limit Quota : ${Quota} GB
+Port TLS   : 400-900
+Port NTLS : 80, 8080, 8081-9999
+id  : ${uuid}
+alterId : 0
+Security : auto
+network : ws or grpc
+Path : /Multi-Path
+Dynamic : https://${bug}/path
+Name  : vmess-grpc</code>
+<code>---------------------------------------------------</code>
+<code> VMESS WS TLS</code>
+<code>---------------------------------------------------</code>
+<code>${vmesslink1}</code>
+<code>---------------------------------------------------</code>
+<code>VMESS WS NO TLS</code>
+<code>---------------------------------------------------</code>
+<code>${vmesslink2}</code>
+<code>---------------------------------------------------</code>
+<code> VMESS gRPC</code>
+<code>---------------------------------------------------</code>
+<code>${vmesslink3}</code>
+<code>---------------------------------------------------</code>
+<code> VMESS VIDIO</code>
+<code>---------------------------------------------------</code>
+<code>${vmesslink4}</code>
+<code>---------------------------------------------------</code>
+Format OpenClash : https://${domain}:81/vmess-$user.txt
+<code>---------------------------------------------------</code>
+Aktif Selama   : $masaaktif Hari
+Dibuat Pada    : $tnggl
+Berakhir Pada  : $expe
+<code>---------------------------------------------------</code>
+<code>*Allhamdulilah Trx Done*
+Terimakasih sudah order 🙏
+
+📦Barang : VMESS ✅️
+💸Nominal : $harga
+📆Tanggal : $tnggl
+💳Payment : $pembayaran</code>
+"
+
+curl -s --max-time $TIME -d "chat_id=$CHATID&disable_web_page_preview=1&text=$TEXT&parse_mode=html" $URL >/dev/null
+clear
+clear
+echo -e "\033[1;93m◇━━━━━━━━━━━━━━━━◇\033[0m"
+echo -e "                          Xray/Vmess"
+echo -e "\033[1;93m◇━━━━━━━━━━━━━━━━◇\033[0m"
+echo -e "Remarks          : ${user}"
+echo -e "Domain           : ${domain}"
+echo -e "User Quota       : ${Quota} GB"
+echo -e "User Ip          : ${iplimit} IP"
+echo -e "Port TLS         : 400-900"
+echo -e "port None TLS/WS : 80, 8080, 8081-9999"
+echo -e "id               : ${uuid}"
+echo -e "Localtions       : $CITY"
+echo -e "ISP              : $ISP"
+echo -e "alterId          : 0"
+echo -e "Security         : auto"
+echo -e "Network          : ws"
+echo -e "Path             : /vmess"
+echo -e "Dynamic Path     : https://${bug}/vmess"
+echo -e "ServiceName      : vmess-grpc"
+echo -e "Host XrayDNS     : ${NS}"
+echo -e "Pub Key          : ${PUB}"
+echo -e "\033[1;93m◇━━━━━━━━━━━━━━━━◇\033[0m"
+echo -e "Link TLS         : ${vmesslink1}"
+echo -e "\033[1;93m◇━━━━━━━━━━━━━━━━◇\033[0m"
+echo -e "Link none TLS    : ${vmesslink2}"
+echo -e "\033[1;93m◇━━━━━━━━━━━━━━━━◇\033[0m"
+echo -e "Link GRPC        : ${vmesslink3}"
+echo -e "\033[1;93m◇━━━━━━━━━━━━━━━━◇\033[0m"
+echo -e "Link Vidio       : ${vmesslink4}"
+echo -e "\033[1;93m◇━━━━━━━━━━━━━━━━◇\033[0m"
+echo -e "Format OpenClash : https://${domain}:81/vmess-$user.txt"
+echo -e "\033[1;93m◇━━━━━━━━━━━━━━━━◇\033[0m"
+echo -e "Aktif Selama     : $masaaktif Hari"
+echo -e "Dibuat Pada      : $tnggl"
+echo -e "Berakhir Pada    : $expe"
+echo -e "\033[1;93m◇━━━━━━━━━━━━━━━━◇\033[0m"
+echo -e ""
+read -p "press !! [ ENTER ] To Menu"
+m-vmess
+}
+
+# // trialws
+function trialws(){
+clear
+CHATID=$(grep -E "^#bot# " "/etc/bot/.bot.db" | cut -d ' ' -f 3)
+KEY=$(grep -E "^#bot# " "/etc/bot/.bot.db" | cut -d ' ' -f 2)
+export TIME="10"
+export URL="https://api.telegram.org/bot$KEY/sendMessage"
+PUB=$(cat /etc/slowdns/server.pub)
+NS=$(cat /root/nsdomain)
+clear
+#IZIN SCRIPT
+MYIP=$(curl -sS ipv4.icanhazip.com)
+clear
+
+# // Create Account
+domain=$(cat /etc/xray/domain)
+masaaktif=1
+Quota=1
+iplimit=3
+user=WV-`</dev/urandom tr -dc 0-9 | head -c3`
+echo -e "Kosongkan bug tdk masalah di atur nanti"
+if [[ -z "$bug" ]]; then
+bug="bug.com"
+fi
+
+if [ ! -e /etc/vmess ]; then
+  mkdir -p /etc/vmess
+fi
+
+if [[ $iplimit -gt 0 ]]; then
+mkdir -p /etc/kyt/limit/vmess/ip
+echo -e "$iplimit" > /etc/kyt/limit/vmess/ip/$user
+else
+echo > /dev/null
+fi
+
+if [ -z ${Quota} ]; then
+  Quota="0"
+fi
+
+c=$(echo "${Quota}" | sed 's/[^0-9]*//g')
+d=$((${c} * 1024 * 1024 * 1024))
+
+if [[ ${c} != "0" ]]; then
+  echo "${d}" >/etc/vmess/${user}
+fi
+DATADB=$(cat /etc/vmess/.vmess.db | grep "^###" | grep -w "${user}" | awk '{print $2}')
+if [[ "${DATADB}" != '' ]]; then
+  sed -i "/\b${user}\b/d" /etc/vmess/.vmess.db
+fi
+clear 
+uuid=$(cat /proc/sys/kernel/random/uuid)
+exp=$(date -d "$masaaktif days" +"%Y-%m-%d")
+tgl=$(date -d "$masaaktif days" +"%d")
+bln=$(date -d "$masaaktif days" +"%b")
+thn=$(date -d "$masaaktif days" +"%Y")
+expe="$tgl $bln, $thn"
+tgl2=$(date +"%d")
+bln2=$(date +"%b")
+thn2=$(date +"%Y")
+tnggl="$tgl2 $bln2, $thn2"
+sed -i '/#vmess$/a\### '"$user $exp"'\
+},{"id": "'""$uuid""'","alterId": '"0"',"email": "'""$user""'"' /etc/xray/config.json
+sed -i '/#vmessgprc$/a\## '"$user $exp"'\
+},{"id": "'""$uuid""'","alterId": '"0"',"email": "'""$user""'"' /etc/xray/config.json
+clear
+asu=`cat<<EOF
+      {
+      "v": "2",
+      "ps": "${user}",
+      "add": "${domain}",
+      "port": "443",
+      "id": "${uuid}",
+      "aid": "0",
+      "net": "ws",
+      "path": "/vmess",
+      "type": "none",
+      "host": "${domain}",
+      "tls": "tls"
+}
+EOF`
+ask=`cat<<EOF
+      {
+      "v": "2",
+      "ps": "${user}",
+      "add": "${domain}",
+      "port": "80",
+      "id": "${uuid}",
+      "aid": "0",
+      "net": "ws",
+      "path": "/vmess",
+      "type": "none",
+      "host": "${domain}",
+      "tls": "none"
+}
+EOF`
+grpc=`cat<<EOF
+      {
+      "v": "2",
+      "ps": "${user}",
+      "add": "${domain}",
+      "port": "443",
+      "id": "${uuid}",
+      "aid": "0",
+      "net": "grpc",
+      "path": "vmess-grpc",
+      "type": "none",
+      "host": "${domain}",
+      "tls": "tls"
+}
+EOF`
+vmess_base641=$( base64 -w 0 <<< $vmess_json1)
+vmess_base642=$( base64 -w 0 <<< $vmess_json2)
+vmess_base643=$( base64 -w 0 <<< $vmess_json3)
+vmesslink1="vmess://$(echo $asu | base64 -w 0)"
+vmesslink2="vmess://$(echo $ask | base64 -w 0)"
+vmesslink3="vmess://$(echo $grpc | base64 -w 0)"
+systemctl restart xray > /dev/null 2>&1
+service cron restart > /dev/null 2>&1
+
+
+cat >/var/www/html/vmess-$user.txt <<-END
+---------------------------------------------------
+# Format Vmess WS TLS
+---------------------------------------------------
+proxies:
+  - name: Vmess-$user-WS TLS
+    server: ${domain}
+    port: 443
+    type: vmess
+    uuid: ${uuid}
+    alterId: 0
+    cipher: auto
+    tls: true
+    skip-cert-verify: true
+    servername: ${domain}
+    network: ws
+    ws-opts:
+      path: /vmess
+      headers:
+        Host: ${domain}
+    udp: true
+    
+---------------------------------------------------    
+# Format Vmess gRPC
+---------------------------------------------------
+proxies:
+  - name: Vmess-$user-gRPC (SNI)
+    server: ${domain}
+    port: 443
+    type: vmess
+    uuid: ${uuid}
+    alterId: 0
+    cipher: auto
+    tls: true
+    skip-cert-verify: true
+    servername: ${domain}
+    network: grpc
+    grpc-opts:
+      grpc-service-name: vmess-grpc
+    udp: true
+
+◇━━━━━━━━━━━━━━━━━◇
+   Vmess Account 
+◇━━━━━━━━━━━━━━━━━◇
+Remarks          : ${user}
+Domain           : ${domain}
+User Quota       : ${Quota} GB
+User Ip          : ${iplimit} IP
+Port TLS         : 400-900
+Port none TLS    : 80, 8080, 8081-9999
+id               : ${uuid}
+Xray Dns         : ${NS}
+Pubkey           : ${PUB}
+alterId          : 0
+Security         : auto
+Network          : ws
+Path             : /Multi-Path
+Dynamic          : https://bugmu.com/path
+ServiceName      : vmess-grpc
+Location         : $CITY  
+---------------------------------------------------
+ Link Akun Vmess                   
+---------------------------------------------------
+Link TLS         : 
+${vmesslink1}
+---------------------------------------------------
+Link GRPC        : 
+${vmesslink3}
+---------------------------------------------------
+
+END
+
+
+clear
+CHATID="$CHATID"
+KEY="$KEY"
+TIME="$TIME"
+URL="$URL"
+TEXT="<code>---------------------------------------------------</code>
+<code>      XRAY/VMESS</code>
+<code>---------------------------------------------------</code>
+<code>Remarks : ${user}
+Domain : ${domain}
+Host XrayDNS: ${NS}
+Pub Key: ${PUB}
+Port TLS : 400-900
+Port NTLS : 80, 8080, 8081-9999
+id : ${uuid}
+alterId : 0
+Security : auto
+network : ws or grpc
+Path : /Multi-Path
+Dynamic : https://${bug}/path
+Name : vmess-grpc</code>
+<code>---------------------------------------------------</code>
+<code> VMESS WS TLS</code>
+<code>---------------------------------------------------</code>
+<code>${vmesslink1}</code>
+<code>---------------------------------------------------</code>
+<code>VMESS WS NO TLS</code>
+<code>---------------------------------------------------</code>
+<code>${vmesslink2}</code>
+<code>---------------------------------------------------</code>
+<code> VMESS gRPC</code>
+<code>---------------------------------------------------</code>
+<code>${vmesslink3}</code>
+<code>---------------------------------------------------</code>
+Format OpenClash : https://${domain}:81/vmess-$user.txt
+<code>---------------------------------------------------</code>
+Aktif Selama   : $masaaktif Hari
+Dibuat Pada    : $tnggl
+Berakhir Pada  : $expe
+<code>---------------------------------------------------</code>
+"
+
+curl -s --max-time $TIME -d "chat_id=$CHATID&disable_web_page_preview=1&text=$TEXT&parse_mode=html" $URL >/dev/null
+clear
+clear
+echo -e ""
+echo -e "\033[1;93m◇━━━━━━━━━━━━━━━━◇\033[0m"
+echo -e "                     TRIALL VMESS "
+echo -e "\033[1;93m◇━━━━━━━━━━━━━━━━◇\033[0m"
+echo -e "Remarks          : ${user}"
+echo -e "Domain           : ${domain}"
+echo -e "User Quota       : ${Quota} GB"
+echo -e "Host XrayDNS     : ${NS}"
+echo -e "Pub Key          : ${PUB}"
+echo -e "Port TLS         : 443-900"
+echo -e "Port none TLS    : 80,8080,8880,2086,2082"
+echo -e "id               : ${uuid}"
+echo -e "alterId          : 0"
+echo -e "Security         : auto"
+echo -e "Network          : ws"
+echo -e "Path             : /vmess"
+echo -e "Dynamic Path     : https://${bug}/vmess" 
+echo -e "ServiceName      : vmess-grpc"
+echo -e "\033[1;93m◇━━━━━━━━━━━━━━━━◇\033[0m"
+echo -e "Link TLS         : ${vmesslink1}"
+echo -e "\033[1;93m◇━━━━━━━━━━━━━━━━◇\033[0m"
+echo -e "Link none TLS    : ${vmesslink2}"
+echo -e "\033[1;93m◇━━━━━━━━━━━━━━━━◇\033[0m"
+echo -e "Link GRPC        : ${vmesslink3}"
+echo -e "\033[1;93m◇━━━━━━━━━━━━━━━━◇\033[0m"
+echo -e "Format OpenClash : https://${domain}:81/vmess-$user.txt"
+echo -e "\033[1;93m◇━━━━━━━━━━━━━━━━◇\033[0m"
+echo -e "Aktif Selama     : $trial_duration Menit"
+echo -e "Dibuat Pada      : $tnggl"
+echo -e "Berakhir Pada    : $expe"
+echo -e "\033[1;93m◇━━━━━━━━━━━━━━━━◇\033[0m"
+echo -e " "
+read -p "press !! [ ENTER ] To Menu"
+m-vmess
+}
+
+# // delws
+function delws(){
+clear
+dateFromServer=$(curl -v --insecure --silent https://google.com/ 2>&1 | grep Date | sed -e 's/< Date: //')
+biji=`date +"%Y-%m-%d" -d "$dateFromServer"`
+RED='\033[0;31m'
+NC='\033[0m'
+GREEN='\033[0;32m'
+ORANGE='\033[0;33m'
+BLUE='\033[0;34m'
+PURPLE='\033[0;35m'
+CYAN='\033[0;36m'
+LIGHT='\033[0;37m'
+red='\e[1;31m'
+green='\e[0;32m'
+NC='\e[0m'
+green() { echo -e "\\033[32;1m${*}\\033[0m"; }
+red() { echo -e "\\033[31;1m${*}\\033[0m"; }
+clear
+NUMBER_OF_CLIENTS=$(grep -c -E "^### " "/etc/xray/config.json")
+	if [[ ${NUMBER_OF_CLIENTS} == '0' ]]; then
+		echo -e "\033[1;93m┌──────────────────────────────────────────┐\033[0m"
+        echo -e "     Delete Vmess Account  "
+        echo -e "\033[1;93m└─────────────────────────────────────���────┘\033[0m"
+		echo ""
+		echo "You have no existing clients!"
+		echo ""
+		echo -e "\033[1;93m└──────────────────────────────────────────┘\033[0m"
+		read -n 1 -s -r -p "Press any key to back on menu"
+        m-vmess
+	fi
+
+	clear
+	echo -e "\033[1;93m┌──────────────────────────────────────────┐\033[0m"
+    echo -e "       Delete Vmess Account     "
+    echo -e "\033[1;93m└──────────────────────────────────────────┘\033[0m"
+    echo -e "\033[1;93m┌──────────────────────────────────────────┐\033[0m"
+    echo " NO.        User       Expired " 
+	grep -E "^### " "/etc/xray/config.json" | cut -d ' ' -f 2-3 | nl -s ')'
+    echo ""
+    echo -e "\033[1;93m└──────────────────────────────────────────┘\033[0m"
+	until [[ ${CLIENT_NUMBER} -ge 1 && ${CLIENT_NUMBER} -le ${NUMBER_OF_CLIENTS} ]]; do
+    if [[ ${CLIENT_NUMBER} == '1' ]]; then
+    read -rp "Select one client [1]: " CLIENT_NUMBER
+                else
+    read -rp "Select one client [1-${NUMBER_OF_CLIENTS}]: " CLIENT_NUMBER
+                fi
+        done
+    user=$(grep -E "^### " "/etc/xray/config.json" | cut -d ' ' -f 2 | sed -n "${CLIENT_NUMBER}"p)
+    exp=$(grep -E "^### " "/etc/xray/config.json" | cut -d ' ' -f 3 | sed -n "${CLIENT_NUMBER}"p)
+    sed -i "/^### $user $exp/,/^},{/d" /etc/xray/config.json
+    sed -i "/^## $user $exp/,/^},{/d" /etc/xray/config.json
+    sed -i "/^### $user $exp/,/^},{/d" /etc/vmess/.vmess.db
+    rm -rf /etc/vmess/$user
+    rm -rf /etc/kyt/limit/vmess/ip/$user
+    systemctl restart xray > /dev/null 2>&1
+    clear
+    echo -e "\033[1;93m┌──────────────────────────────────────────┐\033[0m"
+    echo " Vmess Account Deleted Successfully "
+    echo -e "\033[1;93m└──────────────────────────────────────────┘\033[0m"
+    echo " Client Name : $user"
+    echo " Expired On  : $exp"
+    echo -e "\033[1;93m└──────────────────────────────────────────┘\033[0m"
+    echo ""
+    read -p "BACK TO MVMESS"
+    m-vmess
+}
+#Del WS Nama
+function delws1(){
+NUMBER_OF_CLIENTS=$(grep -c -E "^### " "/etc/xray/config.json")
+	if [[ ${NUMBER_OF_CLIENTS} == '0' ]]; then
+		echo -e "\033[1;93m┌──────────────────────────────────────────┐\033[0m"
+        echo -e "       Delete Vmess Account       "
+        echo -e "\033[1;93m└──────────────────────────────────────────┘\033[0m"
+        echo -e "\033[1;93m┌──────────────────────────────────────────┐\033[0m"
+		echo ""
+		echo "You have no existing clients!"
+		echo ""
+		echo -e "\033[1;93m└──────────────────────────────────────────┘\033[0m"
+		read -n 1 -s -r -p "Press any key to back on menu"
+        m-vmess
+	fi
+
+	clear
+	echo -e "\033[1;93m┌──────────────────────────────────────────┐\033[0m"
+    echo -e "       Delete Vmess Account       "
+    echo -e "\033[1;93m└──────────────────────────────────────────┘\033[0m"
+    echo -e "\033[1;93m┌──────────────────────────────────────────┐\033[0m"
+    echo "        User          Expired      " 
+	grep -E "^### " "/etc/xray/config.json" | cut -d ' ' -f 2-3 | column -t | sort | uniq
+    echo ""
+    echo -e "\033[1;93m└──────────────────────────────────────────┘\033[0m"
+	read -rp "Input Username : " user
+    if [ -z $user ]; then
+    m-vmess
+    else
+    exp=$(grep -wE "^### $user" "/etc/xray/config.json" | cut -d ' ' -f 3 | sort | uniq)
+    sed -i "/^### $user $exp/,/^},{/d" /etc/xray/config.json
+    sed -i "/^## $user $exp/,/^},{/d" /etc/xray/config.json
+    sed -i "/^### $user $exp/,/^},{/d" /etc/vmess/.vmess.db
+    rm -rf /etc/vmess/$user
+    rm -rf /etc/kyt/limit/vmess/ip/$user
+    systemctl restart xray > /dev/null 2>&1
+    clear
+    echo -e "\033[1;93m┌──────────────────────────────────────────┐\033[0m"
+    echo " Vmess Account Deleted Successfully"
+    echo -e "\033[1;93m└──────────────────────────────────────────┘\033[0m"
+    echo -e "\033[1;93m┌──────────────────────────────────────────┐\033[0m"
+    echo " Client Name : $user"
+    echo " Expired On  : $exp"
+    echo -e "\033[1;93m└──────────────────────────────────────────┘\033[0m"
+    echo ""
+    read -p "BACK TO MENU"
+    m-vmess
+    fi
+}
+# // renewws
+function renewws(){
+clear
+NUMBER_OF_CLIENTS=$(grep -c -E "^### " "/etc/xray/config.json")
+	if [[ ${NUMBER_OF_CLIENTS} == '0' ]]; then
+		clear
+        echo -e "\033[1;93m┌──────────────────────────────────────────┐\033[0m"
+        echo -e "           Renew Vmess  "
+        echo -e "\033[1;93m└──────────────────────────────────────────┘\033[0m"
+		echo ""
+		echo "You have no existing clients!"
+		echo ""
+		echo -e "\033[1;93m└──────────────────────────────────────────┘\033[0m"
+        echo ""
+        read -n 1 -s -r -p "Press any key to back on menu"
+        m-vmess
+	fi
+
+	clear
+	echo -e "\033[1;93m┌──────────────────────────────────────────┐\033[0m"
+    echo -e "           Renew Vmess    "
+    echo -e "\033[1;93m└──────────────────────────────────────────┘\033[0m"
+    echo ""
+  	grep -E "^### " "/etc/xray/config.json" | cut -d ' ' -f 2-3 | column -t | sort | uniq
+    echo ""
+    echo -e "\033[1;93m└──────────────────────────────────────────┘\033[0m"
+	read -rp "Input Username : " user
+    if [ -z $user ]; then
+    m-vmess
+    else
+    read -p "Expired (days): " masaaktif
+    rm -f /etc/kyt/limit/vmess/ip/${user}
+    rm -f /etc/vmess/$user
+    read -p "Limit User (GB): " Quota
+    read -p "Limit User (IP): " iplim
+    exp=$(grep -wE "^### $user" "/etc/xray/config.json" | cut -d ' ' -f 3 | sort | uniq)
+    mkdir -p /etc/kyt/limit/vmess/ip
+echo $iplim >> /etc/kyt/limit/vmess/ip/${user}
+if [ ! -e /etc/vmess/ ]; then
+  mkdir -p /etc/vmess/
+fi
+
+if [ -z ${Quota} ]; then
+  Quota="0"
+fi
+
+c=$(echo "${Quota}" | sed 's/[^0-9]*//g')
+d=$((${c} * 1024 * 1024 * 1024))
+
+if [[ ${c} != "0" ]]; then
+  echo "${d}" >/etc/vmess/${user}
+fi
+    now=$(date +%Y-%m-%d)
+    d1=$(date -d "$exp" +%s)
+    d2=$(date -d "$now" +%s)
+    exp2=$(( (d1 - d2) / 86400 ))
+    exp3=$(($exp2 + $masaaktif))
+    exp4=$(date -d "$exp3 days" +%Y-%m-%d)
+    sed -i "/### $user/c\### $user $exp4" /etc/xray/config.json
+    sed -i "/## $user/c\## $user $exp4" /etc/xray/config.json
+    sed -i "/### $user/c\### $user $exp4" /etc/vmess/.vmess.db
+    sed -i "/### $user/c\### $user $exp4" /root/akun/vmess/.vmess.conf
+    systemctl restart xray > /dev/null 2>&1
+    clear
+    echo -e "\033[1;93m┌──────────────────────────────────────────┐\033[0m"
+    echo " VMESS Account Was Successfully Renewed"
+    echo -e "\033[1;93m└──────────────────────────────────────────┘\033[0m"
+    echo ""
+    echo " Client Name  : $user"
+    echo " Expired On   : $exp4"
+    echo " User Quota   : $Quota"
+    echo " User Limit IP: $iplim"
+    echo ""
+    echo -e "\033[1;93m└──────────────────────────────────────────┘\033[0m"
+    echo ""
+    read -n 1 -s -r -p "Press any key to back on menu"
+    m-vmess
+    fi
+}
+
+# // cekws
+function con() {
+    local -i bytes=$1;
+    if [[ $bytes -lt 1024 ]]; then
+        echo "${bytes}B"
+    elif [[ $bytes -lt 1048576 ]]; then
+        echo "$(( (bytes + 1023)/1024 ))KB"
+    elif [[ $bytes -lt 1073741824 ]]; then
+        echo "$(( (bytes + 1048575)/1048576 ))MB"
+    else
+        echo "$(( (bytes + 1073741823)/1073741824 ))GB"
+    fi
+}
+
+function cekws(){
+echo -n > /tmp/other.txt
+data=( `cat /etc/xray/config.json | grep '###' | cut -d ' ' -f 2 | sort | uniq`);
+echo -e "\033[1;93m┌──────────────────────────────────────────┐\033[0m"
+echo -e "            CEK VMESS ACCOUNT    "
+echo -e "\033[1;93m└──────────────────────────────────────────┘\033[0m" 
+for akun in "${data[@]}"
+do
+if [[ -z "$akun" ]]; then
+akun="tidakada"
+fi
+echo -n > /tmp/ipvmess.txt
+data2=( `cat /var/log/xray/access.log | tail -n 500 | cut -d " " -f 3 | sed 's/tcp://g' | cut -d ":" -f 1 | sort | uniq`);
+for ip in "${data2[@]}"
+do
+jum=$(cat /var/log/xray/access.log | grep -w "$akun" | tail -n 500 | cut -d " " -f 3 | sed 's/tcp://g' | cut -d ":" -f 1 | grep -w "$ip" | sort | uniq)
+if [[ "$jum" = "$ip" ]]; then
+echo "$jum" >> /tmp/ipvmess.txt
+else
+echo "$ip" >> /tmp/other.txt
+fi
+jum2=$(cat /tmp/ipvmess.txt)
+sed -i "/$jum2/d" /tmp/other.txt > /dev/null 2>&1
+done
+jum=$(cat /tmp/ipvmess.txt)
+if [[ -z "$jum" ]]; then
+echo > /dev/null
+else
+iplimit=$(cat /etc/kyt/limit/vmess/ip/${akun})
+jum2=$(cat /tmp/ipvmess.txt | wc -l)
+byte=$(cat /etc/vmess/${akun})
+lim=$(con ${byte})
+wey=$(cat /etc/limit/vmess/${akun})
+gb=$(con ${wey})
+lastlogin=$(cat /var/log/xray/access.log | grep -w "$akun" | tail -n 500 | cut -d " " -f 2 | tail -1)
+echo -e " \033[1;36m┌──────────────────────────────────────┐\033[0m"
+printf "  %-13s %-7s %-8s %2s\n" "  UserName    : ${akun} "
+printf "  %-13s %-7s %-8s %2s\n" "  Login       : $lastlogin "
+printf "  %-13s %-7s %-8s %2s\n" "  Usage Quota : ${gb} "
+printf "  %-13s %-7s %-8s %2s\n" "  Limit Quota : ${lim} "
+printf "  %-13s %-7s %-8s %2s\n" "  Limit IP    : $iplimit "
+printf "  %-13s %-7s %-8s %2s\n" "  Login IP    : $jum2 "
+echo -e " \033[1;36m└──────────────────────────────────────┘\033[0m"
+fi 
+rm -rf /tmp/ipvmess.txt
+done
+rm -rf /tmp/other.txt
+echo ""
+echo -e "\033[1;93m└──────────────────────────────────────────┘\033[0m"
+echo ""
+read -p "BACK TO MVMESS"
+m-vmess
+}
+function member(){
+clear
+NUMBER_OF_CLIENTS=$(grep -c -E "^### " "/etc/xray/config.json")
+        if [[ ${NUMBER_OF_CLIENTS} == '0' ]]; then
+    echo -e "\033[1;93m┌──────────────────────────────────────────┐\033[0m"
+    echo -e "         MEMBER VMESS ACCOUNT      "
+    echo -e "\033[1;93m└──────────────────────────────────────────┘\033[0m"
+    echo ""
+    echo "                   You have no existing clients!"
+    echo ""
+    echo -e "\033[1;93m└──────────────────────────────────────────┘\033[0m"
+    read -n 1 -s -r -p "Press [ Enter ] to back on menu vmess"
+    m-vmess
+fi
+
+  echo -e "\033[1;93m┌──────────────────────────────────────────┐\033[0m"
+  echo -e "           MEMBER VMESS ACCOUNT     "
+  echo -e "\033[1;93m└──────────────────────────────────────────┘\033[0m"
+        echo " NO.        User       Expired " 
+    	echo -e "\033[1;93m┌──────────────────────────────────────────┐\033[0m"
+        grep -E "^### " "/etc/xray/config.json" | cut -d ' ' -f 2-3 | nl -s ')'
+        echo ""
+        echo -e "\033[1;93m└─────────────────────────────────────────┘\033[0m"
+        read -n 1 -s -r -p "Press [ Enter ] to back on menu vmess"
+        m-vmess
+} 
+# // user-ws
+function user-ws(){
+clear
+NUMBER_OF_CLIENTS=$(grep -c -E "^### " "/etc/xray/config.json")
+        if [[ ${NUMBER_OF_CLIENTS} == '0' ]]; then
+    echo -e "\033[1;93m┌──────────────────────────────────────────┐\033[0m"
+    echo -e "         CONFIG VMESS ACCOUNT      "
+    echo -e "\033[1;93m└──────────────────────────────────────────┘\033[0m"
+    echo ""
+    echo "                   You have no existing clients!"
+    echo ""
+    echo -e "\033[1;93m└──────────────────────────────────────────┘\033[0m"
+    read -n 1 -s -r -p "Press [ Enter ] to back on menu vmess"
+    m-vmess
+fi
+
+  echo -e "\033[1;93m┌──────────────────────────────────────────┐\033[0m"
+  echo -e "           CONFIG VMESS ACCOUNT     "
+  echo -e "\033[1;93m└──────────────────────────────────────────┘\033[0m"
+        echo " NO.        User       Expired " 
+    	echo -e "\033[1;93m┌──────────────────────────────────────────┐\033[0m"
+        grep -E "^### " "/etc/xray/config.json" | cut -d ' ' -f 2-3 | nl -s ')'
+        echo ""
+        echo -e "\033[1;93m└──────────────────────────────────────────┘\033[0m"
+                read -rp "Masukan username :" user
+        cat /var/www/html/vmess-$user.txt
+        read -n 1 -s -r -p "Press [ Enter ] to back on menu vmess"
+        m-vmess
+}
+
+
+
+grenbo="\e[92;1m"
+NC='\033[0m'
+clear
+echo -e "\033[1;93m┌──────────────────────────────────────────┐\033[0m"
+echo -e "\033[1;93m│$NC            MENU MANAGER VME    $NC "
+echo -e "\033[1;93m└──────────────────────────────────────────┘\033[0m"
+echo -e "\033[1;93m┌──────────────────────────────────────────┐\033[0m"
+echo -e "\033[1;93m│  ${grenbo}01.${NC} Create Account Vmess ${NC}" 
+echo -e "\033[1;93m│  ${grenbo}02.${NC} Triall Account Vmess ${NC}" 
+echo -e "\033[1;93m│  ${grenbo}03.${NC} Delete Account Vmess ${NC}"
+echo -e "\033[1;93m│  ${grenbo}04.${NC} Renew Masa Aktif Vmess ${NC}" 
+echo -e "\033[1;93m│  ${grenbo}05.${NC} Check Account Login Vmess ${NC}" 
+echo -e "\033[1;93m│  ${grenbo}06.${NC} Show Account Member ${NC}" 
+echo -e "\033[1;93m│  ${grenbo}07.${NC} List N Detail's Vmess${NC}" 
+echo -e "\033[1;93m│  ${grenbo}08.${NC} Limit Speed${NC}" 
+echo -e "\033[1;93m│  ${grenbo}09.${NC} Limit Ip${NC}"
+echo -e "\033[1;93m│  ${grenbo}10.${NC} Delete User Expired${NC}"
+echo -e "\033[1;93m│  ${grenbo}11.${NC} Lock Account Vmess ${NC}"
+echo -e "\033[1;93m│  ${grenbo}12.${NC} Unlock Account Vmess ${NC}"
+echo -e "\033[1;93m│  ${grenbo}13.${NC} Renew ip Vmess ${NC}"
+echo -e "\033[1;93m│  ${grenbo}14.${NC} Renew Quota Vmess ${NC}"    
+echo -e "\033[1;93m│  ${grenbo}00.${NC} ComeBack${NC}" 
+echo -e "\033[1;93m└──────────────────────────────────────────┘\033[0m"
+echo -e ""
+read -p "Select options >>>   " menu
+case $menu in
+1) clear ;
+    addws
+    ;;
+2) clear ;
+    trialws
+    ;;
+3) clear ;
+    delws1
+    ;;
+4) clear ;
+    renewws
+    ;;
+5) clear ;
+    cekws
+    ;;
+6) clear ;
+    member
+    ;;
+7) clear ;
+    user-ws
+    ;;
+8) clear ;
+   limitspeed
+    ;;
+9) clear ;
+   onoff
+    ;;
+10) clear ;
+    xp.sh
+    ;;
+11) clear ;
+   lock-vm
+   ;;
+12) clear ;
+   unlock-vm
+    ;;
+13) clear ;
+   ganti-ip-vmess
+    ;;
+14) clear ;
+   change-vmess-qouta
+    ;;
+0) clear ;
+   menu
+    ;;
+esac

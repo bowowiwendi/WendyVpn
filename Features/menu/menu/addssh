@@ -1,0 +1,231 @@
+#!/bin/bash
+clear
+red() { echo -e "\\033[32;1m${*}\\033[0m"; }
+clear
+#IZIN SCRIPT
+MYIP=$(curl -sS ipv4.icanhazip.com)
+echo -e "\e[32mloading...\e[0m"
+clear
+# Valid Script
+Green="\e[92;1m"
+RED="\033[31m"
+YELLOW="\033[33m"
+BLUE="\033[36m"
+FONT="\033[0m"
+GREENBG="\033[42;37m"
+REDBG="\033[41;37m"
+OK="${Green}--->${FONT}"
+ERROR="${RED}[ERROR]${FONT}"
+GRAY="\e[1;30m"
+NC='\e[0m'
+red='\e[1;31m'
+green='\e[0;32m'
+DF='\e[39m'
+Bold='\e[1m'
+Blink='\e[5m'
+yell='\e[33m'
+red='\e[31m'
+green='\e[32m'
+blue='\e[34m'
+PURPLE='\e[35m'
+cyan='\e[36m'
+Lred='\e[91m'
+Lgreen='\e[92m'
+Lyellow='\e[93m'
+NC='\e[0m'
+GREEN='\033[0;32m'
+ORANGE='\033[0;33m'
+LIGHT='\033[0;37m'
+grenbo="\e[92;1m"
+red() { echo -e "\\033[32;1m${*}\\033[0m"; }
+# Getting
+CHATID=$(grep -E "^#bot# " "/etc/bot/.bot.db" | cut -d ' ' -f 3)
+KEY=$(grep -E "^#bot# " "/etc/bot/.bot.db" | cut -d ' ' -f 2)
+export TIME="10"
+export URL="https://api.telegram.org/bot$KEY/sendMessage"
+NS=$(cat /root/nsdomain)
+PUB=$(cat /etc/slowdns/server.pub)
+CITY=$(cat /etc/xray/city)
+clear
+#IZIN SCRIPT
+MYIP=$(curl -sS ipv4.icanhazip.com)
+echo -e "\e[32mloading...\e[0m"
+clear
+# Valid Script
+ipsaya=$(wget -qO- ipinfo.io/ip)
+echo -e "\e[32mloading...\e[0m"
+clear
+IP=$(curl -sS ipv4.icanhazip.com)
+ISP=$(curl -s ipinfo.io/org | cut -d " " -f 2-10 )
+#CITY=$(curl -s ipinfo.io/city )
+domain=$(cat /etc/xray/domain)
+clear
+echo -e "\033[1;93m◇━━━━━━━━━━━━━━━━━◇\033[0m"
+echo -e " SSH Ovpn Account           "
+echo -e "\033[1;93m◇━━━━━━━━━━━━━━━━━◇\033[0m"
+# ... existing code ...
+read -p "Username : " user
+read -p "Password : " pw
+read -p "Limit Ip : " limit_ip
+read -p "Expired (Days) : " masaaktif
+read -p "ISI BUG (bug.com): " bug
+#limitip
+if [[ $limit_ip -gt 0 ]]; then
+mkdir -p /etc/kyt/limit/ssh/ip
+echo -e "$limit_ip" > /etc/kyt/limit/ssh/ip/$user
+else
+echo > /dev/null
+fi
+clear
+tgl=$(date -d "$masaaktif days" +"%d")
+bln=$(date -d "$masaaktif days" +"%b")
+thn=$(date -d "$masaaktif days" +"%Y")
+expe="$tgl $bln, $thn"
+tgl2=$(date +"%d")
+bln2=$(date +"%b")
+thn2=$(date +"%Y")
+tnggl="$tgl2 $bln2, $thn2"
+useradd -e `date -d "$masaaktif days" +"%Y-%m-%d"` -s /bin/false -M $user
+expi="$(chage -l $user | grep "Account expires" | awk -F": " '{print $2}')"
+echo -e "$pw\n$pw\n"|passwd $user &> /dev/null
+hariini=`date -d "0 days" +"%Y-%m-%d"`
+expi=`date -d "$masaaktif days" +"%Y-%m-%d"`
+
+if [ ! -e /etc/ssh ]; then
+  mkdir -p /etc/ssh
+fi
+DATADB=$(cat /etc/ssh/.ssh.db | grep "^###" | grep -w "${user}" | awk '{print $2}')
+if [[ "${DATADB}" != '' ]]; then
+  sed -i "/\b${user}\b/d" /etc/ssh/.ssh.db
+fi
+echo "### ${user} ${pw} ${limit_ip} ${expi}" >>/etc/ssh/.ssh.db
+clear
+
+cat > /var/www/html/ssh-$user.txt <<-END
+
+◇━━━━━━━━━━━━━━━━━◇
+Format SSH OVPN Account
+◇━━━━━━━━━━━━━━━━━◇
+Username         : $user
+Password         : $pw
+◇━━━━━━━━━━━━━━━━━◇
+IP               : $limit_ip
+Host             : $domain
+Port OpenSSH     : 443, 80, 22
+Port Dropbear    : 443, 109
+Port Dropbear WS : 443, 109
+Port SSH UDP     : 1-65535
+Port SSH WS      : 80, 8080, 8081-9999
+Port SSH SSL WS  : 443
+Port SSL/TLS     : 400-900
+Port OVPN WS SSL : 443
+Port OVPN SSL    : 443
+Port OVPN TCP    : 1194
+Port OVPN UDP    : 2200
+BadVPN UDP       : 7100, 7300, 7300
+Location         : $CITY
+◇━━━━━━━━━━━━━━━━━◇
+Aktif Selama     : $masaaktif Hari
+Dibuat Pada      : $tnggl
+Berakhir Pada    : $expe
+===============================
+Payload WSS: GET wss://$bug/ HTTP/1.1[crlf]Host: $domain[crlf]Upgrade: websocket[crlf][crlf] 
+===============================
+OVPN Download : https://$domain:81/
+===============================
+
+END
+
+CHATID=$(grep -E "^#bot# " "/etc/bot/.bot.db" | cut -d ' ' -f 3)
+KEY=$(grep -E "^#bot# " "/etc/bot/.bot.db" | cut -d ' ' -f 2)
+TIME="10"
+URL="https://api.telegram.org/bot$KEY/sendMessage"
+TEXT="
+◇━━━━━━━━━━━━━━━━━◇
+<code>SSH OVPN Account     </code>
+◇━━━━━━━━━━━━━━━━━◇
+Username :$user
+Password  :$pw
+Limit IP : $limit_ip
+Host :  $domain
+Port OpenSSH : 443, 80, 22
+Port Dropbear : 443, 109
+Port SSH WS : 80, 8080, 8081-9999 
+Port SSH UDP : 1-65535 
+Port SSH SSL WS : 443
+Port SSL/TLS  : 400-900
+Port OVPN WS SSL : 443
+Port OVPN SSL : 443
+Port OVPN TCP : 443, 1194
+Port OVPN UDP : 2200
+BadVPN UDP : 7100, 7300, 7300
+Host Slowdns: $NS
+Pub Key : $PUB
+◇━━━━━━━━━━━━━━━━━◇
+<code>Port 80    : </code><code>$domain:80@$user:$pw</code>
+<code>Port 443   : </code><code>$domain:443@$user:$pw</code>
+<code>Udp Custom :</code><code>$domain:1-65535@$user:$pw</code>
+◇━━━━━━━━━━━━━━━━━◇
+<code>Payload WSS  : </code>
+<code>GET wss://$bug/ HTTP/1.1[crlf]Host: $domain[crlf]Upgrade: websocket[crlf][crlf]</code>
+◇━━━━━━━━━━━━━━━━━◇
+<code>PAYLOAD TLS: </code>
+<code>GET wss://[host]/ HTTP/1.1[crlf]Host: [host][crlf]Connection: Upgrade[crlf]User-Agent: [ua][crlf]Upgrade: websocket[crlf][crlf]</code>
+◇━━━━━━━━━━━━━━━━━◇
+OVPN Download : https://$domain:81/
+◇━━━━━━━━━━━━━━━━━◇
+<code>Save Link Account: </code>https://$domain:81/ssh-$user.txt
+◇━━━━━━━━━━━━━━━━━◇
+Aktif Selama   : $masaaktif Hari
+Dibuat Pada    : $tnggl
+Berakhir Pada  : $expe
+◇━━━━━━━━━━━━━━━━━◇
+<code>*Allhamdulilah Trx Done*
+Terimakasih sudah order 🙏
+
+📦Barang : SSH 
+✅️Konfig : 
+💸Nominal : 10 k
+📆Tanggal : $tnggl
+💳Payment : DANA</code>
+"
+
+curl -s --max-time $TIME -d "chat_id=$CHATID&disable_web_page_preview=1&text=$TEXT&parse_mode=html" $URL >/dev/null
+echo ""
+echo -e "\033[1;93m=====================\033[0m"
+echo -e " SSH OVPN Account    "
+echo -e "\033[1;93m=====================\033[0m"
+echo -e "Username         : $user"
+echo -e "Password         : $pw"
+echo -e "Limit Quota      : $quota GB"
+echo -e "Limit Ip         : ${limit_ip} User"
+echo -e "IP               : $IP"
+echo -e "Host             : $domain"
+echo -e "Host Slowdns     : ${NS}"
+echo -e "Pub Key          : ${PUB}"
+echo -e "Location         : $CITY"
+echo -e "Port OpenSSH     : 443, 80, 22"
+echo -e "Port DNS         : 443, 53 ,22 "
+echo -e "Port SSH UDP     : 1-65535"
+echo -e "Port Dropbear    : 443, 109"
+echo -e "Port SSH WS      : 80, 8080, 8081-9999"
+echo -e "Port SSH SSL WS  : 443"
+echo -e "Port SSL/TLS     : 400-900"
+echo -e "Port OVPN WS SSL : 443"
+echo -e "Port OVPN SSL    : 443"
+echo -e "Port OVPN TCP    : 443, 1194"
+echo -e "Port OVPN UDP    : 2200"
+echo -e "BadVPN UDP       : 7100, 7300, 7300"
+echo -e "\033[1;93m================================\033[0m"
+echo -e "Payload WSS      : GET wss://BUG.COM/ HTTP/1.1[crlf]Host: $domain[crlf]Upgrade: websocket[crlf][crlf]"
+echo -e "\033[1;93m================================\033[0m"
+echo -e "OVPN Download    : https://$domain:81/"
+echo -e "\033[1;93m================================\033[0m"
+echo -e "Save Link Account: https://$domain:81/ssh-$user.txt"
+echo -e "\033[1;93m================================\033[0m"
+echo -e "Aktif Selama     : $masaaktif Hari"
+echo -e "Dibuat Pada      : $tnggl"
+echo -e "Berakhir Pada    : $expe"
+echo -e "\033[1;93m================================\033[0m"
+echo -e " "
+echo -e ""

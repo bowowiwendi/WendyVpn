@@ -1,0 +1,82 @@
+#!/bin/bash
+#IZIN SCRIPT
+MYIP=$(curl -sS ipv4.icanhazip.com)
+echo -e "\e[32mloading...\e[0m"
+clear
+# Valid Script
+ipsaya=$(wget -qO- ipinfo.io/ip)
+data_server=$(curl -v --insecure --silent https://google.com/ 2>&1 | grep Date | sed -e 's/< Date: //')
+date_list=$(date +"%Y-%m-%d" -d "$data_server")
+data_ip="https://raw.githubusercontent.com/bowowiwendi/WendyVpn/ABSTRAK/REGIST"
+checking_sc() {
+  useexp=$(wget -qO- $data_ip | grep $ipsaya | awk '{print $3}')
+  if [[ $date_list < $useexp ]]; then
+    echo -ne
+  else
+    echo -e "\033[1;93m────────────────────────────────────────────\033[0m"
+    echo -e "\033[42m          404 NOT FOUND AUTOSCRIPT          \033[0m"
+    echo -e "\033[1;93m────────────────────────────────────────────\033[0m"
+    echo -e ""
+    echo -e "            ${RED}PERMISSION DENIED !${NC}"
+    echo -e "   \033[0;33mYour VPS${NC} $ipsaya \033[0;33mHas been Banned${NC}"
+    echo -e "     \033[0;33mBuy access permissions for scripts${NC}"
+    echo -e "             \033[0;33mContact Admin :${NC}"
+    echo -e "      \033[0;36mTelegram${NC} t.me/WendiVpn"
+    echo -e "      ${GREEN}WhatsApp${NC} wa.me/6283153170199"
+    echo -e "\033[1;93m────────────────────────────────────────────\033[0m"
+    exit
+  fi
+}
+checking_sc
+clear
+# Getting
+
+# // BOT
+export CHATID="6617783693"
+export KEY="6816696268:AAGsxJLwVlsb7_TqE401akfwMcZOZDTnC2s"
+export TIME="10"
+export URL="https://api.telegram.org/bot$KEY/sendMessage"
+
+# // hosting
+RDP="https://raw.githubusercontent.com/Jengkolonline/XRAY/main/"
+WEBU="http://files.webuzo.com/install.sh"
+VESTA="http://vestacp.com/pub/vst-install.sh"
+UI="(curl -Ls https://raw.githubusercontent.com/mhsanaei/3x-ui/master/install.sh) v1.6.1"
+PT="(curl -s https://pterodactyl-installer.se)"
+CB="https://cyberpanel.net/install.sh"
+
+UPDATE="https://raw.githubusercontent.com/Jengkolonline/XRAY/main/"
+BOT="https://raw.githubusercontent.com/Jengkolonline/XRAY/main/"
+UDPCORE="https://docs.google.com/uc?export=download&confirm=$(wget --quiet --save-cookies /tmp/cookies.txt --keep-session-cookies --no-check-certificate 'https://docs.google.com/uc?export=download&id=1S3IE25v_fyUfCLslnujFBSBMNunDHDk2' -O- | sed -rn 's/.*confirm=([0-9A-Za-z_]+).*/\1\n/p')&id=1S3IE25v_fyUfCLslnujFBSBMNunDHDk2"
+NTN="https://raw.githubusercontent.com/Jengkolonline/nonton/main/nf.sh"
+
+# // cadux
+grenbo="\e[92;1m"
+NC='\033[0m'
+clear
+echo -e "\033[1;93m┌──────────────────────────────────────────┐\033[0m"
+echo -e "\033[1;93m│$NC\e[96;1m          MENU MANAGER SSH                $NC"
+echo -e "\033[1;93m└──────────────────────────────────────────┘\033[0m"
+echo -e "\033[1;93m┌──────────────────────────────────────────┐\033[0m"
+echo -e "\033[1;93m│  ${grenbo}1.${NC} \033[0;36mInstall RDP${NC}"
+echo -e "\033[1;93m│  ${grenbo}2.${NC} \033[0;36mInstall WEBUZO${NC}"
+echo -e "\033[1;93m│  ${grenbo}3.${NC} \033[0;36mInstall VESTA${NC}"
+echo -e "\033[1;93m│  ${grenbo}4.${NC} \033[0;36mInstall UI B.INGGRIS${NC}"
+echo -e "\033[1;93m│  ${grenbo}5.${NC} \033[0;36mInstall PTERODACTYL${NC}"
+echo -e "\033[1;93m│  ${grenbo}6.${NC} \033[0;36mInstall CYBERPANEL${NC}"
+echo -e "\033[1;93m│  ${grenbo}7.${NC} \033[0;36mInstall XOLPANEL${NC}"
+echo -e "\033[1;93m│  ${grenbo}x.${NC} \033[0;36mComeBack${NC}"
+echo -e "\033[1;93m└──────────────────────────────────────────┘\033[0m"
+echo -e ""
+read -p " Select options >>>   " opt
+echo -e ""
+case $opt in
+1) clear ; wget ${RDP}/foldder/ins-rdp.sh && chmod +x ins-rdp.sh && ./ins-rdp.sh ; exit ;;
+2) clear ; wget -N ${WEBU} && chmod 0755 install.sh && ./install.sh ; exit ;;
+3) clear ; curl ${VESTA} | bash ; exit ;;
+4) clear ; bash ${UI} ; exit ;;
+5) clear ; bash ${PT} ; exit ;;
+6) clear ; wget -O installer.sh ${CB} && chmod +x install.sh && ./install.sh ; exit ;;
+7) clear ; xolpanel.sh ; exit ;;
+*) clear ; menu ; exit ;;
+esac

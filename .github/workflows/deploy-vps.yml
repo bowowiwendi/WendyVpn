@@ -1,0 +1,75 @@
+# .github/workflows/deploy-vps.yml
+
+name: Deploy to VPS
+
+# Kontrol kapan workflow dijalankan
+on:
+  # Bisa dijalankan secara manual
+  workflow_dispatch:
+    inputs:
+      # Opsi untuk memilih melewati password atau tidak (contoh input manual)
+      skip_password:
+        description: 'Skip password change? (Type "yes" to skip)'
+        required: false
+        default: 'yes'
+  # Atau bisa di-trigger oleh event lain seperti push/PR jika diperlukan
+  # push:
+  #   branches: [ main ]
+  # pull_request:
+  #   branches: [ main ]
+
+jobs:
+  deploy:
+    name: Deploy VPS Setup
+    # GUNAKAN ubuntu-24.04
+    runs-on: ubuntu-24.04 # <<<--- PERUBAHAN DI SINI
+    # Diperlukan akses root/sudo
+    env:
+      DEBIAN_FRONTEND: noninteractive # Hindari prompt interaktif untuk apt
+
+    steps:
+      # 1. Checkout kode repository ke runner
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # 2. Siapkan environment (opsional, bisa tambah pengecekan OS)
+      - name: Prepare Environment
+        run: |
+          echo "Runner OS: $(lsb_release -d)"
+          echo "Current directory: $(pwd)"
+          echo "Files in repo:"
+          ls -la
+
+      # 3. Set permissions untuk skrip setup
+      - name: Make setup script executable
+        run: chmod +x ./setup-main.sh
+
+      # 4. Jalankan skrip setup
+      # Karena skrip meminta input, kita gunakan `yes` untuk memberikan input otomatis
+      # dan `timeout` untuk mencegah hang selamanya.
+      # Asumsi: Pilihan pertama adalah '2' (Lewati/Skip password)
+      # Kamu bisa sesuaikan input jika ingin mengotomatisasi password.
+      - name: Run VPS Setup Script
+        # Gunakan `timeout` untuk mencegah eksekusi tak terbatas
+        # Gunakan `yes` untuk memberikan input '2' (atau input lain) dan kemudian 'Enter' terus menerus
+        # Redirect stderr ke stdout agar semua log terlihat
+        run: |
+          echo "Starting setup script with automated input..."
+          # Kirim '2' lalu 'Enter' terus menerus, timeout 600 detik (10 menit, dinaikkan sedikit)
+          timeout 600 bash -c 'echo -e "2\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n" | sudo -S ./setup-main.sh'
+          # Atau jika ingin menggunakan input dari workflow_dispatch:
+          # INPUT_SKIP=$(echo "${{ github.event.inputs.skip_password }}" | tr '[:upper:]' '[:lower:]')
+          # if [[ "$INPUT_SKIP" == "yes" ]]; then
+          #   timeout 600 bash -c 'echo -e "2\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n" | sudo -S ./setup-main.sh' 2>&1
+          # else
+          #   timeout 600 bash -c 'echo -e "\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n" | sudo -S ./setup-main.sh' 2>&1 # Tidak melewati password
+          # fi
+        continue-on-error: true # Biarkan job lanjut meski ada error di skrip (karena banyak error handling di skrip)
+
+      # 5. Tampilkan log akhir atau pesan penyelesaian
+      - name: Show Completion Message
+        run: |
+          echo "========================================="
+          echo "Workflow execution finished (or timed out)."
+          echo "Please check the logs above for details."
+          echo "========================================="

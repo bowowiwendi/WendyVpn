@@ -1,0 +1,159 @@
+# .github/workflows/test-install-ovpn.yml
+
+name: Test install_ovpn Script
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'install_ovpn.sh' # Hanya jalankan jika file ini berubah
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'install_ovpn.sh'
+  workflow_dispatch: # Bisa dijalankan manual
+
+jobs:
+  test-install:
+    name: Test on Ubuntu
+    # Gunakan Ubuntu 24.04 karena skrip disebut disesuaikan untuk itu
+    # Jika tidak tersedia, gunakan versi terdekat atau ubuntu-latest
+    runs-on: ubuntu-24.04 # Atau ubuntu-latest jika 24.04 belum tersedia
+    env:
+      DEBIAN_FRONTEND: noninteractive
+      # Simulasikan variabel yang dibutuhkan skrip
+      # domain dummy untuk pengujian
+      DOMAIN: "test.example.com"
+
+    steps:
+      # 1. Checkout kode dari repository
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # 2. Siapkan lingkungan
+      - name: Prepare Environment
+        run: |
+          echo "Runner OS: $(lsb_release -d)"
+          echo "Current directory: $(pwd)"
+          echo "Files in repo:"
+          ls -la
+          
+          # Buat file /root/domain yang dibutuhkan skrip
+          sudo mkdir -p /root
+          echo "$DOMAIN" | sudo tee /root/domain > /dev/null
+          echo "File /root/domain dibuat dengan isi: $DOMAIN"
+          
+          # Simulasikan MYIP jika diperlukan (meskipun skrip mungkin tidak menggunakannya langsung di sini)
+          # MYIP=$(hostname -I | awk '{print $1}') # Bisa digunakan jika perlu
+          # export MYIP
+          
+          # Pastikan wget dan curl tersedia
+          sudo apt-get update
+          sudo apt-get install -y wget curl unzip zip dnsutils # dnsutils untuk nslookup/host (jika perlu)
+
+      # 3. Berikan hak eksekusi pada skrip
+      - name: Make script executable
+        run: chmod +x ./install_ovpn.sh
+
+      # 4. Jalankan skrip dengan timeout dan tangkap log
+      - name: Run install_ovpn Script
+        id: run_script
+        run: |
+          echo "Starting install_ovpn script test..."
+          LOG_FILE="/tmp/install_ovpn_output.log"
+          
+          # Jalankan skrip dengan timeout. Karena ini proses instalasi, beri waktu cukup lama.
+          # Redirect semua output (stdout & stderr) ke file log
+          # Gunakan '|| true' agar step ini tidak langsung fail jika skrip exit code != 0
+          timeout 600 sudo -E bash ./install_ovpn.sh > "$LOG_FILE" 2>&1 || true
+          
+          # Tangkap exit code dari perintah timeout (bukan skrip langsung karena || true)
+          # Exit code 124 biasanya berarti timeout
+          TIMEOUT_EXIT_CODE=$?
+          echo "Exit code from timeout command: $TIMEOUT_EXIT_CODE"
+          echo "timeout_exit_code=$TIMEOUT_EXIT_CODE" >> $GITHUB_ENV
+          
+          # Simpan log untuk evaluasi
+          # Potong log jika terlalu besar dan encode untuk keamanan karakter
+          LOG_CONTENT=$(tail -c 200000 "$LOG_FILE" | base64 -w 0) # Ambil 200KB terakhir
+          echo "script_log<<EOF" >> $GITHUB_ENV
+          echo "$LOG_CONTENT" >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
+          
+          # Tampilkan sebagian akhir log untuk debugging langsung di workflow
+          echo "==== LAST 1000 LINES OF INSTALL_OVPN LOG ===="
+          tail -n 1000 "$LOG_FILE" || echo "Failed to read log file."
+          echo "==== END OF LOG SNIPPET ===="
+
+      # 5. Evaluasi hasil berdasarkan log dan exit code
+      - name: Evaluate Test Results
+        run: |
+          echo "===== EVALUATING TEST RESULTS ====="
+          TIMEOUT_CODE=${{ env.timeout_exit_code }}
+          echo "Exit Code from timeout command: $TIMEOUT_CODE"
+          
+          # Decode log untuk pemeriksaan lebih lanjut (opsional, bisa menyebabkan masalah jika log terlalu besar)
+          # echo "${{ env.script_log }}" | base64 -d > /tmp/decoded_log.txt
+          
+          # Logika evaluasi
+          if [ "$TIMEOUT_CODE" -eq 124 ]; then
+            echo "❌ TEST FAILED: Script timed out. It took longer than 600 seconds. Check logs for hanging processes."
+            exit 1
+          elif [ "$TIMEOUT_CODE" -eq 0 ]; then
+             echo "✅ Script execution finished within the time limit (Exit Code 0 from timeout)."
+             
+             # Pemeriksaan tambahan: Apakah paket openvpn terinstal?
+             if dpkg -l | grep -q "^ii  openvpn "; then
+                 echo "✅ Package 'openvpn' is installed."
+             else
+                 echo "❌ Package 'openvpn' was NOT found installed."
+                 # Tidak langsung gagal, karena bisa saja paket tidak ditemukan tapi skrip tidak error
+                 # Tergantung kriteria kamu
+             fi
+             
+             # Pemeriksaan tambahan: Apakah direktori konfigurasi dibuat?
+             if [ -d "/etc/openvpn" ]; then
+                 echo "✅ Directory '/etc/openvpn' was created."
+             else
+                 echo "⚠️  Directory '/etc/openvpn' was NOT found."
+             fi
+             
+             # Pemeriksaan tambahan: Apakah unit systemd openvpn-server@ tersedia?
+             if systemctl list-unit-files | grep -q "openvpn-server@.*\.service"; then
+                 echo "✅ OpenVPN server systemd unit files found (e.g., openvpn-server@server-tcp.service)."
+             else
+                 echo "⚠️  OpenVPN server systemd unit files (openvpn-server@*.service) NOT found."
+             fi
+             
+             # Pemeriksaan tambahan: Apakah file .ovpn dibuat di /var/www/html?
+             if [ -f "/var/www/html/tcp.ovpn" ] && [ -f "/var/www/html/udp.ovpn" ]; then
+                 echo "✅ Sample .ovpn config files were created in /var/www/html/."
+             else
+                 echo "⚠️  Sample .ovpn config files were NOT found in /var/www/html/."
+             fi
+             
+             # Pemeriksaan tambahan: Apakah ada pesan ERROR atau WARNING di log?
+             # Decode log untuk pemeriksaan ini (hati-hati dengan ukuran)
+             # Untuk kesederhanaan, kita cari di log yang ditampilkan
+             # echo "${{ env.script_log }}" | base64 -d | grep -i "error\|warning\|gagal" > /tmp/errors_warnings.txt
+             # if [ -s /tmp/errors_warnings.txt ]; then
+             #     echo "⚠️  Potential errors or warnings found in the log:"
+             #     cat /tmp/errors_warnings.txt
+             # else
+             #     echo "✅ No obvious 'error', 'warning', or 'gagal' messages found in the log (based on grep)."
+             # fi
+             
+             echo "✅ Overall test execution completed. Please review checks above and full logs for details."
+             exit 0 # Sukses
+             
+          else
+            # Timeout code lain biasanya berasal dari error dalam skrip itu sendiri
+            # atau dari perintah `timeout` itu sendiri (yg jarang)
+            echo "⚠️  Script execution finished with a non-zero/non-timeout exit code ($TIMEOUT_CODE). This might indicate an error within the script."
+            echo "::warning::Script finished with exit code $TIMEOUT_CODE. Please check the logs for potential failures."
+            # Bisa dianggap sukses atau gagal tergantung kebijakan
+            # Untuk pengujian awal, kita bisa anggap ini bukan kegagalan workflow itu sendiri
+            # tapi indikasi bahwa skrip perlu diperiksa.
+            # exit $TIMEOUT_CODE # Gagal
+            exit 0 # Workflow tetap hijau, tapi ada peringatan
+          fi

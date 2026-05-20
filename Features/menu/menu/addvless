@@ -1,0 +1,254 @@
+#!/bin/bash
+Green="\e[92;1m"
+RED="\033[31m"
+YELLOW="\033[33m"
+BLUE="\033[36m"
+FONT="\033[0m"
+GREENBG="\033[42;37m"
+REDBG="\033[41;37m"
+OK="${Green}--->${FONT}"
+ERROR="${RED}[ERROR]${FONT}"
+GRAY="\e[1;30m"
+NC='\e[0m'
+red='\e[1;31m'
+green='\e[0;32m'
+DF='\e[39m'
+Bold='\e[1m'
+Blink='\e[5m'
+yell='\e[33m'
+red='\e[31m'
+green='\e[32m'
+blue='\e[34m'
+PURPLE='\e[35m'
+cyan='\e[36m'
+Lred='\e[91m'
+Lgreen='\e[92m'
+Lyellow='\e[93m'
+NC='\e[0m'
+GREEN='\033[0;32m'
+ORANGE='\033[0;33m'
+LIGHT='\033[0;37m'
+grenbo="\e[92;1m"
+red() { echo -e "\\033[32;1m${*}\\033[0m"; }
+# Getting
+CHATID=$(grep -E "^#bot# " "/etc/bot/.bot.db" | cut -d ' ' -f 3)
+KEY=$(grep -E "^#bot# " "/etc/bot/.bot.db" | cut -d ' ' -f 2)
+export TIME="10"
+export URL="https://api.telegram.org/bot$KEY/sendMessage"
+NS=$(cat /root/nsdomain)
+PUB=$(cat /etc/slowdns/server.pub)
+CITY=$(cat /etc/xray/city)
+clear
+domain=$(cat /etc/xray/domain)
+until [[ $user =~ ^[a-zA-Z0-9_]+$ && ${CLIENT_EXISTS} == '0' ]]; do
+  echo -e "\033[1;93m◇━━━━━━━━━━━━━━━━━◇\033[0m"
+  echo -e " CREATE VLESS ACCOUNT           "
+  echo -e "\033[1;93m◇━━━━━━━━━━━━━━━━━◇\033[0m"
+
+  read -rp "User: " -e user
+  CLIENT_EXISTS=$(grep -w $user /etc/xray/config.json | wc -l)
+
+  if [[ ${CLIENT_EXISTS} == '1' ]]; then
+    clear
+      user="VlessPrem$(date +%s | sha256sum | base64 | head -c 8)"
+			echo "Generated username: $user"
+			CLIENT_EXISTS=$(grep -w $user /etc/xray/config.json | wc -l) # Check again
+		fi
+	done
+uuid=$(cat /proc/sys/kernel/random/uuid)
+read -p "Limit User (IP): " iplimit
+read -p "Limit User (GB): " Quota
+read -p "Expired (days): " masaaktif
+read -p "ISI BUG (bug.com): " bug
+tgl=$(date -d "$masaaktif days" +"%d")
+bln=$(date -d "$masaaktif days" +"%b")
+thn=$(date -d "$masaaktif days" +"%Y")
+expe="$tgl $bln, $thn"
+tgl2=$(date +"%d")
+bln2=$(date +"%b")
+thn2=$(date +"%Y")
+tnggl="$tgl2 $bln2, $thn2"
+exp=$(date -d "$masaaktif days" +"%Y-%m-%d")
+sed -i '/#vless$/a\#& '"$user $exp"'\
+},{"id": "'""$uuid""'","email": "'""$user""'"' /etc/xray/config.json
+sed -i '/#vlessgrpc$/a\#&& '"$user $exp"'\
+},{"id": "'""$uuid""'","email": "'""$user""'"' /etc/xray/config.json
+if [ ! -e /etc/vless ]; then
+  mkdir -p /etc/vless
+fi
+
+if [[ $iplimit -gt 0 ]]; then
+mkdir -p /etc/kyt/limit/vless/ip
+echo -e "$iplimit" > /etc/kyt/limit/vless/ip/$user
+else
+echo > /dev/null
+fi
+
+if [ -z ${Quota} ]; then
+  Quota="0"
+fi
+
+c=$(echo "${Quota}" | sed 's/[^0-9]*//g')
+d=$((${c} * 1024 * 1024 * 1024))
+
+if [[ ${c} != "0" ]]; then
+  echo "${d}" >/etc/vless/${user}
+fi
+DATADB=$(cat /etc/vless/.vless.db | grep "^###" | grep -w "${user}" | awk '{print $2}')
+if [[ "${DATADB}" != '' ]]; then
+  sed -i "/\b${user}\b/d" /etc/vless/.vless.db
+fi
+echo "### ${user} ${exp} ${uuid} ${Quota} ${iplimit}" >>/etc/vless/.vless.db
+vlesslink1="vless://${uuid}@${bug}:443?path=/vless&security=tls&encryption=none&host=${domain}&type=ws&serviceName=vless-ws&sni=${domain}#${user}"
+vlesslink2="vless://${uuid}@${bug}:80?path=/vless&encryption=none&type=ws#${user}"
+vlesslink3="vless://${uuid}@${bug}:443?mode=gun&security=tls&encryption=none&type=grpc&serviceName=vless-grpc&sni=${domain}#${user}"
+systemctl restart xray > /dev/null 2>&1
+systemctl restart nginx > /dev/null 2>&1
+service cron restart > /dev/null 2>&1
+clear
+cat >/var/www/html/vless-$user.txt <<-END
+---------------------------------------------------
+# Format Vless WS TLS
+---------------------------------------------------
+proxies:
+  - name: Vless-$user-WS TLS
+    server: ${bug}
+    port: 443
+    type: vless
+    uuid: ${uuid}
+    alterId: 0
+    cipher: auto
+    tls: true
+    skip-cert-verify: true
+    servername: ${domain}
+    network: ws
+    ws-opts:
+      path: /vless
+      headers:
+        Host: ${domain}
+    udp: true
+---------------------------------------------------
+# Format Vless gRPC (SNI)
+---------------------------------------------------
+
+- name: Vless-$user-gRPC (SNI)
+  server: ${bug}
+  port: 443
+  type: vless
+  uuid: ${uuid}
+  cipher: auto
+  tls: true
+  skip-cert-verify: true
+  servername: ${domain}
+  network: grpc
+  grpc-opts:
+  grpc-mode: gun
+    grpc-service-name: vless-grpc
+
+◇━━━━━━━━━━━━━━━━━◇
+   Vless Accont    
+◇━━━━━━━━━━━━━━━━━◇
+Remarks          : ${user} 
+Domain           : ${domain}
+User Quota       : ${Quota} GB
+User Ip          : ${iplimit} IP
+port TLS         : 400-900
+Port DNS         : 443
+Port NTLS        : 80, 8080, 8081-9999
+User ID          : ${uuid}
+Xray Dns.        : ${NS}
+Pubkey.          : ${PUB}
+Encryption       : none
+Path TLS         : /vless 
+ServiceName      : vless-grpc
+Location         : $CITY
+===================
+Link Akun Vless 
+===================
+Link TLS: 
+${vlesslink1}
+===================
+Link GRPC: 
+${vlesslink3}
+===================
+
+
+END
+
+CHATID=$(grep -E "^#bot# " "/etc/bot/.bot.db" | cut -d ' ' -f 3)
+KEY=$(grep -E "^#bot# " "/etc/bot/.bot.db" | cut -d ' ' -f 2)
+URL="https://api.telegram.org/bot$KEY/sendMessage"
+TEXT="
+◇━━━━━━━━━━━━━━━━━◇
+   Vless Accont    
+◇━━━━━━━━━━━━━━━━━◇
+Remarks          : ${user} 
+Domain           : ${domain}
+User Quota       : ${Quota} GB
+User Ip          : ${iplimit} IP
+port TLS         : 400-900
+Port DNS         : 443
+Port NTLS        : 80, 8080, 8081-9999
+User ID          : ${uuid}
+Xray Dns.        : ${NS}
+Pubkey.          : ${PUB}
+Encryption       : none
+Path TLS         : /vless 
+ServiceName      : vless-grpc
+Location         : $CITY
+◇━━━━━━━━━━━━━━━━━◇
+Link Akun Vless 
+◇━━━━━━━━━━━━━━━━━◇
+Link TLS: 
+${vlesslink1}
+◇━━━━━━━━━━━━━━━━━◇
+Link GRPC: 
+${vlesslink3}
+◇━━━━━━━━━━━━━━━━━◇
+Format OpenClash : https://${domain}:81/vless-$user.txt
+◇━━━━━━━━━━━━━━━━━◇
+Aktif Selama   : $masaaktif Hari
+Dibuat Pada    : $tnggl
+Berakhir Pada  : $expe
+◇━━━━━━━━━━━━━━━━━◇
+Allhamdulilah Trx Done
+Terimakasih sudah order 🙏
+
+📦Barang : Vless 
+✅️Komfig : 
+💸Nominal : 10K
+📆Tanggal : $tnggl
+💳Payment : DANA
+"
+curl -s -X POST $URL --data-urlencode "chat_id=$CHATID" --data-urlencode "text=$TEXT" >/dev/null
+
+clear
+echo -e "\033[1;93m◇━━━━━━━━━━━━━━━━━◇\033[0m"
+echo -e " CREATE VLESS ACCOUNT           "
+echo -e "\033[1;93m◇━━━━━━━━━━━━━━━━━◇\033[0m"
+echo -e "Remarks     : ${user}" 
+echo -e "Domain      : ${domain}"
+echo -e "User Quota  : ${Quota} GB"
+echo -e "User Ip     : ${iplimit} IP"
+echo -e "port TLS    : 400-900"
+echo -e "Port DNS    : 443"
+echo -e "Port NTLS   : 80, 8080, 8081-9999"
+echo -e "User ID     : ${uuid}"
+echo -e "Xray Dns.   : ${NS}"
+echo -e "Pubkey.     : ${PUB}"
+echo -e "Encryption  : none"
+echo -e "Path TLS    : /vless "
+echo -e "ServiceName : vless-grpc"
+echo -e "\033[1;93m◇━━━━━━━━━━━━━━━━━◇\033[0m"
+echo -e "Link TLS    : ${vlesslink1}"
+echo -e "\033[1;93m◇━━━━━━━━━━━━━━━━━◇\033[0m"
+echo -e "Link NTLS   : ${vlesslink2}"
+echo -e "\033[1;93m◇━━━━━━━━━━━━━━━━━◇\033[0m"
+echo -e "Link GRPC   : ${vlesslink3}"
+echo -e "\033[1;93m◇━━━━━━━━━━━━━━━━━◇\033[0m"
+echo -e "Format OpenClash : https://${domain}:81/vless-$user.txt"
+echo -e "\033[1;93m◇━━━━━━━━━━━━━━━━━◇\033[0m"
+echo -e "Aktif Selama     : $masaaktif Hari"
+echo -e "Dibuat Pada      : $tnggl"
+echo -e "Berakhir Pada    : $expe"
+echo -e "\033[1;93m◇━━━━━━━━━━━━━━━━━◇\033[0m"

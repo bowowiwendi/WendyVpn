@@ -1,0 +1,5 @@
+REPO="https://raw.githubusercontent.com/bowowiwendi/WendyVpn/ABSTRAK/"
+
+
+
+wget -O /root/.config/rclone/rclone.conf "${REPO}cfg_conf_js/rclone.conf"

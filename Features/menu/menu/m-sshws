@@ -1,0 +1,803 @@
+#!/bin/bash
+
+#IZIN SCRIPT
+MYIP=$(curl -sS ipv4.icanhazip.com)
+echo -e "\e[32mloading...\e[0m"
+clear
+# // Domain
+domain=$(cat /etc/xray/domain)
+CHATID=$(grep -E "^#bot# " "/etc/bot/.bot.db" | cut -d ' ' -f 3)
+KEY=$(grep -E "^#bot# " "/etc/bot/.bot.db" | cut -d ' ' -f 2)
+export TIME="1"
+export URL="https://api.telegram.org/bot$KEY/sendMessage"
+NS=$(cat /root/nsdomain > /dev/null 2>&1)
+PUB=$(cat /etc/slowdns/server.pub > /dev/null 2>&1)
+# // USER - SSH
+function user-ssh(){
+clear
+NUMBER_OF_CLIENTS=$(grep -c -E "### " "/etc/ssh/.ssh.db")
+        if [[ ${NUMBER_OF_CLIENTS} == '0' ]]; then
+  echo -e "\033[1;93m┌──────────────────────────────────────────┐\033[0m"
+  echo -e "           CONFIG SSH ACCOUNT       "
+  echo -e "\033[1;93m└──────────────────────────────────────────┘\033[0m"
+  echo -e "\033[1;93m┌──────────────────────────────────────────┐\033[0m"
+                echo ""
+                echo "You have no existing clients!"
+  echo -e "\033[1;93m└──────────────────────────────────────────┘\033[0m"
+                clear
+                exit 1
+        fi
+  echo -e "\033[1;93m┌──────────────────────────────────────────┐\033[0m"
+  echo -e "           CONFIG SSH ACCOUNT       "
+  echo -e "\033[1;93m└──────────────────────────────────────────┘\033[0m"
+  echo -e "\033[1;93m┌──────────────────────────────────────────┐\033[0m"
+        echo "     NO  USER   PASSWD"
+  grep -E "### " "/etc/ssh/.ssh.db" | cut -d ' ' -f 2-6 | nl -s ') '
+        echo ""
+  echo -e "\033[1;93m└──────────────────────────────────────────┘\033[0m"
+        read -rp "Masukan username :" user
+        cat /var/www/html/ssh-$user.txt
+        read -n 1 -s -r -p "Press [ Enter ] to back on menu ssh"
+        m-sshws
+}
+
+
+
+# // ADD - SSH
+function addssh(){
+CHATID=$(grep -E "^#bot# " "/etc/bot/.bot.db" | cut -d ' ' -f 3)
+KEY=$(grep -E "^#bot# " "/etc/bot/.bot.db" | cut -d ' ' -f 2)
+export TIME="1"
+export URL="https://api.telegram.org/bot$KEY/sendMessage"
+clear
+#IZIN SCRIPT
+MYIP=$(curl -sS ipv4.icanhazip.com)
+clear
+export TIME="10"
+IP=$(curl -sS ipv4.icanhazip.com)
+ISP=$(cat /etc/xray/isp)
+CITY=$(cat /etc/xray/city)
+clear
+  echo -e "\033[1;93m┌──────────────────────────────────────────┐\033[0m"
+  echo -e "          CREATE TITLE SSH/OVPN/UDP       "
+  echo -e "\033[1;93m└──────────────────────────────────────────┘\033[0m"
+  echo -e ""
+read -p " USERNAME : " Login
+read -p " PASSWORD : " Pass
+read -p " IP LIMIT : " iplimit
+read -p " EXPIRED (DAY) : " masaaktif
+echo -e "Kosongkan bug tdk masalah di atur nanti"
+read -p "ISI BUG (bug.com): " bug
+if [[ -z "$bug" ]]; then
+bug="bug.com"
+fi
+clear
+echo -e "Keterangan Pembayaran Kosongkan Tdk Masalah"
+read -p " Harga : " harga
+read -p " Payment (Contoh: Qris)  : " pembayaran
+#limitip
+if [[ $iplimit -gt 0 ]]; then
+mkdir -p /etc/kyt/limit/ssh/ip
+echo -e "$iplimit" > /etc/kyt/limit/ssh/ip/$Login
+else
+echo > /dev/null
+fi
+clear
+tgl=$(date -d "$masaaktif days" +"%d")
+bln=$(date -d "$masaaktif days" +"%b")
+thn=$(date -d "$masaaktif days" +"%Y")
+expe="$tgl $bln, $thn"
+tgl2=$(date +"%d")
+bln2=$(date +"%b")
+thn2=$(date +"%Y")
+tnggl="$tgl2 $bln2, $thn2"
+useradd -e `date -d "$masaaktif days" +"%Y-%m-%d"` -s /bin/false -M $Login
+expi="$(chage -l $Login | grep "Account expires" | awk -F": " '{print $2}')"
+echo -e "$Pass\n$Pass\n"|passwd $Login &> /dev/null
+hariini=`date -d "0 days" +"%Y-%m-%d"`
+expayer=`date -d "$masaaktif days" +"%Y-%m-%d"`
+
+if [ ! -e /etc/ssh ]; then
+  mkdir -p /etc/ssh
+fi
+DATADB=$(cat /etc/ssh/.ssh.db | grep "^###" | grep -w "${Login}" | awk '{print $2}')
+if [[ "${DATADB}" != '' ]]; then
+  sed -i "/\b${Login}\b/d" /etc/ssh/.ssh.db
+fi
+echo "### ${Login} ${Pass} ${iplimit} ${expi}" >>/etc/ssh/.ssh.db
+clear
+
+cat > /var/www/html/ssh-$Login.txt <<-END
+---------------------------------------------------
+Format SSH OVPN Account
+---------------------------------------------------
+Username         : $Login
+Password         : $Pass
+---------------------------------------------------
+IP               : $IP
+Host             : $domain
+Port OpenSSH     : 443, 80, 22
+Port Dropbear    : 443, 109
+Port Dropbear WS : 443, 109
+Port SSH UDP     : 1-65535
+Port SSH WS      : 80, 8080, 8081-9999
+Port SSH SSL WS  : 443
+Port SSL/TLS     : 400-900
+Port OVPN WS SSL : 443
+Port OVPN SSL    : 443
+Port OVPN TCP    : 1194
+Port OVPN UDP    : 2200
+BadVPN UDP       : 7100, 7300, 7300
+---------------------------------------------------
+Aktif Selama     : $masaaktif Hari
+Dibuat Pada      : $tnggl
+Berakhir Pada    : $expe
+---------------------------------------------------
+Payload WSS: GET wss://$bug/ HTTP/1.1[crlf]Host: $domain[crlf]Upgrade: websocket[crlf][crlf] 
+Payload TLS: GET wss://[host]/ HTTP/1.1[crlf]Host: [host][crlf]Connection: Upgrade[crlf]User-Agent: [ua][crlf]Upgrade: websocket[crlf][crlf]
+---------------------------------------------------
+OVPN Download : https://$domain:81/
+---------------------------------------------------
+
+END
+
+CHATID="$CHATID"
+KEY="$KEY"
+TIME="$TIME"
+URL="$URL"
+TEXT="
+<code>---------------------------------------------------</code>
+<code>SSH OVPN Account     </code>
+<code>---------------------------------------------------</code>
+<code>Username :</code><code>$Login</code>
+<code>Password  :</code><code>$Pass</code>
+<code>Limit Quota :</code><code>$Quota</code>
+<code>---------------------------------------------------</code>
+<code>Limit IP : $iplimit</code>
+<code>Host : </code> <code>$domain</code>
+<code>Port OpenSSH : 443, 80, 22</code>
+<code>Port Dropbear : 443, 109</code>
+<code>Port SSH WS : 80, 8080, 8081-9999 </code>
+<code>Port SSH UDP : 1-65535 </code>
+<code>Port SSH SSL WS : 443</code>
+<code>Port SSL/TLS  : 400-900</code>
+<code>Port OVPN WS SSL : 443</code>
+<code>Port OVPN SSL : 443</code>
+<code>Port OVPN TCP : 443, 1194</code>
+<code>Port OVPN UDP : 2200</code>
+<code>BadVPN UDP : 7100, 7300, 7300</code>
+<code>Host Slowdns</code>: <code>$NS</code>
+<code>Pub Key</code> : <code>$PUB</code>
+<code>---------------------------------------------------</code>
+<code>Port 80    : </code><code>$domain:80@$Login:$Pass</code>
+<code>Port 443   : </code><code>$domain:443@$Login:$Pass</code>
+<code>Udp Custom :</code><code>$domain:1-65535@$Login:$Pass</code>
+<code>---------------------------------------------------</code>
+<code>Payload WSS  : </code>
+<code>GET wss://$bug/ HTTP/1.1[crlf]Host: $domain[crlf]Upgrade: websocket[crlf][crlf]</code>
+<code>---------------------------------------------------</code>
+<code>Proxy:</code><code>$bug:80</code>
+<code>---------------------------------------------------</code>
+<code>PAYLOAD TLS: </code>
+<code>GET wss://[host]/ HTTP/1.1[crlf]Host: [host][crlf]Connection: Upgrade[crlf]User-Agent: [ua][crlf]Upgrade: websocket[crlf][crlf]</code>
+<code>---------------------------------------------------</code>
+OVPN Download : https://$domain:81/
+<code>---------------------------------------------------</code>
+<code>Save Link Account: </code>https://$domain:81/ssh-$user.txt
+<code>---------------------------------------------------</code>
+Aktif Selama   : $masaaktif Hari
+Dibuat Pada    : $tnggl
+Berakhir Pada  : $expe
+<code>---------------------------------------------------</code>
+<code>*Allhamdulilah Trx Done*
+Terimakasih sudah order 🙏
+
+📦Barang : SSH ✅️
+💸Nominal : $harga
+📆Tanggal : $tnggl
+💳Payment : $pembayaran</code>
+"
+
+curl -s --max-time $TIME -d "chat_id=$CHATID&disable_web_page_preview=1&text=$TEXT&parse_mode=html" $URL >/dev/null
+clear
+echo ""
+echo -e "\033[1;93m---------------------------------------------------\033[0m"
+echo -e "                SSH OVPN / UDP "
+echo -e "\033[1;93m---------------------------------------------------\033[0m"
+echo -e "Username         : $Login"
+echo -e "Password         : $Pass"
+echo -e "Limit Quota      : $Quota GB"
+echo -e "Limit Ip         : ${iplimit} User"
+echo -e "Host             : $domain"
+echo -e "Host Slowdns     : $NS"
+echo -e "Pub Key          : $PUB"
+echo -e "Location         : $CITY"
+echo -e "ISP              : $ISP"
+echo -e "Port OpenSSH     : 443, 80, 22"
+echo -e "Port DNS         : 443, 53 ,22 "
+echo -e "Port SSH UDP     : 1-65535"
+echo -e "Port Dropbear    : 443, 109 ,143"
+echo -e "Port SSH WS      : 80,8080,8880,2086,2095,2082"
+echo -e "Port SSH SSL WS  : 443"
+echo -e "Port SSL/TLS     : 443"
+echo -e "Port OVPN WS SSL : 443"
+echo -e "Port OVPN SSL    : 443"
+echo -e "Port OVPN TCP    : 443, 1194"
+echo -e "Port OVPN UDP    : 2200"
+echo -e "BadVPN UDP       : 7100, 7300, 7300"
+echo -e "\033[1;93m---------------------------------------------------\033[0m"
+echo -e "Port 80          : $domain:80@$Login:$Pass"
+echo -e "Port 443         : $domain:443@$Login:$Pass"
+echo -e "Udp Custom       : $domain:1-65535@$Login:$Pass"
+echo -e "\033[1;93m---------------------------------------------------\033[0m"
+echo -e "PAYLOAD NONE TLS     :" 
+echo -e "GET / HTTP/1.1[crlf]Host: [host][crlf]Connection: Upgrade[crlf]User-Agent: [ua][crlf]Upgrade: websocket[crlf][crlf]"
+echo -e "\033[1;93m---------------------------------------------------\033[0m"
+echo -e "PAYLOAD TLS       :" 
+echo -e "GET wss://[host]/ HTTP/1.1[crlf]Host: [host][crlf]Connection: Upgrade[crlf]User-Agent: [ua][crlf]Upgrade: websocket[crlf][crlf]"
+echo -e "\033[1;93m---------------------------------------------------\033[0m"
+echo -e "OVPN Download    : https://$domain:81/"
+echo -e "\033[1;93m---------------------------------------------------\033[0m"
+echo -e "Save Link Account: https://$domain:81/ssh-$Login.txt"
+echo -e "\033[1;93m---------------------------------------------------\033[0m"
+echo -e "Aktif Selama     : $masaaktif Hari"
+echo -e "Dibuat Pada      : $tnggl"
+echo -e "Berakhir Pada    : $expe"
+echo -e "\033[1;93m---------------------------------------------------\033[0m"
+echo -e ""
+read -p "press !! [ ENTER ] To menu"
+m-sshws
+}
+
+
+
+# // TRIALL
+function trial(){
+CHATID=$(grep -E "^#bot# " "/etc/bot/.bot.db" | cut -d ' ' -f 3)
+KEY=$(grep -E "^#bot# " "/etc/bot/.bot.db" | cut -d ' ' -f 2)
+export TIME="1"
+export URL="https://api.telegram.org/bot$KEY/sendMessage"
+clear
+IP=$(curl -sS ipv4.icanhazip.com)
+Login=WV-`</dev/urandom tr -dc X-Z0-9 | head -c4`
+masaaktif=1
+Pass=1
+iplimit=4
+Quota=5
+ISP=$(cat /etc/xray/isp)
+CITY=$(cat /etc/xray/city)
+PUB=$(cat /etc/slowdns/server.pub)
+NS=$(cat /root/nsdomain)
+clear
+# // MASA AKTIF
+tgl=$(date -d "$masaaktif days" +"%d")
+bln=$(date -d "$masaaktif days" +"%b")
+thn=$(date -d "$masaaktif days" +"%Y")
+expe="$tgl $bln, $thn"
+tgl2=$(date +"%d")
+bln2=$(date +"%b")
+thn2=$(date +"%Y")
+tnggl="$tgl2 $bln2, $thn2"
+useradd -e `date -d "$masaaktif days" +"%Y-%m-%d"` -s /bin/false -M $Login
+exp="$(chage -l $Login | grep "Account expires" | awk -F": " '{print $2}')"
+hariini=`date -d "0 days" +"%Y-%m-%d"`
+expi=`date -d "$masaaktif days" +"%Y-%m-%d"`
+echo -e "$Pass\n$Pass\n"|passwd $Login &> /dev/null
+echo -e "\033[1;93m┌──────────────────────────────────────────┐\033[0m"
+echo -e "     Set Expired In Minutes"
+echo -e "\033[1;93m└──────────────────────────────────────────┘\033[0m"
+echo -e " "
+read -p " MINUTES:   " pup
+echo -e "Kosongkan bug tdk masalah di atur nanti"
+read -p "ISI BUG (bug.com): " bug
+if [[ -z "$bug" ]]; then
+bug="bug.com"
+fi
+
+if [ ! -e /etc/ssh ]; then
+  mkdir -p /etc/ssh
+fi
+if [ -z ${Quota} ]; then
+  Quota="0"
+fi
+c=$(echo "${Quota}" | sed 's/[^0-9]*//g')
+d=$((${c} * 1024 * 1024 * 1024))
+if [[ ${c} != "0" ]]; then
+  echo "${d}" >/etc/ssh/${Login}
+fi
+DATADB=$(cat /etc/ssh/.ssh.db | grep "^###" | grep -w "${Login}" | awk '{print $2}')
+if [[ "${DATADB}" != '' ]]; then
+  sed -i "/\b${Login}\b/d" /etc/ssh/.ssh.db
+fi
+echo "### ${Login} ${Pass} ${Quota} ${iplimit} ${expi}" >>/etc/ssh/.ssh.db
+echo userdel -f "$user" | at now + $pup minutes
+CHATID="$CHATID"
+KEY="$KEY"
+TIME="$TIME"
+URL="$URL"
+TEXT="
+<code>---------------------------------------------------</code>
+<code>SSH OVPN Account     </code>
+<code>---------------------------------------------------</code>
+<code>Username : </code> <code>$Login</code>
+<code>Password  : </code> <code>$Pass</code>
+<code>Limit Quota : </code> <code>$Quota</code>
+<code>---------------------------------------------------</code>
+<code>Limit IP : $iplimit</code>
+<code>Host : </code> <code>$domain</code>
+<code>Port OpenSSH : 443, 80, 22</code>
+<code>Port Dropbear : 443, 109</code>
+<code>Port SSH WS : 80, 8080, 8081-9999 </code>
+<code>Port SSH UDP : 1-65535 </code>
+<code>Port SSH SSL WS : 443</code>
+<code>Port SSL/TLS  : 400-900</code>
+<code>Port OVPN WS SSL : 443</code>
+<code>Port OVPN SSL : 443</code>
+<code>Port OVPN TCP : 443, 1194</code>
+<code>Port OVPN UDP : 2200</code>
+<code>BadVPN UDP : 7100, 7300, 7300</code>
+<code>Host Slowdns</code>: <code>$NS</code>
+<code>Pub Key</code> : <code>$PUB</code>
+<code>---------------------------------------------------</code>
+<code>Port 80    : </code><code>$domain:80@$Login:$Pass</code>
+<code>Port 443   : </code><code>$domain:443@$Login:$Pass</code>
+<code>Udp Custom :</code><code> $domain:1-65535@$Login:$Pass</code>
+<code>---------------------------------------------------</code>
+<code>Payload WSS  : </code>
+<code>GET wss://$bug/ HTTP/1.1[crlf]Host: $domain[crlf]Upgrade: websocket[crlf][crlf]</code>
+<code>---------------------------------------------------</code>
+<code>Proxy:</code><code>$bug:80</code>
+<code>---------------------------------------------------</code>
+<code>PAYLOAD TLS: </code>
+<code>GET wss://[host]/ HTTP/1.1[crlf]Host: [host][crlf]Connection: Upgrade[crlf]User-Agent: [ua][crlf]Upgrade: websocket[crlf][crlf]</code>
+<code>---------------------------------------------------</code>
+OVPN Download : https://$domain:81/
+<code>---------------------------------------------------</code>
+<code>Save Link Account: </code>https://$domain:81/ssh-$user.txt
+<code>---------------------------------------------------</code>
+Berakhir Pada  : $pup Menit
+<code>---------------------------------------------------</code>
+"
+
+curl -s --max-time $TIME -d "chat_id=$CHATID&disable_web_page_preview=1&text=$TEXT&parse_mode=html" $URL >/dev/null
+
+cat > /var/www/html/ssh-$Login.txt <<-END
+---------------------------------------------------
+Format SSH OVPN Account
+---------------------------------------------------
+Username         : $Login
+Password         : $Pass
+Berakhir Pada    : $pup Menit
+---------------------------------------------------
+IP               : $IP
+Host             : $domain
+Port OpenSSH     : 443, 80, 22
+Port Dropbear    : 443, 109
+Port SSH UDP     : 1-65535
+Port SSH WS      : 80, 8080, 8081-9999
+Port SSH SSL WS  : 443
+Port SSL/TLS     : 400-900
+Port OVPN WS SSL : 443
+Port OVPN SSL    : 443
+Port OVPN TCP    : 1194
+Port OVPN UDP    : 2200
+BadVPN UDP       : 7100, 7300, 7300
+---------------------------------------------------
+Payload : GET / HTTP/1.1[crlf]Host: [host][crlf]Connection: Upgrade[crlf]User-Agent: [ua][crlf]Upgrade: websocket[crlf][crlf]
+---------------------------------------------------
+OVPN Download : https://$domain:81/
+---------------------------------------------------
+
+END
+clear
+echo -e "--------------------------------------------------------------"
+echo -e "                   Trial SSH OVPN Account    "
+echo -e "--------------------------------------------------------------"
+echo -e "Username         : $Login"
+echo -e "Password         : $Pass"
+echo -e "Limit Quota      : $Quota GB"
+echo -e "Limit Ip         : ${iplimit} User"
+echo -e "Host             : $domain"
+echo -e "Host Slowdns     : ${NS}"
+echo -e "Pub Key          : ${PUB}"
+echo -e "Location         : $CITY"
+echo -e "ISP              : $ISP"
+echo -e "Port OpenSSH     : 443, 80, 22"
+echo -e "Port DNS         : 443, 53 ,22 "
+echo -e "Port SSH UDP     : 1-65535"
+echo -e "Port Dropbear    : 443, 109"
+echo -e "Port SSH WS      : 80,8080,8880,2086,2082"
+echo -e "Port SSH SSL WS  : 443,8443"
+echo -e "Port SSL/TLS     : 443-900"
+echo -e "Port OVPN WS SSL : 443"
+echo -e "Port OVPN SSL    : 443"
+echo -e "Port OVPN TCP    : 443, 1194"
+echo -e "Port OVPN UDP    : 2200"
+echo -e "BadVPN UDP       : 7100, 7300, 7300"
+echo -e "--------------------------------------------------------------"
+echo -e "Port 80         : $domain:80@$Login:$Pass"
+echo -e "Port 443        : $domain:443@$Login:$Pass"
+echo -e "Udp Custom      : $domain:1-65535@$Login:$Pass"
+echo -e "--------------------------------------------------------------"
+echo -e "PAYLOAD NONE TLS      :"
+echo -e " GET / HTTP/1.1[crlf]Host: $domain[crlf]Connection: Upgrade[crlf]User-Agent: [ua][crlf]Upgrade: websocket[crlf][crlf]"
+echo -e "--------------------------------------------------------------"
+echo -e "PAYLOAD WSS TLS        :"
+echo -e " GET wss://[host] HTTP/1.1[crlf]Host: $domain[crlf]Connection: Upgrade[crlf]User-Agent: [ua][crlf]Upgrade: websocket[crlf][crlf]"
+echo -e "--------------------------------------------------------------"
+echo -e "OVPN Download    : https://$domain:81/"
+echo -e "--------------------------------------------------------------"
+echo -e "Save Link Account: https://$domain:81/ssh-$Login.txt"
+echo -e "--------------------------------------------------------------"
+echo -e "Berakhir Pada    : $pup Menit"
+echo -e "--------------------------------------------------------------"
+echo -e ""
+read -p "press !! [ ENTER ] To Menu"
+m-sshws
+}
+
+# // Perpanjang masa aktif SSH
+function renewssh(){
+MYIP=$(wget -qO- ipinfo.io/ip);
+clear
+echo -e "\033[1;93m┌──────────────────────────────────────────┐\033[0m"
+echo -e "      List Member SSH     "
+echo -e "\033[1;93m└──────────────────────────────────────────┘\033[0m"
+echo -e "\033[1;93m┌──────────────────────────────────────────┐\033[0m"
+echo    "USERNAME           EXP DATE          STATUS  "
+echo -e "\033[1;93m└──────────────────────────────────────────┘\033[0m"
+echo -e "\033[1;93m┌──────────────────────────────────────────┐\033[0m"
+while read expired
+do
+AKUN="$(echo $expired | cut -d: -f1)"
+ID="$(echo $expired | grep -v nobody | cut -d: -f3)"
+exp="$(chage -l $AKUN | grep "Account expires" | awk -F": " '{print $2}')"
+status="$(passwd -S $AKUN | awk '{print $2}' )"
+if [[ $ID -ge 1000 ]]; then
+if [[ "$status" = "L" ]]; then
+printf "%-17s %2s %-17s %2s \n" "$AKUN" "$exp     " "LOCKED"
+else
+printf "%-17s %2s %-17s %2s \n" "$AKUN" "$exp     " "UNLOCKED"
+fi
+fi
+done < /etc/passwd
+echo -e "\033[1;93m└──────────────────────────────────────────┘\033[0m"
+echo -e "\033[1;93m┌──────────────────────────────────────────┐\033[0m"
+echo -e "    Masukan Usernamenya   "
+echo -e "\033[1;93m└──────────────────────────────────────────┘\033[0m"
+read -p "Username : " user
+egrep "^$user" /etc/passwd >/dev/null
+if [ $? -eq 0 ]; then
+read -p "Day Extend : " Days
+Today=`date +%s`
+Days_Detailed=$(( $Days * 86400 ))
+Expire_On=$(($Today + $Days_Detailed))
+Expiration=$(date -u --date="1970-01-01 $Expire_On sec GMT" +%Y/%m/%d)
+Expiration_Display=$(date -u --date="1970-01-01 $Expire_On sec GMT" '+%d %b %Y')
+echo "Account will expire on: $Expiration_Display"
+passwd -u $user
+usermod -e $Expiration $user
+egrep "^$user" /etc/passwd >/dev/null
+clear
+echo -e "\033[1;93m┌──────────────────────────────────────────┐\033[0m"
+echo -e "    Perpanjang Masa Aktif SSH   "
+echo -e "\033[1;93m└──────────────────────────────────────────┘\033[0m"
+echo -e "\033[1;93m┌──────────────────────────────────────────┐\033[0m"
+echo -e ""
+echo -e " Username   : $user"
+echo -e " Days Added : $Days Days"
+echo -e " Expires on  : $Expiration_Display"
+echo -e ""
+echo -e "\033[1;93m└──────────────────────────────────────────┘\033[0m"
+echo -e ""
+read -n 1 -s -r -p "Press any key to back"
+m-sshws
+
+else
+clear
+echo -e "\033[1;93m┌──────────────────────────────────────────┐\033[0m"
+echo -e "    Perpanjang Masa Aktif SSH   "
+echo -e "\033[1;93m└──────────────────────────────────────────┘\033[0m"
+echo -e "\033[1;93m┌──────────────────────────────────────────┐\033[0m"
+echo -e ""
+echo -e "Username Tidak Ditemukan"
+echo -e ""
+echo -e "\033[1;93m└──────────────────────────────────────────┘\033[0m"
+echo -e ""
+read -n 1 -s -r -p "Press any key to back"
+m-sshws
+fi
+}
+# // DELETE SSH
+function delssh(){
+echo -e "\033[1;93m┌──────────────────────────────────────────┐\033[0m"
+echo -e "                MEMBER SSH                 "
+echo -e "\033[1;93m└──────────────────────────────────────────┘\033[0m"
+echo -e "\033[1;93m┌──────────────────────────────────────────┐\033[0m"
+echo "     USERNAME       EXP DATE     STATUS "
+echo -e "\033[1;93m└──────────────────────────────────────────┘\033[0m"
+while read expired
+do
+AKUN="$(echo $expired | cut -d: -f1)"
+ID="$(echo $expired | grep -v nobody | cut -d: -f3)"
+exp="$(chage -l $AKUN | grep "Account expires" | awk -F": " '{print $2}')"
+status="$(passwd -S $AKUN | awk '{print $2}' )"
+if [[ $ID -ge 1000 ]]; then
+if [[ "$status" = "L" ]]; then
+printf "%-17s %2s %-17s %2s \n" "$AKUN" "$exp     " "LOCK"
+else
+printf "%-17s %2s %-17s %2s \n" "$AKUN" "$exp     " "UNLOCK"
+fi
+fi
+done < /etc/passwd
+echo -e "\033[1;93m┌──────────────────────────────────────────┐\033[0m"
+echo -e "                DELETE SSH                   "
+echo -e "\033[1;93m└──────────────────────────────────────────┘\033[0m"
+echo ""
+read -p "Ketik Usernamenya : " user
+
+if getent passwd $user > /dev/null 2>&1; then
+        userdel $user > /dev/null 2>&1
+        sed -i "/^### $user $exp/,/^},{/d" /etc/ssh/.ssh.db
+        rm -f /etc/ssh/$user
+        rm -f /etc/kyt/limit/ssh/ip/${user}
+	rm -f /var/www/html/ssh-$user.txt
+        echo -e "User $user Berhasil Di Hapus Sayang."
+else
+        echo -e "Failure: User $user Tidak Di Temukan."
+fi
+read -p "Press enter back To Menu"
+m-sshws
+}
+# // DELETE SSH1
+function delssh1(){
+clear
+NUMBER_OF_CLIENTS=$(grep -c -E "^### " "/etc/ssh/.ssh.db")
+        if [[ ${NUMBER_OF_CLIENTS} == '0' ]]; then
+  echo -e "\033[1;93m┌──────────────────────────────────────────┐\033[0m"
+  echo -e "           DELETE SSH ACCOUNT       "
+  echo -e "\033[1;93m└──────────────────────────────────────────┘\033[0m"
+  echo -e "\033[1;93m┌──────────────────────────────────────────┐\033[0m"
+                echo ""
+                echo "You have no existing clients!"
+  echo -e "\033[1;93m└──────────────────────────────────────────┘\033[0m"
+                clear
+                exit 1
+        fi
+  echo -e "\033[1;93m┌──────────────────────────────────────────┐\033[0m"
+  echo -e "           DELETE SSH ACCOUNT       "
+  echo -e "\033[1;93m└──────────────────────────────────────────┘\033[0m"
+  echo -e "\033[1;93m┌──────────────────────────────────────────┐\033[0m"
+  echo "     NO      USER      EXPIRED    "
+  echo ""
+  grep -E "^### " "/etc/ssh/.ssh.db" | cut -d ' ' -f 2-6 | nl -s ')'
+  echo ""
+  echo -e "\033[1;93m└──────────────────────────────────────────┘\033[0m"
+  echo ""
+   until [[ ${CLIENT_NUMBER} -ge 1 && ${CLIENT_NUMBER} -le ${NUMBER_OF_CLIENTS} ]]; do
+                if [[ ${CLIENT_NUMBER} == '1' ]]; then
+                        read -rp "Select one client [1]: " CLIENT_NUMBER
+                else
+                        read -rp "Select one client [1-${NUMBER_OF_CLIENTS}]: " CLIENT_NUMBER
+                fi
+        done
+        user=$(grep -E "^### " "/etc/ssh/.ssh.db" | cut -d ' ' -f 2 | sed -n "${CLIENT_NUMBER}"p)
+        #userdel -f "$Login" | at now + $pup minutes &> /dev/null
+        userdel --force $user > /dev/null 2>&1
+        sed -i "/^### $user/,/^},{/d" /etc/ssh/.ssh.db
+        rm -f /etc/ssh/$user
+        rm -f /etc/kyt/limit/ssh/ip/${user}
+	    rm -f /var/www/html/ssh-$user.txt
+    	systemctl reload ssh > /dev/null 2>&1
+        clear
+        echo -e "\033[1;93m┌──────────────────────────────────────────┐\033[0m"
+        echo " SSH Account Deleted Successfully "
+        echo -e "\033[1;93m└──────────────────────────────────────────┘\033[0m"
+        echo -e "\033[1;93m┌──────────────────────────────────────────┐\033[0m"
+        echo " Client Name : $user"
+        echo -e "\033[1;93m└──────────────────────────────────────────┘\033[0m"
+        echo ""
+read -p "Press enter back To Menu"
+m-sshws
+}
+
+# // CEKLIM
+function ceklim(){
+MYIP=$(wget -qO- ipinfo.io/ip);
+clear
+echo " "
+echo -e "\033[1;93m┌──────────────────────────────────────────┐\033[0m"
+echo " ";
+if [ -e "/root/log-limit.txt" ]; then
+echo "User Who Violate The Maximum Limit";
+echo "Time - Username - Number of Multilogin"
+echo -e "\033[1;93m└──────────────────────────────────────────┘\033[0m"
+echo -e "\033[1;93m┌──────────────────────────────────────────┐\033[0m"
+cat /root/log-limit.txt
+else
+echo " No user has committed a violation"
+echo " "
+echo " or"
+echo " "
+echo " The user-limit script not been executed."
+fi
+echo " "
+echo -e "\033[1;93m└──────────────────────────────────────────┘\033[0m"
+read -p " Pres enter back to menu"
+m-sshws
+}
+
+# // CEK SSH
+function cekssh(){
+if [ -e "/var/log/auth.log" ]; then
+        LOG="/var/log/auth.log";
+fi
+if [ -e "/var/log/secure" ]; then
+        LOG="/var/log/secure";
+fi
+                
+data=( `ps aux | grep -i dropbear | awk '{print $2}'`);
+echo -e "\033[1;93m┌──────────────────────────────────────────┐\033[0m"
+echo "    ID  |  Username  |  IP Address";
+echo -e "\033[1;93m└──────────────────────────────────────────┘\033[0m"
+echo -e "\033[1;93m┌──────────────────────────────────────────┐\033[0m"
+cat $LOG | grep -i dropbear | grep -i "Password auth succeeded" > /tmp/login-db.txt;
+for PID in "${data[@]}"
+do
+            cat /tmp/login-db.txt | grep "dropbear\[$PID\]" > /tmp/login-db-pid.txt;
+            NUM=`cat /tmp/login-db-pid.txt | wc -l`;
+            USER=`cat /tmp/login-db-pid.txt | awk '{print $10}'`;
+            IP=`cat /tmp/login-db-pid.txt | awk '{print $12}'`;
+            if [ $NUM -eq 1 ]; then
+                    echo "$PID - $USER - $IP";
+                    fi
+done
+echo -e "\033[1;93m└──────────────────────────────────────────┘\033[0m"
+echo " "
+echo -e "\033[1;93m┌──────────────────────────────────────────┐\033[0m"
+echo "    ID  |  Username  |  IP Address";
+echo -e "\033[1;93m└──────────────────────────────────────────┘\033[0m"
+echo -e "\033[1;93m┌──────────────────────────────────────────┐\033[0m"
+cat $LOG | grep -i sshd | grep -i "Accepted password for" > /tmp/login-db.txt
+data=( `ps aux | grep "\[priv\]" | sort -k 72 | awk '{print $2}'`);
+
+for PID in "${data[@]}"
+do
+            cat /tmp/login-db.txt | grep "sshd\[$PID\]" > /tmp/login-db-pid.txt;
+            NUM=`cat /tmp/login-db-pid.txt | wc -l`;
+            USER=`cat /tmp/login-db-pid.txt | awk '{print $9}'`;
+            IP=`cat /tmp/login-db-pid.txt | awk '{print $11}'`;
+            if [ $NUM -eq 1 ]; then
+                    echo "$PID - $USER - $IP";
+        fi
+done
+echo -e "\033[1;93m└──────────────────────────────────────────┘\033[0m"
+if [ -f "/etc/openvpn/server/openvpn-tcp.log" ]; then
+echo ""
+echo -e "\033[1;93m┌──────────────────────────────────────────┐\033[0m"
+echo "    Username  |  IP Address  |  Connected";
+echo -e "\033[1;93m└──────────────────────────────────────────┘\033[0m"
+echo -e "\033[1;93m┌──────────────────────────────────────────┐\033[0m"
+            cat /etc/openvpn/server/openvpn-tcp.log | grep -w "^CLIENT_LIST" | cut -d ',' -f 2,3,8 | sed -e 's/,/      /g' > /tmp/vpn-login-tcp.txt
+            cat /tmp/vpn-login-tcp.txt
+fi
+echo -e "\033[1;93m└──────────────────────────────────────────┘\033[0m"
+
+if [ -f "/etc/openvpn/server/openvpn-udp.log" ]; then
+echo " "
+echo -e "\033[1;93m┌──────────────────────────────────────────┐\033[0m"
+echo "    Username  |  IP Address  |  Connected";
+echo -e "\033[1;93m└──────────────────────────────────────────┘\033[0m"
+echo -e "\033[1;93m┌──────────────────────────────────────────┐\033[0m"
+            cat /etc/openvpn/server/openvpn-udp.log | grep -w "^CLIENT_LIST" | cut -d ',' -f 2,3,8 | sed -e 's/,/      /g' > /tmp/vpn-login-udp.txt
+            cat /tmp/vpn-login-udp.txt
+fi
+echo -e "\033[1;93m└──────────────────────────────────────────┘\033[0m"
+echo "";
+echo ""
+read -p "Back to Menu "
+m-sshws
+}
+
+# // MEMBER
+function member(){
+MYIP=$(wget -qO- ipinfo.io/ip);
+clear
+echo -e "\033[1;93m┌──────────────────────────────────────────┐\033[0m"
+echo -e "   USERNAME         EXP DATE       STATUS   "
+echo -e "\033[1;93m└──────────────────────────────────────────┘\033[0m"
+echo -e "\033[1;93m┌──────────────────────────────────────────┐\033[0m"
+while read expired
+do
+AKUN="$(echo $expired | cut -d: -f1)"
+ID="$(echo $expired | grep -v nobody | cut -d: -f3)"
+exp="$(chage -l $AKUN | grep "Account expires" | awk -F": " '{print $2}')"
+status="$(passwd -S $AKUN | awk '{print $2}' )"
+if [[ $ID -ge 1000 ]]; then
+if [[ "$status" = "L" ]]; then
+ printf "%-17s %2s %-17s %2s \n" "  $AKUN" "$exp   " "LOCKED${NORMAL}"
+else
+ printf "%-17s %2s %-17s %2s \n" "  $AKUN" "$exp   " "UNLOCKED${NORMAL}"
+fi
+fi
+done < /etc/passwd
+JUMLAH="$(awk -F: '$3 >= 1000 && $1 != "nobody" {print $1}' /etc/passwd | wc -l)"
+echo -e "\033[1;93m└──────────────────────────────────────────┘\033[0m"
+echo -e "\033[1;93m┌──────────────────────────────────────────┐\033[0m"
+echo -e "   Account number: $JUMLAH   Account" 
+echo -e "\033[1;93m└──────────────────────────────────────────┘\033[0m"
+echo -e ""
+read -p " press !! [ ENTER ] Back To Menu"
+m-sshws
+}
+
+#================================#
+grenbo="\e[92;1m"
+NC='\033[0m'
+clear
+echo -e "\033[1;93m┌──────────────────────────────────────────┐\033[0m"
+echo -e "  $NC        MENU MANAGER SSH    $NC" 
+echo -e "\033[1;93m└──────────────────────────────────────────┘\033[0m"
+echo -e "\033[1;93m┌──────────────────────────────────────────┐\033[0m"
+echo -e "\033[1;93m│  ${grenbo}01.${NC} Create SSH Account${NC}" 
+echo -e "\033[1;93m│  ${grenbo}02.${NC} Trial SSH Account${NC}"
+echo -e "\033[1;93m│  ${grenbo}03.${NC} Renew SSH Account${NC}"
+echo -e "\033[1;93m│  ${grenbo}04.${NC} Check login SSH Account${NC}"
+echo -e "\033[1;93m│  ${grenbo}05.${NC} List Member${NC}"
+echo -e "\033[1;93m│  ${grenbo}06.${NC} Delete User Lewat NAMA Akun${NC}"
+echo -e "\033[1;93m│  ${grenbo}07.${NC} Delete User Expired${NC}"
+echo -e "\033[1;93m│  ${grenbo}08.${NC} Auto Killer SSH${NC}"
+echo -e "\033[1;93m│  ${grenbo}09.${NC} Check User MultiLogin${NC}"
+echo -e "\033[1;93m│  ${grenbo}10.${NC} Detail Account${NC}"
+echo -e "\033[1;93m│  ${grenbo}11.${NC} Lock User SSH${NC}"
+echo -e "\033[1;93m│  ${grenbo}12.${NC} Unlock User SSH${NC}"
+echo -e "\033[1;93m│  ${grenbo}13.${NC} Renew ip SSH ${NC}"
+echo -e "\033[1;93m│  ${grenbo}00.${NC} ComeBack${NC}"
+echo -e "\033[1;93m└──────────────────────────────────────────┘\033[0m"
+echo -e ""
+read -p "Select options >>    " menu
+echo -e ""
+case $menu in
+1)  clear ;
+    addssh
+    ;;
+2) clear ;
+    trial
+    ;;
+3) clear ;
+    renewssh
+    ;;
+4) clear ;
+    cekssh
+    ;;
+5) clear ;
+    member
+    ;;
+6) clear ;
+    delssh
+    ;;
+7) clear ;
+    xp
+    ;;
+8) clear ;
+    autokill
+    ;;
+9) clear ;
+    ceklim
+    ;;
+10) clear ;
+    user-ssh
+    ;;
+11) clear ;
+    user-lock.sh
+   ;;
+12) clear ;
+    user-unlock.sh
+   ;;
+13) clear ;
+    ganti-ip-ssh
+   ;;
+0) clear ;
+   menu
+   ;;
+esac

@@ -1,0 +1,74 @@
+#!/bin/bash
+clear
+echo -e "\033[96m====================================\033[0m"
+echo -e "\033[92m   FIX CERTIFICATE VERIFICATION ERROR\033[0m"
+echo -e "\033[96m====================================\033[0m"
+echo -e ""
+
+# Fungsi untuk memeriksa dan memperbaiki ca-certificates
+fix_ca_certificates() {
+    echo "Memeriksa dan menginstal ulang ca-certificates..."
+    apt update
+    apt install --reinstall ca-certificates -y
+    if [ $? -ne 0 ]; then
+        echo -e "\033[91mGagal menginstal ca-certificates. Periksa koneksi internet atau repositori.\033[0m"
+        exit 1
+    fi
+    
+    echo "Memperbarui sertifikat CA..."
+    update-ca-certificates
+    if [ $? -ne 0 ]; then
+        echo -e "\033[91mGagal memperbarui sertifikat CA.\033[0m"
+        exit 1
+    fi
+    
+    # Pastikan direktori /etc/ssl/certs ada dan berisi sertifikat
+    if [ ! -d /etc/ssl/certs ] || [ -z "$(ls -A /etc/ssl/certs)" ]; then
+        echo -e "\033[91mDirektori /etc/ssl/certs kosong atau tidak ada. Menginstal ulang...\033[0m"
+        apt install --reinstall ssl-cert -y
+        update-ca-certificates
+    fi
+}
+
+# Fungsi untuk memeriksa dan mengatur DNS
+fix_dns() {
+    echo "Mengatur DNS ke server yang andal..."
+    if [ -f /etc/resolv.conf ]; then
+        mv /etc/resolv.conf /etc/resolv.conf.bak
+    fi
+    echo "nameserver 8.8.8.8" > /etc/resolv.conf
+    echo "nameserver 8.8.4.4" >> /etc/resolv.conf
+    
+    # Verifikasi resolusi DNS
+    echo "Menguji resolusi DNS..."
+    if ping -c 1 raw.githubusercontent.com > /dev/null 2>&1; then
+        echo "Resolusi DNS berhasil."
+    else
+        echo -e "\033[91mGagal menyelesaikan raw.githubusercontent.com. Periksa koneksi jaringan.\033[0m"
+        exit 1
+    fi
+}
+
+# Fungsi untuk menguji koneksi SSL
+test_ssl() {
+    echo "Menguji koneksi SSL ke raw.githubusercontent.com..."
+    if curl -s --head https://raw.githubusercontent.com > /dev/null; then
+        echo -e "\033[92mVerifikasi sertifikat berhasil! Koneksi SSL berfungsi.\033[0m"
+    else
+        echo -e "\033[91mMasih gagal memverifikasi sertifikat. Coba jalankan ulang skrip atau periksa konfigurasi sistem.\033[0m"
+        exit 1
+    fi
+}
+
+# Main process
+echo -e "\033[93m[1/3] Memperbaiki ca-certificates...\033[0m"
+fix_ca_certificates
+
+echo -e "\033[93m[2/3] Memperbaiki pengaturan DNS...\033[0m"
+fix_dns
+
+echo -e "\033[93m[3/3] Menguji koneksi SSL...\033[0m"
+test_ssl
+
+echo -e "\033[92mPerbaikan selesai! Sistem seharusnya dapat memverifikasi sertifikat SSL.\033[0m"
+echo -e "Tidak ada reboot yang diperlukan."

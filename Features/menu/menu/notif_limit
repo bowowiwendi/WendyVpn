@@ -1,0 +1,12 @@
+#!/bin/bash
+cek=$(systemctl status vmip | grep running | awk '{print $3}' | cut -d "(" -f2 | cut -d ")" -f1)
+if [[ "$cek" == "running" ]]; then 
+status="🟢 ON"
+else
+status="🔴 OFF"
+fi
+printf "
+◇━━━━━━━━━━━━━━━━━━━━━━━◇
+  🔥⇱ LIMIT IP $status ⇲🔥   
+◇━━━━━━━━━━━━━━━━━━━━━━━◇
+"

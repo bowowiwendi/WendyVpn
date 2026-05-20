@@ -1,0 +1,679 @@
+#!/bin/bash
+#IZIN SCRIPT
+MYIP=$(curl -sS ipv4.icanhazip.com) 
+echo -e "\e[32mloading...\e[0m"
+clear
+# Getting bot
+CHATID=$(grep -E "^#bot# " "/etc/bot/.bot.db" | cut -d ' ' -f 3)
+KEY=$(grep -E "^#bot# " "/etc/bot/.bot.db" | cut -d ' ' -f 2)
+export TIME="1"
+export URL="https://api.telegram.org/bot$KEY/sendMessage"
+NS=$(cat /root/nsdomain > /dev/null 2>&1)
+PUB=$(cat /etc/slowdns/server.pub > /dev/null 2>&1)
+# Valid Script
+ipsaya=$(wget -qO- ipinfo.io/ip) 
+data_server=$(curl -v --insecure --silent https://google.com/ 2>&1 | grep Date | sed -e 's/< Date: //') 
+date_list=$(date +"%Y-%m-%d" -d "$data_server") 
+data_ip="https://raw.githubusercontent.com/bowowiwendi/ipvps/main/main/ip"
+checking_sc() {
+  useexp=$(wget -qO- $data_ip | grep $ipsaya | awk '{print $3}')
+  if [[ $date_list < $useexp ]]; then
+    echo -ne
+  else
+    echo -e "\033[1;93m────────────────────────────────────────────\033[0m"
+    echo -e "\033[42m          404 NOT FOUND AUTOSCRIPT          \033[0m"
+    echo -e "\033[1;93m────────────────────────────────────────────\033[0m"
+    echo -e ""
+    echo -e "            ${RED}PERMISSION DENIED !${NC}"
+    echo -e "   \033[0;33mYour VPS${NC} $ipsaya \033[0;33mHas been Banned${NC}"
+    echo -e "     \033[0;33mBuy access permissions for scripts${NC}"
+    echo -e "             \033[0;33mContact Admin :${NC}"
+    echo -e "      \033[0;36mTelegram${NC} t.me/WendiVpn"
+    echo -e "      ${GREEN}WhatsApp${NC} wa.me/6283153170199"
+    echo -e "\033[1;93m────────────────────────────────────────────\033[0m"
+    exit
+  fi
+}
+checking_sc
+clear
+
+# // addvless
+function addvless(){
+clear
+MYIP=$(curl -sS ipv4.icanhazip.com) 
+ISP=$(cat /etc/xray/isp) 
+CITY=$(cat /etc/xray/city) 
+red() { echo -e "\\033[32;1m${*}\\033[0m"; }
+# Getting bot
+CHATID=$(grep -E "^#bot# " "/etc/bot/.bot.db" | cut -d ' ' -f 3)
+KEY=$(grep -E "^#bot# " "/etc/bot/.bot.db" | cut -d ' ' -f 2)
+export TIME="1"
+export URL="https://api.telegram.org/bot$KEY/sendMessage"
+
+# // Create
+domain=$(cat /etc/xray/domain)
+clear
+until [[ $user =~ ^[a-zA-Z0-9_]+$ && ${CLIENT_EXISTS} == '0' ]]; do
+  echo -e "\033[1;93m┌──────────────────────────────────────────┐\033[0m"
+  echo -e "\033[1;96m          CREATE TITLE XRAY / VLESS         \033[0m"
+  echo -e "\033[1;93m└──────────────────────────────────────────┘\033[0m"
+  echo -e ""
+  read -rp "USERNAME :   " -e user
+  CLIENT_EXISTS=$(grep -w $user /etc/xray/config.json | wc -l)
+
+  if [[ ${CLIENT_EXISTS} == '1' ]]; then
+    clear
+            echo ""
+            echo ""
+			echo -e "\033[1;91mSorry, this name already exists"
+			echo ""
+    addvless
+  fi
+done
+uuid=$(cat /proc/sys/kernel/random/uuid)
+read -p "EXPIRED (DAY)    : " masaaktif
+read -p "LLIMIT QUOTA (GB): " Quota
+read -p "LIMIT USER (IP)  : " iplimit
+tgl=$(date -d "$masaaktif days" +"%d")
+bln=$(date -d "$masaaktif days" +"%b")
+thn=$(date -d "$masaaktif days" +"%Y")
+expe="$tgl $bln, $thn"
+tgl2=$(date +"%d")
+bln2=$(date +"%b")
+thn2=$(date +"%Y")
+tnggl="$tgl2 $bln2, $thn2"
+exp=$(date -d "$masaaktif days" +"%Y-%m-%d")
+sed -i '/#vless$/a\#& '"$user $exp"'\
+},{"id": "'""$uuid""'","email": "'""$user""'"' /etc/xray/config.json
+sed -i '/#vlessgrpc$/a\#&& '"$user $exp"'\
+},{"id": "'""$uuid""'","email": "'""$user""'"' /etc/xray/config.json
+
+clear
+vlesslink1="vless://${uuid}@${domain}:443?path=/vless&security=tls&encryption=none&host=${domain}&type=ws&serviceName=vless-ws&sni=${domain}#${user}"
+vlesslink2="vless://${uuid}@${domain}:80?path=/vless&encryption=none&type=ws#${user}"
+vlesslink3="vless://${uuid}@${domain}:443?mode=gun&security=tls&encryption=none&type=grpc&serviceName=vless-grpc&sni=${domain}#${user}"
+if [ ! -e /etc/vless ]; then
+  mkdir -p /etc/vless
+fi
+
+if [[ $iplimit -gt 0 ]]; then
+mkdir -p /etc/kyt/limit/vless/ip
+echo -e "$iplimit" > /etc/kyt/limit/vless/ip/$user
+else
+echo > /dev/null
+fi
+
+if [ -z ${Quota} ]; then
+  Quota="0"
+fi
+
+c=$(echo "${Quota}" | sed 's/[^0-9]*//g')
+d=$((${c} * 1024 * 1024 * 1024))
+
+if [[ ${c} != "0" ]]; then
+  echo "${d}" >/etc/vless/${user}
+fi
+DATADB=$(cat /etc/vless/.vless.db | grep "^###" | grep -w "${user}" | awk '{print $2}')
+if [[ "${DATADB}" != '' ]]; then
+  sed -i "/\b${user}\b/d" /etc/vless/.vless.db
+fi
+echo "### ${user} ${exp} ${uuid} ${Quota} ${iplimit}" >>/etc/vless/.vless.db
+clear
+cat >/var/www/html/vless-$user.txt <<-END
+
+---------------------------------------------------
+# Format Vless WS TLS
+---------------------------------------------------
+proxies:
+  - name: Vless-$user-WS TLS
+    server: ${domain}
+    port: 443
+    type: vless
+    uuid: ${uuid}
+    alterId: 0
+    cipher: auto
+    tls: true
+    skip-cert-verify: true
+    servername: ${bug}
+    network: ws
+    ws-opts:
+      path: /vless
+      headers:
+        Host: ${domain}
+    udp: true
+    
+---------------------------------------------------
+# Format Vless gRPC (SNI)
+---------------------------------------------------
+
+- name: Vless-$user-gRPC (SNI)
+  server: ${domain}
+  port: 443
+  type: vless
+  uuid: ${uuid}
+  cipher: auto
+  tls: true
+  skip-cert-verify: true
+  servername: ${domain}
+  network: grpc
+  grpc-opts:
+  grpc-mode: gun
+    grpc-service-name: vless-grpc
+
+◇━━━━━━━━━━━━━━━━━◇
+   Vless Accont    
+◇━━━━━━━━━━━━━━━━━◇
+Remarks          : ${user} 
+Domain           : ${domain}
+User Quota       : ${Quota} GB
+User Ip          : ${iplimit} IP
+port TLS         : 400-900
+Port DNS         : 443
+Port NTLS        : 80, 8080, 8081-9999
+User ID          : ${uuid}
+Xray Dns.        : ${NS}
+Pubkey.          : ${PUB}
+Encryption       : none
+Path TLS         : /vless 
+ServiceName      : vless-grpc
+Location         : $CITY
+===================
+Link Akun Vless 
+===================
+Link TLS      : 
+${vlesslink1}
+===================
+Link GRPC     : 
+${vlesslink3}
+===================
+
+
+END
+
+systemctl restart xray
+systemctl restart nginx
+clear
+echo -e ""
+echo -e "---------------------------------------------------------------"
+echo -e "                           XRAY / VLESS  "
+echo -e "---------------------------------------------------------------"
+echo -e "Remarks     : ${user}"
+echo -e "Domain      : ${domain}"
+echo -e "User Quota  : ${Quota} GB"
+echo -e "User Ip     : ${iplimit} Devic"
+echo -e "port TLS    : 443 / 8443"
+echo -e "port None TLS/WS : 80,8880,8080,2082"
+echo -e "User ID     : ${uuid}"
+echo -e "ISP         : $ISP"
+echo -e "Encryption  : none"
+echo -e "Path TLS    : /vless "
+echo -e "ServiceName : vless-grpc"
+echo -e "Host XrayDNS: ${NS}"
+echo -e "Pub Key     : ${PUB}"
+echo -e "---------------------------------------------------------------"
+echo -e "Link TLS    : ${vlesslink1}"
+echo -e "---------------------------------------------------------------"
+echo -e "Link NTLS   : ${vlesslink2}"
+echo -e "---------------------------------------------------------------"
+echo -e "Link GRPC   : ${vlesslink3}"
+echo -e "---------------------------------------------------------------"
+echo -e "Format OpenClash : https://${domain}:81/vless-$user.txt"
+echo -e "---------------------------------------------------------------"
+echo -e "Aktif Selama     : $masaaktif Hari"
+echo -e "Dibuat Pada      : $tnggl"
+echo -e "Berakhir Pada    : $expe"
+echo -e "---------------------------------------------------------------"
+echo -e ""
+read -p "Press !! [ ENTER ] To Menu"
+m-vless
+}
+function trialvless(){
+clear
+CHATID=$(grep -E "^#bot# " "/etc/bot/.bot.db" | cut -d ' ' -f 3)
+KEY=$(grep -E "^#bot# " "/etc/bot/.bot.db" | cut -d ' ' -f 2)
+export TIME="10"
+export URL="https://api.telegram.org/bot$KEY/sendMessage"
+clear
+#IZIN SCRIPT
+MYIP=$(curl -sS ipv4.icanhazip.com)
+clear
+domain=$(cat /etc/xray/domain)
+ISP=$(cat /etc/xray/isp)
+CITY=$(cat /etc/xray/city)
+masaaktif=1
+Quota=1
+iplimit=2
+user=WV-`</dev/urandom tr -dc 0-9 | head -c3`
+read -p "Duration :" trial_duration
+clear 
+uuid=$(cat /proc/sys/kernel/random/uuid)
+exp=$(date -d "$masaaktif days" +"%Y-%m-%d")
+tgl=$(date -d "$masaaktif days" +"%d")
+bln=$(date -d "$masaaktif days" +"%b")
+thn=$(date -d "$masaaktif days" +"%Y")
+expe="$tgl $bln, $thn"
+tgl2=$(date +"%d")
+bln2=$(date +"%b")
+thn2=$(date +"%Y")
+tnggl="$tgl2 $bln2, $thn2"
+sed -i '/#vless$/a\#& '"$user $exp"'\
+},{"id": "'""$uuid""'","email": "'""$user""'"' /etc/xray/config.json
+sed -i '/#vlessgrpc$/a\#&& '"$user $exp"'\
+},{"id": "'""$uuid""'","email": "'""$user""'"' /etc/xray/config.json
+
+clear
+vlesslink1="vless://${uuid}@${domain}:443?path=/vless&security=tls&encryption=none&host=${domain}&type=ws&serviceName=vless-ws&sni=${domain}#${user}"
+vlesslink2="vless://${uuid}@${domain}:80?path=/vless&encryption=none&type=ws#${user}"
+vlesslink3="vless://${uuid}@${domain}:443?mode=gun&security=tls&encryption=none&type=grpc&serviceName=vless-grpc&sni=${domain}#${user}"
+cat >/var/www/html/vless-$user.txt <<-END
+
+---------------------------------------------------
+# Format Vless WS TLS
+---------------------------------------------------
+proxies:
+  - name: Vless-$user-WS TLS
+    server: ${domain}
+    port: 443
+    type: vless
+    uuid: ${uuid}
+    alterId: 0
+    cipher: auto
+    tls: true
+    skip-cert-verify: true
+    servername: ${bug}
+    network: ws
+    ws-opts:
+      path: /vless
+      headers:
+        Host: ${domain}
+    udp: true
+  
+---------------------------------------------------
+# Format Vless gRPC (SNI)
+---------------------------------------------------
+
+- name: Vless-$user-gRPC (SNI)
+  server: ${domain}
+  port: 443
+  type: vless
+  uuid: ${uuid}
+  cipher: auto
+  tls: true
+  skip-cert-verify: true
+  servername: ${domain}
+  network: grpc
+  grpc-opts:
+  grpc-mode: gun
+    grpc-service-name: vless-grpc
+    
+◇━━━━━━━━━━━━━━━━━◇
+   Vless Accont    
+◇━━━━━━━━━━━━━━━━━◇
+Remarks          : ${user} 
+Domain           : ${domain}
+User Quota       : ${Quota} GB
+User Ip          : ${iplimit} IP
+port TLS         : 400-900
+Port DNS         : 443
+Port NTLS        : 80, 8080, 8081-9999
+User ID          : ${uuid}
+Xray Dns.        : ${NS}
+Pubkey.          : ${PUB}
+Encryption       : none
+Path TLS         : /vless 
+ServiceName      : vless-grpc
+Location         : $CITY
+===================
+Link Akun Vless 
+===================
+Link TLS      : 
+${vlesslink1}
+===================
+Link GRPC     : 
+${vlesslink3}
+===================
+
+
+END
+
+systemctl restart xray
+systemctl restart nginx
+if [ ! -e /etc/vless ]; then
+  mkdir -p /etc/vless
+fi
+
+if [[ $iplimit -gt 0 ]]; then
+mkdir -p /etc/kyt/limit/vless/ip
+echo -e "$iplimit" > /etc/kyt/limit/vless/ip/$user
+else
+echo > /dev/null
+fi
+
+if [ -z ${Quota} ]; then
+  Quota="0"
+fi
+
+c=$(echo "${Quota}" | sed 's/[^0-9]*//g')
+d=$((${c} * 1024 * 1024 * 1024))
+
+if [[ ${c} != "0" ]]; then
+  echo "${d}" >/etc/vless/${user}
+fi
+DATADB=$(cat /etc/vless/.vless.db | grep "^###" | grep -w "${user}" | awk '{print $2}')
+if [[ "${DATADB}" != '' ]]; then
+  sed -i "/\b${user}\b/d" /etc/vless/.vless.db
+fi
+clear
+echo -e "--------------------------------------------------------------"
+echo -e "                     TRIALL VLESS "
+echo -e "--------------------------------------------------------------"
+echo -e "Remarks     : ${user}"
+echo -e "Domain      : ${domain}"
+echo -e "User Quota  : ${Quota} GB"
+echo -e "port TLS    : 443 8443"
+echo -e "Port NTLS   : 80,8080,8880,2086,2082"
+echo -e "User ID     : ${uuid}"
+echo -e "Encryption  : none"
+echo -e "Path TLS    : /vless "
+echo -e "ServiceName : vless-grpc"
+echo -e "--------------------------------------------------------------"
+echo -e "Link TLS    : ${vlesslink1}"
+echo -e "--------------------------------------------------------------"
+echo -e "Link NTLS   : ${vlesslink2}"
+echo -e "--------------------------------------------------------------"
+echo -e "Link GRPC   : ${vlesslink3}"
+echo -e "--------------------------------------------------------------"
+echo -e "Format OpenClash : https://${domain}:81/vless-$user.txt"
+echo -e "--------------------------------------------------------------"
+echo -e "Aktif Selama     : $trial_duration Menit"
+echo -e "Dibuat Pada      : $tnggl"
+echo -e "Berakhir Pada    : $expe"
+echo -e "--------------------------------------------------------------"
+echo -e " "
+read -p "Press !! [ ENTER ] To Menu"
+m-vless
+}
+function renewvless(){
+clear
+NUMBER_OF_CLIENTS=$(grep -c -E "^#& " "/etc/xray/config.json")
+	if [[ ${NUMBER_OF_CLIENTS} == '0' ]]; then
+		clear
+        echo -e "\033[0;33m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m"
+        echo -e "            Renew Vless          \E[0m"
+        echo -e "\033[0;33m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m"
+		echo ""
+		echo "You have no existing clients!"
+		echo ""
+		echo -e "\033[0;33m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m"
+        echo ""
+        read -n 1 -s -r -p "Press any key to back on menu"
+        m-vless
+	fi
+
+	clear
+	echo -e "\033[0;33m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m"
+    echo -e "            Renew Vless         \E[0m"
+    echo -e "\033[0;33m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m"
+    echo ""
+  	grep -E "^#& " "/etc/xray/config.json" | cut -d ' ' -f 2-3 | column -t | sort | uniq
+    echo ""
+    echo -e "\033[0;33m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m"
+	read -rp "Input Username : " user
+    if [ -z $user ]; then
+    m-vless
+    else
+    rm -f /etc/kyt/limit/vless/ip/${user}
+    rm -f /etc/vless/$user
+    read -p "Expired (days) : " masaaktif
+    read -p "Limit User (GB): " Quota
+    read -p "Limit User (IP): " iplim
+    exp=$(grep -wE "^#& $user" "/etc/xray/config.json" | cut -d ' ' -f 3 | sort | uniq)
+    mkdir -p /etc/kyt/limit/vless/ip
+echo ${iplim} >> /etc/kyt/limit/vless/ip/${user}
+if [ ! -e /etc/vless/ ]; then
+  mkdir -p /etc/vless/
+fi
+
+if [ -z ${Quota} ]; then
+  Quota="0"
+fi
+
+c=$(echo "${Quota}" | sed 's/[^0-9]*//g')
+d=$((${c} * 1024 * 1024 * 1024))
+
+if [[ ${c} != "0" ]]; then
+  echo "${d}" >/etc/vless/${user}
+fi
+    now=$(date +%Y-%m-%d)
+    d1=$(date -d "$exp" +%s)
+    d2=$(date -d "$now" +%s)
+    exp2=$(( (d1 - d2) / 86400 ))
+    exp3=$(($exp2 + $masaaktif))
+    exp4=$(date -d "$exp3 days" +%Y-%m-%d)
+    sed -i "/#& $user/c\#& $user $exp4" /etc/xray/config.json
+    sed -i "/#&& $user/c\#&& $user $exp4" /etc/xray/config.json
+    sed -i "/### $user/c\### $user $exp4" /root/akun/vless/.vless.conf
+    sed -i "/### $user/c\### $user $exp4" /etc/vless/.vless.db
+    systemctl restart xray > /dev/null 2>&1
+    clear
+    echo -e "\033[0;33m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m"
+    echo " VLESS Account Was Successfully Renewed"
+    echo -e "\033[0;33m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m"
+    echo ""
+    echo " Client Name : $user"
+    echo " Expired On  : $exp4"
+    echo " User Quota  : $Quota"
+    echo " User Limit IP: $iplim"
+    echo ""
+    echo -e "\033[0;33m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m"
+    echo ""
+    read -n 1 -s -r -p "Press any key to back on menu"
+    m-vless
+    fi
+
+}
+function delvless(){
+clear
+NUMBER_OF_CLIENTS=$(grep -c -E "^#& " "/etc/xray/config.json")
+	if [[ ${NUMBER_OF_CLIENTS} == '0' ]]; then
+		echo -e "\033[0;33m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m"
+    echo -e "        Delete Vless Account       "
+    echo -e "\033[0;33m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m"
+		echo ""
+		echo "You have no existing clients!"
+		echo ""
+		echo -e "\033[0;33m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m"
+		read -n 1 -s -r -p "Press any key to back on menu"
+    m-vless
+	fi
+
+	clear
+	echo -e "\033[0;33m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m"
+  echo -e "        Delete Vless Account       "
+  echo -e "\033[0;33m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m"
+  echo "  User       Expired  " 
+	echo -e "\033[0;33m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m"
+	grep -E "^#& " "/etc/xray/config.json" | cut -d ' ' -f 2-3 | column -t | sort | uniq
+  echo ""
+  echo -e "\033[0;33m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m"
+	read -rp "Input Username : " user
+    if [ -z $user ]; then
+    m-vless
+    else
+    exp=$(grep -wE "^#& $user" "/etc/xray/config.json" | cut -d ' ' -f 3 | sort | uniq)
+    sed -i "/^#& $user $exp/,/^},{/d" /etc/xray/config.json
+    sed -i "/^#&& $user $exp/,/^},{/d" /etc/xray/config.json
+    sed -i "/^### $user $exp/,/^},{/d" /etc/vless/.vless.db
+    rm -rf /etc/vless/$user
+    rm -rf /etc/kyt/limit/vless/ip/$user
+    systemctl restart xray > /dev/null 2>&1
+    clear
+    echo -e "\033[0;33m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m"
+    echo " Vless Account Deleted Successfully"
+    echo -e "\033[0;33m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m"
+    echo " Client Name : $user"
+    echo " Expired On  : $exp"
+    echo -e "\033[0;33m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m"
+    echo ""
+    read -p "BACK TO MENU"
+    m-vless
+    fi
+}
+function con() {
+    local -i bytes=$1;
+    if [[ $bytes -lt 1024 ]]; then
+        echo "${bytes}B"
+    elif [[ $bytes -lt 1048576 ]]; then
+        echo "$(( (bytes + 1023)/1024 ))KB"
+    elif [[ $bytes -lt 1073741824 ]]; then
+        echo "$(( (bytes + 1048575)/1048576 ))MB"
+    else
+        echo "$(( (bytes + 1073741823)/1073741824 ))GB"
+    fi
+}
+function cekvless(){
+clear
+echo -n > /tmp/other.txt
+data=( `cat /etc/xray/config.json | grep '#&' | cut -d ' ' -f 2 | sort | uniq`);
+echo -e "\033[1;36m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m"
+echo -e "\e[1;97;101m            CEK VLESS ACCOUNT           \e[0m"
+echo -e "\033[1;36m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m"
+for akun in "${data[@]}"
+do
+if [[ -z "$akun" ]]; then
+akun="tidakada"
+fi
+echo -n > /tmp/ipvless.txt
+data2=( `cat /var/log/xray/access.log | tail -n 500 | cut -d " " -f 3 | sed 's/tcp://g' | cut -d ":" -f 1 | sort | uniq`);
+for ip in "${data2[@]}"
+do
+jum=$(cat /var/log/xray/access.log | grep -w "$akun" | tail -n 500 | cut -d " " -f 3 | sed 's/tcp://g' | cut -d ":" -f 1 | grep -w "$ip" | sort | uniq)
+if [[ "$jum" = "$ip" ]]; then
+echo "$jum" >> /tmp/ipvless.txt
+else
+echo "$ip" >> /tmp/other.txt
+fi
+jum2=$(cat /tmp/ipvless.txt)
+sed -i "/$jum2/d" /tmp/other.txt > /dev/null 2>&1
+done
+jum=$(cat /tmp/ipvless.txt)
+if [[ -z "$jum" ]]; then
+echo > /dev/null
+else
+iplimit=$(cat /etc/kyt/limit/vless/ip/${akun})
+jum2=$(cat /tmp/ipvless.txt | wc -l)
+byte=$(cat /etc/vless/${akun})
+lim=$(con ${byte})
+wey=$(cat /etc/limit/vless/${akun})
+gb=$(con ${wey})
+lastlogin=$(cat /var/log/xray/access.log | grep -w "$akun" | tail -n 500 | cut -d " " -f 2 | tail -1)
+echo -e " \033[1;36m┌──────────────────────────────────────┐\033[0m"
+printf "  %-13s %-7s %-8s %2s\n" "  UserName : ${akun}"
+printf "  %-13s %-7s %-8s %2s\n" "  Login    : $lastlogin"
+printf "  %-13s %-7s %-8s %2s\n" "  Usage Quota : ${gb}" 
+printf "  %-13s %-7s %-8s %2s\n" "  Limit Quota : ${lim}" 
+printf "  %-13s %-7s %-8s %2s\n" "  Limit IP : $iplimit" 
+printf "  %-13s %-7s %-8s %2s\n" "  Login IP : $jum2" 
+echo -e " \033[1;36m└──────────────────────────────────────┘\033[0m"
+fi 
+rm -rf /tmp/ipvless.txt
+done
+rm -rf /tmp/other.txt
+echo ""
+echo -e "\033[1;36m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m"
+echo ""
+read -p "BACK TO MVLESS"
+m-vless
+}
+function user-vless(){
+clear
+NUMBER_OF_CLIENTS=$(grep -c -E "^#& " "/etc/xray/config.json")
+	if [[ ${NUMBER_OF_CLIENTS} == '0' ]]; then
+		echo -e "\033[0;33m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m"
+        echo -e "        SHOW ACCOUNT VLESS       "
+        echo -e "\033[0;33m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m"
+		echo ""
+		echo "You have no existing clients!"
+		echo ""
+		echo -e "\033[0;33m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m"
+		read -n 1 -s -r -p "Press any key to back on menu"
+        m-vless
+	fi
+
+	clear
+	echo -e "\033[0;33m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m"
+    echo -e "        SHOW ACCOUNT VLESS     "
+    echo -e "\033[0;33m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m"
+    echo "  NO    User   Expired  " 
+	echo -e "\033[0;33m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m"
+	grep -E "^#& " "/etc/xray/config.json" | cut -d ' ' -f 2-3 | column -t | sort | uniq
+    echo ""
+    echo -e "\033[0;33m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m"
+        read -rp "Masukan username :" user
+        cat /var/www/html/vless-$user.txt
+        read -n 1 -s -r -p "Press [ Enter ] to back on menu vless"
+        m-vless
+}
+
+
+grenbo="\e[92;1m"
+NC='\033[0m'
+clear
+echo -e "\033[1;93m┌──────────────────────────────────────────┐\033[0m"
+echo -e "\033[1;93m│$NC\e[96;1m         MENU MANAGER VLESS                $NC"
+echo -e "\033[1;93m└──────────────────────────────────────────┘\033[0m"
+echo -e "\033[1;93m┌──────────────────────────────────────────┐\033[0m"
+echo -e "\033[1;93m│  ${grenbo}1.${NC} \033[0;36mCreate Account Vless ${NC}"
+echo -e "\033[1;93m│  ${grenbo}2.${NC} \033[0;36mTriall Account Vless ${NC}"
+echo -e "\033[1;93m│  ${grenbo}3.${NC} \033[0;36mShow Member Account Vless ${NC}"
+echo -e "\033[1;93m│  ${grenbo}4.${NC} \033[0;36mDelete Account Vless ${NC}"
+echo -e "\033[1;93m│  ${grenbo}5.${NC} \033[0;36mRenew Account Vless ${NC}"
+echo -e "\033[1;93m│  ${grenbo}6.${NC} \033[0;36mCheck Account Login Vless ${NC}"
+echo -e "\033[1;93m│  ${grenbo}7.${NC} \033[0;36mCheck Account Detail's Vless${NC}"
+echo -e "\033[1;93m│  ${grenbo}8.${NC} \033[0;36mLock Account Vless ${NC}"
+echo -e "\033[1;93m│  ${grenbo}9.${NC} \033[0;36mUnlock Account Vless ${NC}"
+echo -e "\033[1;93m│  ${grenbo}10.${NC} \033[0;36mRenew ip Vless ${NC}"
+echo -e "\033[1;93m│  ${grenbo}11.${NC} \033[0;36mRenew Quota Vless ${NC}"    
+echo -e "\033[1;93m│  ${grenbo}x.${NC} \033[0;36mComeBack${NC}"
+echo -e "\033[1;93m└──────────────────────────────────────────┘\033[0m"
+echo -e ""
+read -p "Select option >>>   " menu
+echo -e ""
+case $menu in
+1) clear ;
+    addvless
+    ;;
+2) clear ;
+    trialvless
+    ;;
+3) clear ;
+    membervls
+    ;;
+4) clear ;
+    delvless
+    ;;
+5) clear ;
+    renewvless
+    ;;
+6) clear ;
+    cekvless
+    ;;
+7) clear ;
+    user-vless
+    ;;
+8) clear ;
+    lock-vl
+    ;;
+9) clear ;
+    unlock-vl
+    ;;
+10) clear ;
+    ganti-ip-vless
+    ;;
+11) clear ;
+    change-vless-qouta
+    ;;
+*)  clear ;
+    menu
+    ;;
+esac

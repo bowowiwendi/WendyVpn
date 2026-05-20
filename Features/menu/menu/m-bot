@@ -1,0 +1,526 @@
+#!/bin/bash
+DF='\e[39m'
+RED='\033[0;31m'
+Bold='\e[1m'
+Blink='\e[5m'
+yell='\e[33m'
+red='\e[31m'
+green='\e[32m'
+blue='\e[34m'
+PURPLE='\e[35m'
+cyan='\e[36m'
+Lred='\e[91m'
+Lyellow='\e[93m'
+Lgreen='\e[92m'
+NC='\e[0m'
+GREEN='\033[0;32m'
+ORANGE='\033[0;33m'
+LIGHT='\033[0;37m'
+grenbo="\e[92;1m"
+NS=$(cat /root/nsdomain)
+PUB=$(cat /etc/slowdns/server.pub)
+domain=$(cat /etc/xray/domain)
+red() { echo -e "\\033[32;1m${*}\\033[0m"; }
+clear
+#satusbot
+bot_kyt=$(systemctl status kyt | grep Active | awk '{print $3}' | cut -d "(" -f2 | cut -d ")" -f1)
+# STATUS SERVICE  BOT 
+if [[ $bot_kyt == "running" ]]; then 
+   status_bot="${GREEN}[ON]$NC${c} $NC"
+else
+   status_bot="${RED}[OFF]${NC} "
+fi
+#####
+KIRI="\033[1;32m>\033[1;33m>\033[1;31m>\033[1;31m$NC"
+ipsaya=$(wget -qO- ipinfo.io/ip)
+data_server=$(curl -v --insecure --silent https://google.com/ 2>&1 | grep Date | sed -e 's/< Date: //')
+date_list=$(date +"%Y-%m-%d" -d "$data_server")
+data_ip="https://raw.githubusercontent.com/bowowiwendi/ipvps/main/main/ip"
+checking_sc() {
+  useexp=$(wget -qO- $data_ip | grep $ipsaya | awk '{print $3}')
+  if [[ $date_list < $useexp ]]; then
+    echo -ne
+  else
+    echo -e "\033[1;93m────────────────────────────────────────────\033[0m"
+    echo -e "\033[42m          404 NOT FOUND AUTOSCRIPT          \033[0m"
+    echo -e "\033[1;93m────────────────────────────────────────────\033[0m"
+    echo -e ""
+    echo -e "            ${RED}PERMISSION DENIED !${NC}"
+    echo -e "   \033[0;33mYour VPS${NC} $ipsaya \033[0;33mHas been Banned${NC}"
+    echo -e "     \033[0;33mBuy access permissions for scripts${NC}"
+    echo -e "             \033[0;33mContact Admin :${NC}"
+    echo -e "      \033[0;36mTelegram${NC} t.me/WendiVpn"
+    echo -e "      ${GREEN}WhatsApp${NC} wa.me/6283153170199"
+    echo -e "\033[1;93m────────────────────────────────────────────\033[0m"
+    sleep 5
+    reboot
+  fi
+}
+checking_sc
+echo -e "\e[32mloading...\e[0m"
+MYIP=$(wget -qO- ipinfo.io/ip);
+grenbo="\e[92;1m"
+NC='\033[0m'
+
+function delNotif(){
+clear
+NUMBER_OF_CLIENTS=$(grep -c -E "^#bot# " "/etc/bot/bot.db")
+if [[ ${NUMBER_OF_CLIENTS} == '0' ]]; then
+    echo -e "\033[1;36m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m"
+    echo -e "      DELETE BOT NOTIF N BACKUP     "
+    echo -e "\033[1;36m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m"
+    echo ""
+    echo "You have no existing clients!"
+    echo ""
+    echo -e "\033[1;36m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m"
+    read -n 1 -s -r -p "Press [ Enter ] to back on menu"
+    menu
+fi
+
+clear
+CHATID=$(grep -E "^#bot# " "/etc/bot/.bot.db" | cut -d ' ' -f 3)
+KEY=$(grep -E "^#bot# " "/etc/bot/.bot.db" | cut -d ' ' -f 2)
+sed -i "/^#bot# $bottken $admin/d" /etc/bot/.bot.db
+clear
+echo -e "\033[1;36m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m"
+echo -e "     SUCCES DELETE BOT NOTIF N BACKUP    "
+echo -e "\033[1;36m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m"
+echo " Bot Token    : $KEY"
+echo " ID Telegram  : $CHATID"
+echo -e "\033[1;36m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m"
+echo ""
+read -n 1 -s -r -p "Press [ Enter ] to back on menu"
+menu 
+}
+function bot(){
+clear
+grenbo="\e[92;1m"
+NC='\e[0m'
+#install
+apt update && apt upgrade
+apt install python3 python3-pip git
+cd /usr/bin
+wget https://raw.githubusercontent.com/bowowiwendi/WendyVpn/ABSTRAK/bot/bot.zip
+unzip bot.zip
+mv bot/* /usr/bin
+chmod +x /usr/bin/*
+rm -rf bot.zip
+clear
+wget https://raw.githubusercontent.com/bowowiwendi/WendyVpn/ABSTRAK/bot/kyt.zip
+unzip kyt.zip
+pip3 install -r kyt/requirements.txt
+apt install python3-telethon
+apt install python3-requests
+rm -rf kyt.zip
+clear
+echo -e "\033[1;36m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m"
+echo -e "\e[1;97;101m               ADD BOT PANEL              \e[0m"
+echo -e "\033[1;36m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m"
+echo -e "${grenbo}Tutorial Creat Bot and ID Telegram${NC}"
+echo -e "${grenbo}[*] Creat Bot and Token Bot : @BotFather${NC}"
+echo -e "${grenbo}[*] Info Id Telegram : @MissRose_bot , perintah /info${NC}"
+echo -e "\033[1;36m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m"
+read -rp "[*] Input your Bot Token : " -e KEY 
+read -rp "[*] Input Your Id Telegram : " -e CHATID
+echo -e "\033[1;36m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m"
+echo -e BOT_TOKEN='"'$KEY'"' >> /usr/bin/kyt/var.txt 
+echo -e ADMIN='"'$CHATID'"' >> /usr/bin/kyt/var.txt
+echo -e DOMAIN='"'$domain'"' >> /usr/bin/kyt/var.txt
+echo -e PUB='"'$PUB'"' >> /usr/bin/kyt/var.txt
+echo -e HOST='"'$NS'"' >> /usr/bin/kyt/var.txt
+if [[ ${c} != "0" ]]; then
+  echo "${d}" >/etc/bot/${KEY}
+fi
+DATADB=$(cat /etc/bot/.bot.db | grep "^#bot#" | grep -w "${KEY}" | awk '{print $2}')
+if [[ "${DATADB}" != '' ]]; then
+  sed -i "/\b${user}\b/d" /etc/bot/.bot.db
+fi
+echo "#bot# ${KEY} ${CHATID}" >/etc/bot/.bot.db
+cat > /etc/systemd/system/kyt.service << END
+[Unit]
+Description=Simple kyt - @kyt
+After=network.target
+
+[Service] 
+WorkingDirectory=/usr/bin
+ExecStart=/usr/bin/python3 -m kyt
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
+END
+
+systemctl start kyt 
+systemctl enable kyt
+systemctl restart kyt
+rm -rf kyt.zip
+cd /root
+rm -rf kyt.sh
+read -n 1 -s -r -p "SELESAI Press [ Enter ] to back menu bot"
+m-bot
+}
+
+function hapus-bot(){
+clear
+dateFromServer=$(curl -v --insecure --silent https://google.com/ 2>&1 | grep Date | sed -e 's/< Date: //')
+biji=`date +"%Y-%m-%d" -d "$dateFromServer"`
+red() { echo -e "\\033[32;1m${*}\\033[0m"; }
+clear
+fun_bar() {
+    CMD[0]="$1"
+    CMD[1]="$2"
+    (
+        [[ -e $HOME/fim ]] && rm $HOME/fim
+        ${CMD[0]} -y >/dev/null 2>&1
+        ${CMD[1]} -y >/dev/null 2>&1
+        touch $HOME/fim
+    ) >/dev/null 2>&1 &
+    tput civis
+    echo -ne "  \033[0;33mPlease Wait Loading \033[1;37m- \033[0;33m["
+    while true; do
+        for ((i = 0; i < 18; i++)); do
+            echo -ne "\033[0;32m🚥"
+            sleep 0.1s
+        done
+        [[ -e $HOME/fim ]] && rm $HOME/fim && break
+        echo -e "\033[0;33m]"
+        sleep 1s
+        tput cuu1
+        tput dl1
+        echo -ne "  \033[0;33mPlease Wait Loading \033[1;37m- \033[0;33m["
+    done
+    echo -e "\033[0;33m]\033[1;37m -\033[1;32m OK !\033[1;37m"
+    tput cnorm
+}
+res1() {
+    systemctl stop kyt
+    rm -rf kyt/requirements.txt
+    cd /root
+    rm -rf kyt.sh
+    cd /usr/bin
+    rm -rf kyt
+    rm -rf kyt.zip
+    rm -rf bot
+    rm -rf bot.zip
+    rm -rf bot-backup
+    rm -rf bot-cek-login-ssh
+    rm -rf bot-cek-ss
+    rm -rf bot-cek-tr
+    rm -rf bot-cek-vless
+    rm -rf bot-cek-ws
+    rm -rf bot-member-ssh
+    rm -rf setting.py
+    rm -rf bot-restore
+    rm -rf bot-vps-info
+}
+netfilter-persistent
+clear
+echo -e "\033[1;36m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m"
+echo -e "                 HAPUS BOT PANEL              "
+echo -e "\033[1;36m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m"
+echo -e ""
+echo -e "  \033[1;91m hapus bot service\033[1;37m"
+fun_bar 'res1'
+echo -e "\033[1;36m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m"
+}
+
+function hapus(){
+clear
+dateFromServer=$(curl -v --insecure --silent https://google.com/ 2>&1 | grep Date | sed -e 's/< Date: //')
+biji=`date +"%Y-%m-%d" -d "$dateFromServer"`
+red() { echo -e "\\033[32;1m${*}\\033[0m"; }
+clear
+fun_bar() {
+    CMD[0]="$1"
+    CMD[1]="$2"
+    (
+        [[ -e $HOME/fim ]] && rm $HOME/fim
+        ${CMD[0]} -y >/dev/null 2>&1
+        ${CMD[1]} -y >/dev/null 2>&1
+        touch $HOME/fim
+    ) >/dev/null 2>&1 &
+    tput civis
+    echo -ne "  \033[0;33mPlease Wait Loading \033[1;37m- \033[0;33m["
+    while true; do
+        for ((i = 0; i < 18; i++)); do
+            echo -ne "\033[0;32m🚥"
+            sleep 0.1s
+        done
+        [[ -e $HOME/fim ]] && rm $HOME/fim && break
+        echo -e "\033[0;33m]"
+        sleep 1s
+        tput cuu1
+        tput dl1
+        echo -ne "  \033[0;33mPlease Wait Loading \033[1;37m- \033[0;33m["
+    done
+    echo -e "\033[0;33m]\033[1;37m -\033[1;32m OK !\033[1;37m"
+    tput cnorm
+}
+res1() {
+    if [ ! -f /usr/bin/kyt/var.txt ]; then
+        echo "Bot has not been created. Process stopped."
+        return
+    fi
+    systemctl stop kyt
+    find /usr/bin/kyt -mindepth 1 -not -path "/usr/bin/kyt/var.txt" -exec rm -rf {} +
+}
+netfilter-persistent
+clear
+echo -e "\033[1;36m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m"
+echo -e "      UPDATE BOT PANEL      "
+echo -e "\033[1;36m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m"
+echo -e ""
+echo -e "  \033[1;91m hapus bot service\033[1;37m"
+fun_bar 'res1'
+echo -e "\033[1;36m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m"
+}
+
+function stop-bot(){
+clear
+red() { echo -e "\\033[32;1m${*}\\033[0m"; }
+clear
+fun_bar() {
+    CMD[0]="$1"
+    CMD[1]="$2"
+    (
+        [[ -e $HOME/fim ]] && rm $HOME/fim
+        ${CMD[0]} -y >/dev/null 2>&1
+        ${CMD[1]} -y >/dev/null 2>&1
+        touch $HOME/fim
+    ) >/dev/null 2>&1 &
+    tput civis
+    echo -ne "  \033[0;33mPlease Wait Loading \033[1;37m- \033[0;33m["
+    while true; do
+        for ((i = 0; i < 18; i++)); do
+            echo -ne "\033[0;32m🚥"
+            sleep 0.1s
+        done
+        [[ -e $HOME/fim ]] && rm $HOME/fim && break
+        echo -e "\033[0;33m]"
+        sleep 1s
+        tput cuu1
+        tput dl1
+        echo -ne "  \033[0;33mPlease Wait Loading \033[1;37m- \033[0;33m["
+    done
+    echo -e "\033[0;33m]\033[1;37m -\033[1;32m OK !\033[1;37m"
+    tput cnorm
+}
+res1() {
+    systemctl stop kyt
+}
+netfilter-persistent
+clear
+echo -e "\033[1;36m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m"
+echo -e "       STOP BOT SERVICE       "
+echo -e "\033[1;36m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m"
+echo -e ""
+echo -e "  \033[1;91m stop bot service\033[1;37m"
+fun_bar 'res1'
+echo -e "\033[1;36m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m"
+echo -e ""
+read -n 1 -s -r -p "Press [ Enter ] to back on menu"
+m-bot
+}
+
+function restart-bot(){
+clear
+red() { echo -e "\\033[32;1m${*}\\033[0m"; }
+clear
+fun_bar() {
+    CMD[0]="$1"
+    CMD[1]="$2"
+    (
+        [[ -e $HOME/fim ]] && rm $HOME/fim
+        ${CMD[0]} -y >/dev/null 2>&1
+        ${CMD[1]} -y >/dev/null 2>&1
+        touch $HOME/fim
+    ) >/dev/null 2>&1 &
+    tput civis
+    echo -ne "  \033[0;33mPlease Wait Loading \033[1;37m- \033[0;33m["
+    while true; do
+        for ((i = 0; i < 18; i++)); do
+            echo -ne "\033[0;32m🚥"
+            sleep 0.1s
+        done
+        [[ -e $HOME/fim ]] && rm $HOME/fim && break
+        echo -e "\033[0;33m]"
+        sleep 1s
+        tput cuu1
+        tput dl1
+        echo -ne "  \033[0;33mPlease Wait Loading \033[1;37m- \033[0;33m["
+    done
+    echo -e "\033[0;33m]\033[1;37m -\033[1;32m OK !\033[1;37m"
+    tput cnorm
+}
+res1() {
+    systemctl restart kyt
+}
+netfilter-persistent
+clear
+echo -e "\033[1;36m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m"
+echo -e "      RESTART BOT SERVICE           "
+echo -e "\033[1;36m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m"
+echo -e ""
+echo -e "  \033[1;91m restart bot service\033[1;37m"
+fun_bar 'res1'
+echo -e "\033[1;36m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m"
+echo -e ""
+read -n 1 -s -r -p "Press [ Enter ] to back on menu"
+m-bot
+}
+
+function adBotNotif(){
+clear
+red() { echo -e "\\033[32;1m${*}\\033[0m"; }
+RED='\033[0;31m'
+NC='\e[0m'
+gray="\e[1;30m"
+Blue="\033[1;36m"
+GREEN='\033[0;32m'
+grenbo="\e[92;1m"
+YELL='\033[0;33m'
+BGX="\033[42m"
+
+grenbo="\e[92;1m"
+NC='\033[0m'
+clear
+echo -e "\033[1;93m┌──────────────────────────────────────────┐\033[0m"
+echo -e "\033[1;93m│$NC          ADD BOT NOTIF N BACKUP         $NC"
+echo -e "\033[1;93m└──────────────────────────────────────────┘\033[0m"
+echo -e ""
+read -rp " [*] BOT TOKEN   :  " -e bottoken 
+read -rp " [*] ID TELEGRAM :  " -e admin
+echo -e ""
+clear
+echo -e ""
+echo -e ""
+echo -e "\033[1;93m┌──────────────────────────────────────────┐\033[0m"
+echo -e "      is Preparing Bot......." 
+echo -e "\033[1;93m└──────────────────────────────────────────┘\033[0m"
+echo -e ""
+echo -e ""
+sleep 3
+if [[ ${c} != "0" ]]; then
+  echo "${d}" >/etc/bot/${bottoken}
+fi
+DATADB=$(cat /etc/bot/.bot.db | grep "^#bot#" | grep -w "${bottoken}" | awk '{print $2}')
+if [[ "${DATADB}" != '' ]]; then
+  sed -i "/\b${user}\b/d" /etc/bot/.bot.db
+fi
+echo "#bot# ${bottoken} ${admin}" >>/etc/bot/.bot.db
+clear 
+echo -e "\033[1;93m┌──────────────────────────────────────────┐\033[0m"
+echo -e "       SUCCES ADD BOT NOTIF N BACKUP       "
+echo -e "\033[1;93m└──────────────────────────────────────────┘\033[0m"
+echo -e ""
+echo " Bot Token      : $bottoken"
+echo " ID Telegram    : $admin"
+echo -e ""
+read -n 1 -s -r -p "Press [ Enter ] to back menu"
+m-bot
+}
+#update
+function update(){
+hapus
+apt update && apt upgrade
+apt install python3 python3-pip git
+cd /usr/bin
+wget https://raw.githubusercontent.com/bowowiwendi/WendyVpn/ABSTRAK/bot/bot.zip
+unzip bot.zip
+mv bot/* /usr/bin
+chmod +x /usr/bin/*
+rm -rf bot.zip
+clear
+wget https://raw.githubusercontent.com/bowowiwendi/WendyVpn/ABSTRAK/bot/kyt.zip
+unzip kyt.zip
+pip3 install -r kyt/requirements.txt
+apt install python3-telethon
+apt install python3-requests
+rm -rf kyt.zip
+systemctl start kyt 
+systemctl enable kyt
+systemctl restart kyt
+echo -e "Sukses Update Bot"
+read -n 1 -s -r -p "Press [ Enter ] to back menu bot"
+m-bot
+}
+#
+function change(){
+rm -rf /usr/bin/kyt/var.txt
+echo -e "\033[1;36m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m"
+echo -e "\e[1;97;101m               ADD BOT PANEL              \e[0m"
+echo -e "\033[1;36m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m"
+echo -e "${grenbo}Tutorial Creat Bot and ID Telegram${NC}"
+echo -e "${grenbo}[*] Creat Bot and Token Bot : @BotFather${NC}"
+echo -e "${grenbo}[*] Info Id Telegram : @MissRose_bot , perintah /info${NC}"
+echo -e "\033[1;36m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m"
+read -rp "[*] Input your Bot Token : " -e KEY 
+read -rp "[*] Input Your Id Telegram : " -e CHATID
+echo -e "\033[1;36m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m"
+echo -e BOT_TOKEN='"'$KEY'"' >> /usr/bin/kyt/var.txt 
+echo -e ADMIN='"'$CHATID'"' >> /usr/bin/kyt/var.txt
+echo -e DOMAIN='"'$domain'"' >> /usr/bin/kyt/var.txt
+echo -e PUB='"'$PUB'"' >> /usr/bin/kyt/var.txt
+echo -e HOST='"'$NS'"' >> /usr/bin/kyt/var.txt
+if [[ ${c} != "0" ]]; then
+  echo "${d}" >/etc/bot/${KEY}
+fi
+DATADB=$(cat /etc/bot/.bot.db | grep "^#bot#" | grep -w "${KEY}" | awk '{print $2}')
+if [[ "${DATADB}" != '' ]]; then
+  sed -i "/\b${user}\b/d" /etc/bot/.bot.db
+fi
+echo "#bot# ${KEY} ${CHATID}" >/etc/bot/.bot.db
+systemctl restart kyt
+echo -e "Sukses update API & ID"
+read -n 1 -s -r -p "Press [ Enter ] to back menu bot"
+m-bot
+}
+function admin(){
+echo -e "\033[1;36m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m"
+read -rp "[*] Input Your Id Telegram New Admin : " -e admin
+echo -e "\033[1;36m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m"
+clear
+echo -e ADMIN='"'$admin'"' >> /usr/bin/kyt/var.txt
+echo -e "\033[1;36m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m"
+echo -e " \e[1;97;101m      SUCCES ADD BOT PANEL     \e[0m"
+echo -e "\033[1;36m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m"
+echo " ID Telegram  : $admin"
+echo -e "\033[1;36m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m"
+read -n 1 -s -r -p "Press [ Enter ] to back menu bot"
+m-bot
+}
+clear
+echo -e "\033[1;93m┌──────────────────────────────────────────┐\033[0m"
+echo -e "\033[1;93m│$NC            MENU MANAGER BOT         $NC"
+echo -e "\033[1;93m└──────────────────────────────────────────┘\033[0m"
+echo -e "\033[1;97m             STATUS BOTT : ${status_bot}"
+echo -e "\033[1;93m┌──────────────────────────────────────────┐\033[0m"
+echo -e "\033[1;93m│  ${grenbo}1.${NC} \033[0;36mCREATE BOT ${NC}"
+echo -e "\033[1;93m│  ${grenbo}2.${NC} \033[0;36mDELETE BOT ${NC}"
+echo -e "\033[1;93m│  ${grenbo}3.${NC} \033[0;36mSTOPPP BOT ${NC}"
+echo -e "\033[1;93m│  ${grenbo}4.${NC} \033[0;36mRESTAR BOT ${NC}"
+echo -e "\033[1;93m│  ${grenbo}5.${NC} \033[0;36mUPDATE BOT ${NC}"
+echo -e "\033[1;93m│  ${grenbo}6.${NC} \033[0;36mCHANGE API & ID ${NC}"
+# echo -e "\033[1;93m│  ${grenbo}6.${NC} \033[0;36mCREATE BOT BACKUP${NC}"
+# echo -e "\033[1;93m│  ${grenbo}7.${NC} \033[0;36mDELETE BOT BACKUP${NC}"
+# echo -e "\033[1;93m│  ${grenbo}8.${NC} \033[0;36mCREATE BOT SELLER${NC}"
+echo -e "\033[1;93m│  ${grenbo}7.${NC} \033[0;36mPANEL BOT SELLER${NC}"
+# echo -e "\033[1;93m│  ${grenbo}10.${NC} \033[0;36mCREAT BOT VPS DO${NC}"
+echo -e "\033[1;93m│  ${grenbo}x.${NC} \033[0;36mCOMEBACK${NC}"
+echo -e "\033[1;93m└──────────────────────────────────────────┘\033[0m"
+echo -e ""
+read -p " Select options >>    "  opt
+echo -e   ""
+case $opt in
+01 | 1) clear ; bot ;;
+02 | 2) clear ; hapus-bot ;;
+03 | 3) clear ; stop-bot ;;
+04 | 4) clear ; restart-bot ;;
+05 | 5) clear ; update ;;
+06 | 6) clear ; change ;;
+# 07 | 7) clear ; delNotif ;;
+# 08 | 8) clear ; bot_sell.sh ;;
+07 | 7) clear ; panelbot.sh ;;
+# 10 | 10) clear ; wget https://raw.githubusercontent.com/bowowiwendi/WendyVpn/refs/heads/ABSTRAK/bot/install.sh && chmod +x install.sh && ./install.sh ;;
+*) clear ; menu ;;
+esac

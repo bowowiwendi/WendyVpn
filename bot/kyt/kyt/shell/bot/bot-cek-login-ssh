@@ -1,0 +1,139 @@
+#!/bin/bash
+
+# Helper: ambil IP berdasarkan PID via ss, fallback ke netstat
+get_ip_by_pid() {
+    local pid=$1
+    local ip=""
+    ip=$(ss -tnp 2>/dev/null | grep "pid=$pid," | awk '{print $5}' \
+        | sed -r 's/\[?([0-9a-fA-F:.]+)\]?:[0-9]+$/\1/' | head -1)
+    if [ -z "$ip" ]; then
+        ip=$(netstat -tnp 2>/dev/null | grep "$pid/" | awk '{print $5}' \
+            | sed -r 's/\[?([0-9a-fA-F:.]+)\]?:[0-9]+$/\1/' | head -1)
+    fi
+    echo "$ip"
+}
+
+# Helper: cek tipe proses dari TTY dengan jalan naik process tree
+get_proc_type_for_tty() {
+    local tty=$1
+    local pid
+    pid=$(ps -t "$tty" -o pid= 2>/dev/null | head -1 | tr -d ' ')
+    [ -z "$pid" ] && echo "unknown:" && return
+
+    local check_pid=$pid
+    for i in $(seq 1 8); do
+        local cmd
+        cmd=$(ps -p "$check_pid" -o comm= 2>/dev/null | tr -d ' ')
+        if echo "$cmd" | grep -qi "dropbear"; then
+            echo "dropbear:$pid"; return
+        elif [ "$cmd" = "sshd" ]; then
+            echo "sshd:$pid"; return
+        fi
+        local ppid
+        ppid=$(ps -p "$check_pid" -o ppid= 2>/dev/null | tr -d ' ')
+        [ -z "$ppid" ] || [ "$ppid" = "1" ] || [ "$ppid" = "0" ] && break
+        check_pid=$ppid
+    done
+    echo "unknown:$pid"
+}
+
+> /tmp/db-sessions.txt
+> /tmp/ssh-sessions.txt
+
+# ── METODE 1: Baca dari 'who' (baca /var/run/utmp) ──────────────────
+while IFS= read -r line; do
+    user=$(echo "$line" | awk '{print $1}')
+    tty=$(echo "$line"  | awk '{print $2}')
+    ip=$(echo "$line" | grep -oP '\(\K[^\)]+' | head -1)
+    [ -z "$user" ] && continue
+
+    proc_info=$(get_proc_type_for_tty "$tty")
+    proc_type=$(echo "$proc_info" | cut -d: -f1)
+    proc_pid=$(echo "$proc_info"  | cut -d: -f2)
+
+    if [ -z "$ip" ] && [ -n "$proc_pid" ]; then
+        ip=$(get_ip_by_pid "$proc_pid")
+    fi
+    [ -z "$ip" ] && ip="N/A"
+
+    if [ "$proc_type" = "dropbear" ]; then
+        echo "$user : $ip" >> /tmp/db-sessions.txt
+    elif [ "$proc_type" = "sshd" ]; then
+        echo "$user : $ip" >> /tmp/ssh-sessions.txt
+    fi
+done < <(who 2>/dev/null)
+
+# ── METODE 2: Scan proses Dropbear langsung (tanpa utmp) ─────────────
+while IFS= read -r line; do
+    user=$(echo "$line" | awk '{print $1}')
+    pid=$(echo "$line"  | awk '{print $2}')
+    [ "$user" = "root" ] && continue
+    grep -q "^$user " /tmp/db-sessions.txt 2>/dev/null && continue
+    ip=$(get_ip_by_pid "$pid")
+    [ -n "$ip" ] && echo "$user : $ip" >> /tmp/db-sessions.txt
+done < <(ps aux | grep "[d]ropbear" | awk '{print $1, $2}')
+
+# ── METODE 2: Scan proses sshd: langsung ─────────────────────────────
+while IFS= read -r line; do
+    pid=$(echo "$line" | awk '{print $2}')
+    args=$(ps -p "$pid" -o args= 2>/dev/null)
+    user=$(echo "$args" | sed -n 's/sshd: \([^@[:space:]]*\)@.*/\1/p')
+    [ -z "$user" ] && continue
+    grep -q "^$user " /tmp/ssh-sessions.txt 2>/dev/null && continue
+    ip=$(get_ip_by_pid "$pid")
+    [ -n "$ip" ] && echo "$user : $ip" >> /tmp/ssh-sessions.txt
+done < <(ps aux | grep "[s]shd:")
+
+# ── OUTPUT ────────────────────────────────────────────────────────────
+echo "━━━━━━━━━━━━━━"
+echo "🟢 DROPBEAR 🟢"
+echo "━━━━━━━━━━━━━━"
+if [ -s /tmp/db-sessions.txt ]; then
+    sort -u /tmp/db-sessions.txt | while read -r entry; do
+        echo "» $entry"
+    done
+else
+    echo "Tidak ada user aktif"
+fi
+
+echo ""
+echo "━━━━━━━━━━━━━━"
+echo "🟢 OPENSSH 🟢"
+echo "━━━━━━━━━━━━━━"
+if [ -s /tmp/ssh-sessions.txt ]; then
+    sort -u /tmp/ssh-sessions.txt | while read -r entry; do
+        echo "» $entry"
+    done
+else
+    echo "Tidak ada user aktif"
+fi
+
+# ── OPENVPN TCP ───────────────────────────────────────────────────────
+if [ -f "/etc/openvpn/server/openvpn-tcp.log" ]; then
+    echo ""
+    echo "━━━━━━━━━━━━━━"
+    echo "🟢 OVPN TCP 🟢"
+    echo "━━━━━━━━━━━━━━"
+    result=$(grep -w "^CLIENT_LIST" /etc/openvpn/server/openvpn-tcp.log \
+        | grep -v "Common Name" | cut -d',' -f2,3 | sed 's/,/ : /g')
+    if [ -n "$result" ]; then
+        echo "$result" | while read -r entry; do echo "» $entry"; done
+    else
+        echo "Tidak ada user aktif"
+    fi
+fi
+
+# ── OPENVPN UDP ───────────────────────────────────────────────────────
+if [ -f "/etc/openvpn/server/openvpn-udp.log" ]; then
+    echo ""
+    echo "━━━━━━━━━━━━━━"
+    echo "🟢 OVPN UDP 🟢"
+    echo "━━━━━━━━━━━━━━"
+    result=$(grep -w "^CLIENT_LIST" /etc/openvpn/server/openvpn-udp.log \
+        | grep -v "Common Name" | cut -d',' -f2,3 | sed 's/,/ : /g')
+    if [ -n "$result" ]; then
+        echo "$result" | while read -r entry; do echo "» $entry"; done
+    else
+        echo "Tidak ada user aktif"
+    fi
+fi

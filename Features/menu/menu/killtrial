@@ -1,0 +1,64 @@
+#!/bin/bash
+function notif-exp(){
+CHATID=$(grep -E "^#bot# " "/etc/bot/.bot.db" | cut -d ' ' -f 3)
+KEY=$(grep -E "^#bot# " "/etc/bot/.bot.db" | cut -d ' ' -f 2)
+TIME="10"
+URL="https://api.telegram.org/bot$KEY/sendMessage"
+TEXT="
+<code>────────────────────
+<b>⚠️NOTIF EXP TRIAL⚠️</b>
+────────────────────
+Username  : $user
+Expaired  : $exp
+────────────────────</code>
+"
+curl -s --max-time $TIME -d "chat_id=$CHATID&disable_web_page_preview=1&text=$TEXT&parse_mode=html" $URL >/dev/null 
+}
+user="$2"
+function ssh(){
+	getent passwd ${user}  >/dev/null 2>&1
+	userdel -f ${user}  >/dev/null 2>&1
+	systemctl restart sshd >/dev/null 2>&1
+	systemctl restart ws >/dev/null 2>&1
+}
+function vmess(){
+    exp=$(grep -wE "^### $user" "/etc/xray/config.json" | cut -d ' ' -f 3 | sort | uniq)
+	sed -i "/^### $user $exp/,/^},{/d" /etc/vmess/.vmess.db
+	sed -i "/^### $user $exp/,/^},{/d" /etc/xray/config.json
+	sed -i "/^### $user $exp/,/^},{/d" /etc/xray/config.json
+	rm -rf /etc/vmess/$user
+    rm -f /etc/kyt/limit/vmess/ip/$user
+    rm -f /etc/limit/vmess/$user
+    rm -f /var/www/html/vmess-$user.txt
+}
+function vless(){
+    exp=$(grep -wE "^#& $user" "/etc/xray/config.json" | cut -d ' ' -f 3 | sort | uniq)
+	sed -i "/^### $user $exp/,/^},{/d" /etc/vless/.vless.db
+	sed -i "/^#& $user $exp/,/^},{/d" /etc/xray/config.json
+	sed -i "/^#& $user $exp/,/^},{/d" /etc/xray/config.json
+	rm -rf /etc/vless/$user
+    rm -f /etc/kyt/limit/vless/ip/$user
+    rm -f /etc/limit/vless/$user
+    rm -f /var/www/html/vless-$user.txt
+}
+function trojan(){
+    exp=$(grep -wE "^#! $user" "/etc/xray/config.json" | cut -d ' ' -f 3 | sort | uniq)
+	sed -i "/^### $user $exp/,/^},{/d" /etc/trojan/.trojan.db
+	sed -i "/^#! $user $exp/,/^},{/d" /etc/xray/config.json
+	sed -i "/^#! $user $exp/,/^},{/d" /etc/xray/config.json
+	rm -rf /etc/trojan/$user
+    rm -f /etc/kyt/trojan/ip/$user
+    rm -f /etc/limit/trojan/$user
+    rm -f /var/www/html/trojan-$user.txt
+}
+
+if [[ ${1} == "vmess" ]]; then
+vmess
+elif [[ ${1} == "vless" ]]; then
+vless
+elif [[ ${1} == "trojan" ]]; then
+trojan
+elif [[ ${1} == "ssh" ]]; then
+ssh
+fi
+notif-exp

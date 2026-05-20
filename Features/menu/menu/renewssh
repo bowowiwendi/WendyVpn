@@ -1,0 +1,47 @@
+#!/bin/bash
+# SL
+export HOME=/root
+export TERM=xterm
+
+# ==========================================
+# Color
+RED='\033[0;31m'
+NC='\033[0m'
+GREEN='\033[0;32m'
+ORANGE='\033[0;33m'
+BLUE='\033[0;34m'
+PURPLE='\033[0;35m'
+CYAN='\033[0;36m'
+LIGHT='\033[0;37m'
+domain=$(cat /etc/xray/domain)
+# ==========================================
+# Getting
+MYIP=$(wget -qO- ipinfo.io/ip);
+clear
+function send_log() {
+TIMES="10"
+CHATID=$(grep -E "^#bot# " "/etc/bot/.bot.db" | cut -d ' ' -f 3)
+KEY=$(grep -E "^#bot# " "/etc/bot/.bot.db" | cut -d ' ' -f 2)
+URL="https://api.telegram.org/bot$KEY/sendMessage"
+TEXT2="
+<code>───────────────────────────</code>
+      ✨SUCCES RENEW  SSH✨
+<code>───────────────────────────</code>
+USERNAME: <code>$User</code>
+Expired On: <code>$Expiration_Display</code>
+Domain: <code>$domain</code>
+<code>───────────────────────────</code>
+"
+curl -s --max-time $TIMES -d "chat_id=$CHATID&disable_web_page_preview=1&text=$TEXT2&parse_mode=html" $URL >/dev/null
+}    
+read -p "Username : " User
+read -p "Day Extend : " Days
+Today=`date +%s`
+Days_Detailed=$(( $Days * 86400 ))
+Expire_On=$(($Today + $Days_Detailed))
+Expiration=$(date -u --date="1970-01-01 $Expire_On sec GMT" +%Y/%m/%d)
+Expiration_Display=$(date -u --date="1970-01-01 $Expire_On sec GMT" '+%d %b %Y')
+passwd -u $User
+usermod -e $Expiration $User
+egrep "^$User" /etc/passwd >/dev/null
+send_log

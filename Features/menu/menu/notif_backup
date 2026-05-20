@@ -1,0 +1,12 @@
+#!/bin/bash
+cek=$(grep -c -E "^# BEGIN_Backup" /etc/crontab)
+if [[ "$cek" = "1" ]]; then
+sts="🟢 ON"
+else
+sts="🔴 OFF"
+fi
+printf "
+◇━━━━━━━━━━━━━━━━━━━━━━━◇
+  🔥⇱ AUTO BACKUP $sts ⇲🔥   
+◇━━━━━━━━━━━━━━━━━━━━━━━◇
+"

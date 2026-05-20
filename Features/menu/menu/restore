@@ -1,0 +1,116 @@
+#!/bin/bash
+# Color
+RED='\033[0;31m'
+NC='\033[0m'
+GREEN='\033[0;32m'
+ORANGE='\033[0;33m'
+BLUE='\033[0;34m'
+PURPLE='\033[0;35m'
+CYAN='\033[0;36m'
+LIGHT='\033[0;37m'
+
+# Bot configuration
+CHATID=$(grep -E "^#bot# " "/etc/bot/.bot.db" | cut -d ' ' -f 3)
+KEY=$(grep -E "^#bot# " "/etc/bot/.bot.db" | cut -d ' ' -f 2)
+TIME="1"
+URL="https://api.telegram.org/bot$KEY/sendMessage"
+
+# Restore function
+function restore() {
+    clear
+    echo -e "\033[1;93m┌──────────────────────────────────────────┐\033[0m"
+    echo -e "\033[1;93m│$NC      INPUT LINK BACKUP VPS       $NC"
+    echo -e "\033[1;93m└──────────────────────────────────────────┘\033[0m"
+    echo -e ""
+    read -p "input Link backup :  " -e url
+    echo -e ""
+    wget -O backup.zip "$url"
+    unzip backup.zip
+    rm -f backup.zip
+    echo "Start Restore"
+    cd /root/backup
+    cp passwd /etc/
+    cp group /etc/
+    cp shadow /etc/
+    cp gshadow /etc/
+    cp crontab /etc/
+    cp .ssh.db /etc/ssh/
+    cp .vmess.db /etc/vmess/
+    cp .vless.db /etc/vless/
+    cp .trojan.db /etc/trojan/
+    cp .shadowsocks.db /etc/shadowsocks/
+    cp -r figlet_text usr/bin/
+    cp -r bot /etc/
+    cp -r kyt /var/lib/
+    cp -r xray /etc/
+    cp -r html /var/www/
+    cp -r limit /etc/kyt/
+    cp -r vmess /etc/
+    cp -r trojan /etc/
+    cp -r vless /etc/
+    cp -r shadowsocks /etc/
+
+    # Check for var.txt
+    if [ -f "var.txt" ]; then
+        echo "File var.txt ditemukan."
+        read -p "Apakah Anda ingin install bot panel? (y/n): " RESPONSE
+        if [[ "$RESPONSE" =~ ^[Yy]$ ]]; then
+            echo "Install bot panel..."
+            mkdir -p /usr/bin/kyt
+            cp var.txt /usr/bin/kyt
+            rm -rf /root/backup
+            apt update && apt upgrade -y
+            apt install python3 python3-pip git -y
+            cd /usr/bin
+            wget https://raw.githubusercontent.com/bowowiwendi/WendyVpn/ABSTRAK/bot/bot.zip
+            unzip bot.zip
+            mv bot/* /usr/bin
+            chmod +x /usr/bin/*
+            rm -rf bot.zip
+            clear
+            wget https://raw.githubusercontent.com/bowowiwendi/WendyVpn/ABSTRAK/bot/kyt.zip
+            unzip kyt.zip
+            pip3 install -r kyt/requirements.txt
+            apt install python3-telethon -y
+            rm -rf kyt.zip
+            cat > /etc/systemd/system/kyt.service << END
+[Unit]
+Description=Simple kyt - @kyt
+After=network.target
+
+[Service]
+WorkingDirectory=/usr/bin
+ExecStart=/usr/bin/python3 -m kyt
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
+END
+            systemctl start kyt
+            systemctl enable kyt
+            systemctl restart kyt
+        fi
+    fi
+    notif_restore
+    rm -f backup.zip
+    echo ""
+    read -p "Selesai Restore press !! [ ENTER ] To Menu"
+    menu
+}
+
+# Notification function
+function notif_restore() {
+    TEXT="
+◇━━━━━━━━━━━━━━━━━━━━━━━━◇
+   ⚠️ RESTORE NOTIF ⚠️
+     Detail Restore VPS
+◇━━━━━━━━━━━━━━━━━━━━━━━━◇
+     Restore Vps Done
+◇━━━━━━━━━━━━━━━━━━━━━━━━◇
+  BY BOT : @SHLSTORE Tunnel
+"
+    curl -s --max-time $TIME -d "chat_id=$CHATID&disable_web_page_preview=1&text=$TEXT&parse_mode=html" $URL >/dev/null
+}
+
+# Execute restore
+restore

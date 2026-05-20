@@ -1,0 +1,231 @@
+#!/bin/bash
+Green="\e[92;1m"
+RED="\033[31m"
+YELLOW="\033[33m"
+BLUE="\033[36m"
+FONT="\033[0m"
+GREENBG="\033[42;37m"
+REDBG="\033[41;37m"
+OK="${Green}--->${FONT}"
+ERROR="${RED}[ERROR]${FONT}"
+GRAY="\e[1;30m"
+NC='\e[0m'
+red='\e[1;31m'
+green='\e[0;32m'
+DF='\e[39m'
+Bold='\e[1m'
+Blink='\e[5m'
+yell='\e[33m'
+red='\e[31m'
+green='\e[32m'
+blue='\e[34m'
+PURPLE='\e[35m'
+cyan='\e[36m'
+Lred='\e[91m'
+Lgreen='\e[92m'
+Lyellow='\e[93m'
+NC='\e[0m'
+GREEN='\033[0;32m'
+ORANGE='\033[0;33m'
+LIGHT='\033[0;37m'
+grenbo="\e[92;1m"
+red() { echo -e "\\033[32;1m${*}\\033[0m"; }
+CITY=$(cat /etc/xray/city)
+# Getting
+CHATID=$(grep -E "^#bot# " "/etc/bot/.bot.db" | cut -d ' ' -f 3)
+KEY=$(grep -E "^#bot# " "/etc/bot/.bot.db" | cut -d ' ' -f 2)
+export TIME="10"
+export URL="https://api.telegram.org/bot$KEY/sendMessage"
+clear
+domain=$(cat /etc/xray/domain)
+masaaktif=1
+Quota=5
+user=Trial-TR`</dev/urandom tr -dc 0-9 | head -c3`
+iplimit="4"
+if [[ $iplimit -gt 0 ]]; then
+mkdir -p /etc/kyt/limit/vless/ip
+echo -e "$iplimit" > /etc/kyt/limit/vless/ip/$user
+else
+echo > /dev/null
+fi
+clear
+uuid=$(cat /proc/sys/kernel/random/uuid)
+exp=$(date -d "$masaaktif days" +"%Y-%m-%d")
+tgl=$(date -d "$masaaktif days" +"%d")
+bln=$(date -d "$masaaktif days" +"%b")
+thn=$(date -d "$masaaktif days" +"%Y")
+expe="$tgl $bln, $thn"
+tgl2=$(date +"%d")
+bln2=$(date +"%b")
+thn2=$(date +"%Y")
+tnggl="$tgl2 $bln2, $thn2"
+sed -i '/#trojanws$/a\#! '"$user $exp"'\
+},{"password": "'""$uuid""'","email": "'""$user""'"' /etc/xray/config.json
+sed -i '/#trojangrpc$/a\#!# '"$user $exp"'\
+},{"password": "'""$uuid""'","email": "'""$user""'"' /etc/xray/config.json
+clear
+# Link Trojan Akun
+trojanlink1="trojan://${uuid}@${domain}:443?mode=gun&security=tls&type=grpc&serviceName=trojan-grpc&sni=bug.com#${user}"
+trojanlink="trojan://${uuid}@bugkamu.com:443?path=%2Ftrojan-ws&security=tls&host=${domain}&type=ws&sni=${domain}#${user}"
+trojanlink2="trojan://${uuid}@${domain}:80?path=%2Ftrojan-ws&security=none&host=${domain}&type=ws#${user}"
+systemctl reload xray >/dev/null 2>&1
+service cron restart >/dev/null 2>&1
+cat >/var/www/html/trojan-$user.txt <<-END
+---------------------------------------------------
+# Format Trojan GO/WS
+---------------------------------------------------
+proxies:
+  - name: Trojan-$user-GO/WS
+    server: ${domain}
+    port: 443
+    type: trojan
+    password: ${uuid}
+    skip-cert-verify: true
+    sni: ${domain}
+    network: ws
+    ws-opts:
+      path: /trojan-ws
+      headers:
+        Host: ${domain}
+    udp: true
+
+---------------------------------------------------    
+# Format Trojan gRPC
+---------------------------------------------------
+- name: Trojan-$user-gRPC
+  type: trojan
+  server: ${domain}
+  port: 443
+  password: ${uuid}
+  udp: true
+  sni: ${domain}
+  skip-cert-verify: true
+  network: grpc
+  grpc-opts:
+    grpc-service-name: trojan-grpc
+
+◇━━━━━━━━━━━━━━━━━◇
+   Trojan Account
+◇━━━━━━━━━━━━━━━━━◇
+Remarks          : ${user}
+Domain           : ${domain}
+User Quota       : ${Quota} GB
+User Ip          : ${iplimit} IP
+Port TLS         : 400-900
+Port none TLS    : 80, 8080, 8081-9999
+id               : ${uuid}
+Xray Dns         : ${NS}
+Pubkey           : ${PUB}
+alterId          : 0
+Security         : auto
+Network          : ws
+Path             : /Multi-Path
+Dynamic          : https://$bug/path
+ServiceName      : vmess-grpc
+Location         : $CITY
+=====================
+ Link Akun Trojan                   
+=====================
+Link TLS         : 
+${trojanlink}
+=====================
+Link GRPC        : 
+${trojanlink1}
+=====================
+
+END
+CHATID="$CHATID"
+KEY="$KEY"
+TIME="$TIME"
+URL="$URL"
+TEXT="
+◇━━━━━━━━━━━━━━━━━◇
+   Trojan Account
+◇━━━━━━━━━━━━━━━━━◇
+Remarks          : ${user}
+Domain           : ${domain}
+User Quota       : ${Quota} GB
+User Ip          : ${iplimit} IP
+Port TLS         : 400-900
+Port none TLS    : 80, 8080, 8081-9999
+id               : ${uuid}
+Xray Dns         : ${NS}
+Pubkey           : ${PUB}
+alterId          : 0
+Security         : auto
+Network          : ws
+Path             : /Multi-Path
+Dynamic          : https://$bug/path
+ServiceName      : vmess-grpc
+Location         : $CITY
+=====================
+ Link Akun Trojan                   
+=====================
+Link TLS         : 
+${trojanlink}
+=====================
+Link GRPC        : 
+${trojanlink1}
+=====================
+"
+
+service cron restart
+if [ ! -e /etc/trojan ]; then
+  mkdir -p /etc/trojan
+fi
+
+if [[ $iplimit -gt 0 ]]; then
+mkdir -p /etc/kyt/limit/trojan/ip
+echo -e "$iplimit" > /etc/kyt/limit/trojan/ip/$user
+else
+echo > /dev/null
+fi
+
+if [ -z ${Quota} ]; then
+  Quota="0"
+fi
+
+c=$(echo "${Quota}" | sed 's/[^0-9]*//g')
+d=$((${c} * 1024 * 1024 * 1024))
+
+if [[ ${c} != "0" ]]; then
+  echo "${d}" >/etc/trojan/${user}
+fi
+DATADB=$(cat /etc/trojan/.trojan.db | grep "#!" | grep -w "${user}" | awk '{print $2}')
+if [[ "${DATADB}" != '' ]]; then
+  sed -i "/\b${user}\b/d" /etc/trojan/.trojan.db
+fi
+curl -s -X POST $URL --data-urlencode "chat_id=$CHATID" --data-urlencode "text=$TEXT" >/dev/null
+
+clear
+echo -e ""
+echo -e "\033[1;93m====================\033[0m"
+echo -e " TRIAL TROJAN ACCOUNT          "
+echo -e "\033[1;93m====================\033[0m"
+echo -e "Remarks          : ${user}" 
+echo -e "Host/IP          : ${domain}"
+echo -e "User Quota       : ${Quota} GB"
+echo -e "User IP          : ${iplimit} IP"
+echo -e "Port NTLS        : 443" 
+echo -e "port None TLS/WS : 80,8880,8080"
+echo -e "Key              : ${uuid}" 
+echo -e "Path             : /trojan-ws" 
+echo -e "ServiceName      : trojan-grpc"
+echo -e "Host XrayDNS     : ${NS}"
+echo -e "Pub Key          : ${PUB}" 
+echo -e "--------------------------------------------------------------"
+echo -e "Link WS          : ${trojanlink}" 
+echo -e "--------------------------------------------------------------"
+echo -e "Link None Ws     : ${trojanlink2}" 
+echo -e "--------------------------------------------------------------"
+echo -e "Link GRPC        : ${trojanlink1}" 
+echo -e "--------------------------------------------------------------"
+echo -e "Link Qris        :https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${trojanlink}"
+echo -e "--------------------------------------------------------------"
+echo -e "Format OpenClash : https://${domain}:81/trojan-$user.txt" 
+echo -e "--------------------------------------------------------------"
+echo -e "Aktif Selama     : $trial_duration Menit"
+echo -e "Dibuat Pada      : $tnggl"
+echo -e "Berakhir Pada    : $(date -d "+$trial_duration minutes" +"%d %b, %Y %H:%M")"
+echo -e "\033[0;34m◇━━━━━━━━━━━━━━━━━◇\033[0m"
+echo ""

@@ -1,0 +1,99 @@
+#!/bin/bash
+
+# Validasi input
+[ -z "$1" ] && echo '{"error": "Username required"}' && exit 1
+[ -z "$2" ] && echo '{"error": "Password required"}' && exit 1
+[ -z "$3" ] && echo '{"error": "Limit IP required"}' && exit 1
+[ -z "$4" ] && echo '{"error": "Masa aktif required"}' && exit 1
+
+user=$1
+pw=$2
+limit_ip=$3
+masaaktif=$4
+
+# Pastikan direktori ada
+mkdir -p /etc/kyt/limit/ssh/ip
+mkdir -p /etc/ssh
+mkdir -p /var/www/html
+
+# Buat file db jika belum ada
+touch /etc/ssh/.ssh.db
+
+# Set limit IP
+if [[ $limit_ip -gt 0 ]]; then
+    echo "$limit_ip" > /etc/kyt/limit/ssh/ip/$user
+fi
+
+# Format tanggal
+tgl=$(date -d "$masaaktif days" +"%d")
+bln=$(date -d "$masaaktif days" +"%b")
+thn=$(date -d "$masaaktif days" +"%Y")
+expe="$tgl $bln, $thn"
+tnggl=$(date +"%d %b, %Y")
+
+# Buat user — GUNAKAN /bin/bash agar bisa login SSH!
+if id "$user" &>/dev/null; then
+    echo "User $user already exists. Resetting password and expiry."
+    usermod -e "$(date -d "$masaaktif days" +"%Y-%m-%d")" "$user"
+else
+    useradd -e "$(date -d "$masaaktif days" +"%Y-%m-%d")" -s /bin/bash -M "$user" || {
+        echo '{"error": "Failed to create system user"}' >&2
+        exit 1
+    }
+fi
+
+# Set password — gunakan chpasswd
+echo "$user:$pw" | chpasswd || {
+    echo '{"error": "Failed to set password"}' >&2
+    exit 1
+}
+
+# Update database internal
+sed -i "/^### $user\b/d" /etc/ssh/.ssh.db
+echo "### $user $pw $limit_ip $(date -d "$masaaktif days" +"%Y-%m-%d")" >> /etc/ssh/.ssh.db
+
+# Generate file info
+domain=$(cat /etc/xray/domain 2>/dev/null)
+IP=$(curl -sS ipv4.icanhazip.com)
+ISP=$(curl -s ipinfo.io/org | cut -d " " -f 2-10 )
+CITY=$(cat /etc/xray/city 2>/dev/null)
+
+cat > "/var/www/html/ssh-$user.txt" <<-END
+◇━━━━━━━━━━━━━━━━━◇
+Format SSH OVPN Account
+◇━━━━━━━━━━━━━━━━━◇
+Username         : $user
+Password         : $pw
+◇━━━━━━━━━━━━━━━━━◇
+IP               : $limit_ip
+Host             : $domain
+Port OpenSSH     : 443, 80, 22
+...
+Location         : $CITY
+◇━━━━━━━━━━━━━━━━━◇
+Aktif Selama     : $masaaktif Hari
+Dibuat Pada      : $tnggl
+Berakhir Pada    : $expe
+===============================
+END
+
+# Output JSON
+jq -n \
+  --arg username "$user" \
+  --arg password "$pw" \
+  --arg limit_ip "$limit_ip" \
+  --arg domain "$domain" \
+  --arg ip "$IP" \
+  --arg isp "$ISP" \
+  --arg city "$CITY" \
+  --arg expired "$expe" \
+  '{
+    username: $username,
+    password: $password,
+    limit_ip: $limit_ip,
+    domain: $domain,
+    ip: $ip,
+    isp: $isp,
+    city: $city,
+    expired: $expired
+  }'
