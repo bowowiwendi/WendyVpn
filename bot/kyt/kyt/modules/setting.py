@@ -448,7 +448,8 @@ Button.inline(" RESTART ","resx")],
 Button.inline(" REGIS VPS ","regist")],
 [Button.inline(" GEN LINK ","gen"),
 Button.inline(" 💰 BALANCE ","adm-balance")],
-[Button.inline(" DEL LOCK ","recovery")],
+[Button.inline(" DEL LOCK ","recovery"),
+Button.inline(" 🌐 SERVERS ","adm-servers")],
 [Button.inline("‹ Back ›","menu")]]
         z = requests.get(f"http://ip-api.com/json/?fields=country,region,city,timezone,isp").json()
         username = sender.username
