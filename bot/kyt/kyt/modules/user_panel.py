@@ -531,3 +531,153 @@ async def admin_pricelist(event):
 			msg += f"\n{emoji} **{label}**\n"
 		msg += f"  • {p['duration']} hari : `{format_rupiah(p['price'])}`\n"
 	await event.respond(msg)
+
+# ── BALANCE MANAGEMENT (Callback-based) ────────────────────────────────
+@bot.on(events.CallbackQuery(data=b'adm-balance'))
+async def adm_balance_menu(event):
+	sender = await event.get_sender()
+	if valid(str(sender.id)) != "true":
+		await event.answer("Access Denied", alert=True)
+		return
+	btns = [
+		[Button.inline("💰 Top Up","adm-topup"),
+		 Button.inline("💵 Cek Saldo","adm-ceksaldo")],
+		[Button.inline("💲 Set Harga","adm-setharga"),
+		 Button.inline("📋 Price List","adm-pricelist")],
+		[Button.inline("👥 All Users","adm-allusers")],
+		[Button.inline("‹ Back","setting")],
+	]
+	await event.edit("**💰 BALANCE MANAGEMENT**\nPilih opsi:", buttons=btns)
+
+@bot.on(events.CallbackQuery(data=b'adm-topup'))
+async def adm_topup_cb(event):
+	sender = await event.get_sender()
+	if valid(str(sender.id)) != "true":
+		return
+	chat = event.chat_id
+	async with bot.conversation(chat) as user_conv:
+		await event.respond("**Masukkan ID Telegram user:**")
+		user_resp = user_conv.wait_event(events.NewMessage(incoming=True, from_users=sender.id))
+		user_resp = (await user_resp).raw_text.strip()
+	async with bot.conversation(chat) as amt_conv:
+		await event.respond("**Masukkan jumlah top up:**")
+		amt_resp = amt_conv.wait_event(events.NewMessage(incoming=True, from_users=sender.id))
+		amt_resp = (await amt_resp).raw_text.strip()
+	try:
+		amount = float(amt_resp)
+	except ValueError:
+		await event.respond("❌ Jumlah harus angka.")
+		return
+	ensure_user_exists(user_resp)
+	add_balance(user_resp, amount, "Top Up Admin")
+	new_bal = get_balance(user_resp)
+	await event.respond(
+		f"✅ **Top Up Berhasil**\n\n"
+		f"🆔 ID : `{user_resp}`\n"
+		f"➕ Tambah : `{format_rupiah(amount)}`\n"
+		f"💰 Saldo : `{format_rupiah(new_bal)}`"
+	)
+	try:
+		await bot.send_message(int(user_resp),
+			f"💰 **Saldo ditambahkan!**\n\n"
+			f"➕ `{format_rupiah(amount)}`\n"
+			f"💵 Saldo sekarang : `{format_rupiah(new_bal)}`")
+	except:
+		pass
+
+@bot.on(events.CallbackQuery(data=b'adm-ceksaldo'))
+async def adm_ceksaldo_cb(event):
+	sender = await event.get_sender()
+	if valid(str(sender.id)) != "true":
+		return
+	chat = event.chat_id
+	async with bot.conversation(chat) as conv:
+		await event.respond("**Masukkan ID Telegram user:**")
+		resp = conv.wait_event(events.NewMessage(incoming=True, from_users=sender.id))
+		tid = (await resp).raw_text.strip()
+	bal = get_balance(tid)
+	db = get_db()
+	user = db.execute("SELECT tg_username FROM user_balance WHERE telegram_id=?", (tid,)).fetchone()
+	uname = user['tg_username'] if user else 'N/A'
+	svcs = get_user_services(tid)
+	await event.respond(
+		f"📊 **Info User**\n\n"
+		f"🆔 ID : `{tid}`\n"
+		f"👤 Username : @{uname}\n"
+		f"💰 Saldo : `{format_rupiah(bal)}`\n"
+		f"📦 Layanan : `{len(svcs)}` akun"
+	)
+
+@bot.on(events.CallbackQuery(data=b'adm-pricelist'))
+async def adm_pricelist_cb(event):
+	sender = await event.get_sender()
+	if valid(str(sender.id)) != "true":
+		return
+	db = get_db()
+	prices = db.execute("SELECT * FROM service_prices ORDER BY service, duration").fetchall()
+	msg = "💵 **DAFTAR HARGA**\n\n"
+	current_svc = ""
+	for p in prices:
+		if p['service'] != current_svc:
+			current_svc = p['service']
+			emoji = SVC_EMOJI.get(current_svc,'🔧')
+			label = SVC_LABEL.get(current_svc, current_svc.upper())
+			msg += f"\n{emoji} **{label}**\n"
+		msg += f"  • {p['duration']} hari : `{format_rupiah(p['price'])}`\n"
+	msg += "\n_Admin: /setprice untuk mengubah harga_"
+	await event.edit(msg, buttons=[[Button.inline("‹ Back","adm-balance")]])
+
+@bot.on(events.CallbackQuery(data=b'adm-allusers'))
+async def adm_allusers_cb(event):
+	sender = await event.get_sender()
+	if valid(str(sender.id)) != "true":
+		return
+	db = get_db()
+	users = db.execute(
+		"SELECT telegram_id, tg_username, balance FROM user_balance ORDER BY joined_at DESC LIMIT 20"
+	).fetchall()
+	if not users:
+		await event.edit("📋 Belum ada user terdaftar.",
+			buttons=[[Button.inline("‹ Back","adm-balance")]])
+		return
+	msg = "📋 **DAFTAR USER** (20 terakhir)\n\n"
+	for u in users:
+		uname = f"@{u['tg_username']}" if u['tg_username'] else u['telegram_id']
+		msg += f"• {uname} — `{format_rupiah(u['balance'])}`\n"
+	await event.edit(msg, buttons=[[Button.inline("‹ Back","adm-balance")]])
+
+@bot.on(events.CallbackQuery(data=b'adm-setharga'))
+async def adm_setharga_cb(event):
+	sender = await event.get_sender()
+	if valid(str(sender.id)) != "true":
+		return
+	chat = event.chat_id
+	async with bot.conversation(chat) as svc_conv:
+		await event.respond(
+			"**Masukkan service, durasi, dan harga**\n"
+			"Format: `service durasi harga`\n"
+			"Contoh: `ssh 30 20000`\n\n"
+			"Service: ssh, vmess, vless, trojan, shadowsocks")
+		resp = svc_conv.wait_event(events.NewMessage(incoming=True, from_users=sender.id))
+		parts = (await resp).raw_text.strip().split()
+	if len(parts) != 3:
+		await event.respond("❌ Format salah. Gunakan: `service durasi harga`")
+		return
+	try:
+		svc = parts[0].lower()
+		dur = int(parts[1])
+		price = float(parts[2])
+	except ValueError:
+		await event.respond("❌ Format salah. Pastikan durasi dan harga angka.")
+		return
+	if svc not in SVC_LABEL:
+		await event.respond("❌ Service tidak valid. Pilih: ssh, vmess, vless, trojan, shadowsocks")
+		return
+	db = get_db()
+	db.execute("INSERT OR REPLACE INTO service_prices VALUES (?,?,?)", (svc, dur, price))
+	db.commit()
+	await event.respond(
+		f"✅ **Harga diperbarui**\n\n"
+		f"🔧 {SVC_LABEL[svc]} — {dur} hari\n"
+		f"💵 Harga baru : `{format_rupiah(price)}`"
+	)
