@@ -144,9 +144,12 @@ Install_Requirements_Debian() {
         apt update
         apt install gnupg -y
     fi
-    if [[ ! $(apt list 2>/dev/null | grep apt-transport-https | grep installed) ]]; then
-        apt update
-        apt install apt-transport-https -y
+    # apt-transport-https only needed on older Ubuntu/Debian; APT 2.1+ has built-in HTTPS
+    if ! apt --version 2>/dev/null | grep -q 'apt 2\.[0-9]\.'; then
+        if [[ ! $(apt list 2>/dev/null | grep apt-transport-https | grep installed) ]]; then
+            apt update
+            apt install apt-transport-https -y
+        fi
     fi
 }
 

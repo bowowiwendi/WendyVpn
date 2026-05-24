@@ -1,7 +1,7 @@
 wget https://github.com/bowowiwendi/backup/raw/refs/heads/main/Botdo.zip
 mv Botdo /usr/bin/
 rm -rf Botdo.zip
-pip3.8 install -r /usr/bin/Botdo/requirements.txt
+pip3 install -r /usr/bin/Botdo/requirements.txt 2>/dev/null || pip install -r /usr/bin/Botdo/requirements.txt 2>/dev/null || echo "pip install skipped"
 cd /usr/bin
 clear
 echo -e "\033[1;36m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m"

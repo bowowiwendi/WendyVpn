@@ -64,19 +64,20 @@ echo -e "\033[1;93m│  ${grenbo}3.${NC} \033[0;36mInstall VESTA${NC}"
 echo -e "\033[1;93m│  ${grenbo}4.${NC} \033[0;36mInstall UI B.INGGRIS${NC}"
 echo -e "\033[1;93m│  ${grenbo}5.${NC} \033[0;36mInstall PTERODACTYL${NC}"
 echo -e "\033[1;93m│  ${grenbo}6.${NC} \033[0;36mInstall CYBERPANEL${NC}"
-echo -e "\033[1;93m│  ${grenbo}7.${NC} \033[0;36mInstall XOLPANEL${NC}"
+echo -e "\033[1;93m│  ${grenbo}7.${NC} \033[0;36mBack To Menu${NC}"
 echo -e "\033[1;93m│  ${grenbo}x.${NC} \033[0;36mComeBack${NC}"
 echo -e "\033[1;93m└──────────────────────────────────────────┘\033[0m"
 echo -e ""
 read -p " Select options >>>   " opt
 echo -e ""
 case $opt in
-1) clear ; wget ${RDP}/foldder/ins-rdp.sh && chmod +x ins-rdp.sh && ./ins-rdp.sh ; exit ;;
-2) clear ; wget -N ${WEBU} && chmod 0755 install.sh && ./install.sh ; exit ;;
-3) clear ; curl ${VESTA} | bash ; exit ;;
-4) clear ; bash ${UI} ; exit ;;
-5) clear ; bash ${PT} ; exit ;;
-6) clear ; wget -O installer.sh ${CB} && chmod +x install.sh && ./install.sh ; exit ;;
-7) clear ; xolpanel.sh ; exit ;;
-*) clear ; menu ; exit ;;
+1) clear ; wget ${RDP}/foldder/ins-rdp.sh && chmod +x ins-rdp.sh && ./ins-rdp.sh ; menu ;;
+2) clear ; wget -N ${WEBU} && chmod 0755 install.sh && ./install.sh ; menu ;;
+3) clear ; curl ${VESTA} | bash ; menu ;;
+4) clear ; bash ${UI} ; menu ;;
+5) clear ; bash ${PT} ; menu ;;
+6) clear ; wget -O installer.sh ${CB} && chmod +x install.sh && ./install.sh ; menu ;;
+7) clear ; menu ;;
+x|X) clear ; menu ;;
+*) clear ; menu ;;
 esac

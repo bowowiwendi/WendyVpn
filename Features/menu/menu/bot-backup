@@ -1,22 +1,19 @@
 #!/bin/bash
-# Color
 RED='\033[0;31m'
 NC='\033[0m'
 GREEN='\033[0;32m'
 ORANGE='\033[0;33m'
 BLUE='\033[0;34m'
-PURPLE='\033[0;35m'
 CYAN='\033[0;36m'
 LIGHT='\033[0;37m'
-ISPVPS=$(cat /etc/xray/isp)
-CITY=$(cat /etc/xray/city)
+ISPVPS=$(cat /etc/xray/isp 2>/dev/null)
+CITY=$(cat /etc/xray/city 2>/dev/null)
 RAM=$(free -m | awk '/^Mem:/ {print $2}')
-# ==========================================
 IP=$(curl -sS ipv4.icanhazip.com) || { echo "Gagal mendapatkan IP"; exit 1; }
-domain=$(cat /etc/xray/domain)
+domain=$(cat /etc/xray/domain 2>/dev/null)
 date=$(date +"%Y-%m-%d")
+
 function send_log(){
-    # Bot pertama
     CHATID=$(grep -E "^#bot# " "/etc/bot/.bot.db" | cut -d ' ' -f 3)
     KEY=$(grep -E "^#bot# " "/etc/bot/.bot.db" | cut -d ' ' -f 2)
     TIME="10"
@@ -34,49 +31,69 @@ function send_log(){
 ◇━━━━━━━━━━━━━━━━◇
 Back to >>> /menu
 "
-curl -s -X POST "https://api.telegram.org/bot$KEY/sendMessage" --data-urlencode "chat_id=$CHATID" --data-urlencode "text=$TEXT" >/dev/null
+    curl -s -X POST "https://api.telegram.org/bot$KEY/sendMessage" --data-urlencode "chat_id=$CHATID" --data-urlencode "text=$TEXT" >/dev/null
 }
-#email=$(cat /root/email)
+
 echo "Mohon bersabar proses backup sedang berlangsung!!!"
 rm -rf /root/backup
 mkdir -p /root/backup
-cp /etc/passwd backup/
-cp /etc/group backup/
-cp /etc/shadow backup/
-cp /etc/gshadow backup/
-cp /etc/crontab backup/
-cp /etc/vmess/.vmess.db backup/
-cp /etc/ssh/.ssh.db backup/
-cp /etc/vless/.vless.db backup/
-cp /etc/trojan/.trojan.db backup/
-cp /usr/bin/kyt/var.txt backup/
-cp /etc/shadowsocks/.shadowsocks.db backup/
-cp -r /etc/kyt/limit backup/
-cp -r /etc/vmess backup/
-cp -r /etc/trojan backup/
-cp -r /etc/vless backup/
-cp -r /etc/bot backup/
-cp -r /etc/shadowsock backup/
-cp -r /var/lib/kyt/ backup/kyt 
-cp -r /etc/xray backup/xray
-cp -r /var/www/html/ backup/html
-cd /root
-zip -r WT-$domain-$date.zip backup
-rclone copy /root/WT-$domain-$date.zip del:backup/ || { echo "Rclone copy failed"; exit 1; }  # Menangani kesalahan
-# ... kode setelah backup ...
-url=$(rclone link del:backup/WT-$domain-$date.zip) || { echo "Rclone link failed"; exit 1; }  # Menangani kesalahan
+
+cd /root || { echo "Gagal pindah ke /root"; exit 1; }
+
+cp /etc/passwd /root/backup/ || echo "Warning: passwd"
+cp /etc/group /root/backup/ || echo "Warning: group"
+cp /etc/shadow /root/backup/ || echo "Warning: shadow"
+cp /etc/gshadow /root/backup/ || echo "Warning: gshadow"
+cp /etc/crontab /root/backup/ || echo "Warning: crontab"
+cp /etc/vmess/.vmess.db /root/backup/ 2>/dev/null || echo "Warning: .vmess.db"
+cp /etc/ssh/.ssh.db /root/backup/ 2>/dev/null || echo "Warning: .ssh.db"
+cp /etc/vless/.vless.db /root/backup/ 2>/dev/null || echo "Warning: .vless.db"
+cp /etc/trojan/.trojan.db /root/backup/ 2>/dev/null || echo "Warning: .trojan.db"
+cp /usr/bin/kyt/var.txt /root/backup/ 2>/dev/null || echo "Warning: var.txt"
+cp /etc/shadowsocks/.shadowsocks.db /root/backup/ 2>/dev/null || echo "Warning: .shadowsocks.db"
+cp -r /etc/kyt/limit /root/backup/ 2>/dev/null || echo "Warning: limit"
+cp -r /etc/vmess /root/backup/ 2>/dev/null || echo "Warning: vmess"
+cp -r /etc/trojan /root/backup/ 2>/dev/null || echo "Warning: trojan"
+cp -r /etc/vless /root/backup/ 2>/dev/null || echo "Warning: vless"
+cp -r /etc/bot /root/backup/ 2>/dev/null || echo "Warning: bot"
+cp -r /etc/shadowsocks /root/backup/ 2>/dev/null || echo "Warning: shadowsocks"
+cp -r /var/lib/kyt/ /root/backup/kyt 2>/dev/null || echo "Warning: kyt"
+cp -r /etc/xray /root/backup/xray 2>/dev/null || echo "Warning: xray"
+cp -r /var/www/html/ /root/backup/html 2>/dev/null || echo "Warning: html"
+
+cd /root || exit 1
+zip -r WT-$domain-$date.zip backup/ || { echo "Gagal membuat zip"; exit 1; }
+
+if ! command -v rclone &>/dev/null; then
+    echo "rclone tidak terinstall. Backup disimpan di /root/WT-$domain-$date.zip"
+    exit 1
+fi
+
+if ! rclone listremotes 2>/dev/null | grep -q "^del:"; then
+    echo "Remote 'del' tidak ditemukan di rclone. Backup disimpan di /root/WT-$domain-$date.zip"
+    echo "Jalankan: rclone config untuk setup remote 'del' (Google Drive)"
+    send_log
+    exit 1
+fi
+
+rclone copy /root/WT-$domain-$date.zip del:backup/ || { echo "Rclone copy failed"; exit 1; }
+
+url=$(rclone link del:backup/WT-$domain-$date.zip 2>/dev/null) || { echo "Gagal mendapatkan link"; exit 1; }
+
 if [ ! -f "/root/WT-$domain-$date.zip" ]; then
     echo "File zip tidak ditemukan, proses gagal."
     exit 1
 fi
-id=(`echo $url | grep '^https' | cut -d'=' -f2`)
+
+id=$(echo "$url" | grep '^https' | cut -d'=' -f2)
 if [ -z "$id" ]; then
-    echo "ID tidak ditemukan, proses gagal."
-    exit 1
+    echo "Gagal获取 link ID. Link: $url"
+    fix="$url"
+else
+    link="https://drive.google.com/u/4/uc?id=${id}&export=download"
+    fix=$(jq -nr --arg msg "$link" '$msg')
 fi
-link="https://drive.google.com/u/4/uc?id=${id}&export=download"
-fix=$(jq -nr --arg msg "$link" '$msg')
-#Documen="@/root/WT-$domain-$date.zip"
+
 clear
 send_log
 echo -e "
@@ -91,11 +108,11 @@ DATE        : $date
 ISP         : $ISPVPS
 LOCATION    : $CITY
 RAM         : $RAM MB
-LINK BACKUP : $link
+LINK BACKUP : $fix
 ==================================
 "
 echo "Silahkan copy Link dan restore di VPS baru"
 echo ""
-sleep 1 
+sleep 1
 rm -rf /root/backup
 rm -rf /root/WT-$domain-$date.zip

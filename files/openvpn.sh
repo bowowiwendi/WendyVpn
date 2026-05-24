@@ -33,7 +33,8 @@ function config_easy() {
     
     # Buat direktori plugin jika belum ada dan salin plugin PAM dengan penanganan error
     mkdir -p /usr/lib/openvpn/
-    PLUGIN_SOURCE="/usr/lib/x86_64-linux-gnu/openvpn/plugins/openvpn-plugin-auth-pam.so"
+    ARCH_LIB=$(uname -m | sed 's/x86_64/x86_64-linux-gnu/;s/aarch64/aarch64-linux-gnu/;s/armv7l/arm-linux-gnueabihf/')
+    PLUGIN_SOURCE="/usr/lib/${ARCH_LIB}/openvpn/plugins/openvpn-plugin-auth-pam.so"
     PLUGIN_DEST="/usr/lib/openvpn/openvpn-plugin-auth-pam.so"
     if [[ -f "$PLUGIN_SOURCE" ]]; then
         cp "$PLUGIN_SOURCE" "$PLUGIN_DEST"

@@ -189,9 +189,9 @@ async def create_vmess(event):
 			z1 = base64.b64decode(b[1].replace("vmess://","")).decode("ascii")
 			z1 = json.loads(z1)
 			msg = f"""
-**◇━━━━━━━━━━━━━━━━━━━━━━◇**
+**◇━━━━━━━━━━◇**
 		**⚡️ Xray/Vmess Account ⚡️**
-**◇━━━━━━━━━━━━━━━━━━━◇**
+**◇━━━━━━━━━━◇**
 **» Remarks      :** `{z["ps"]}`
 **» Domain       :** `{DOMAIN}`
 **» Limit IP     :** `{limit_ip}`

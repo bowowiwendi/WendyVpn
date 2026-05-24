@@ -17,7 +17,8 @@ chown -R root:root /etc/openvpn/server/easy-rsa/
 function config_easy() {
 cd
 mkdir -p /usr/lib/openvpn/
-cp /usr/lib/x86_64-linux-gnu/openvpn/plugins/openvpn-plugin-auth-pam.so /usr/lib/openvpn/openvpn-plugin-auth-pam.so
+ARCH_LIB=$(uname -m | sed 's/x86_64/x86_64-linux-gnu/;s/aarch64/aarch64-linux-gnu/;s/armv7l/arm-linux-gnueabihf/')
+cp /usr/lib/${ARCH_LIB}/openvpn/plugins/openvpn-plugin-auth-pam.so /usr/lib/openvpn/openvpn-plugin-auth-pam.so
 sed -i 's/#AUTOSTART="all"/AUTOSTART="all"/g' /etc/default/openvpn
 systemctl enable --now openvpn-server@server-tcp
 systemctl enable --now openvpn-server@server-udp

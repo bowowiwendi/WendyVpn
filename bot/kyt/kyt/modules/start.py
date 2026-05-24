@@ -32,14 +32,14 @@ Button.url("☎️ORDER SC☎️","https://t.me/wendivpn")]]
 		username = sender.username
 		user_id = sender.id
 		msg = f"""
-**◇━━━━━━━━━━━━━━━━━━━━━━━◇** 
+**◇━━━━━━━━━━◇** 
 **⚡️ PREMIUM PANEL MENU ⚡️**
-**◇━━━━━━━━━━━━━━━━━━━━━━━◇** 
+**◇━━━━━━━━━━◇** 
 **»🔰 OS     :** `{namaos.strip().replace('"','')}`
 **»🔰 CITY   :** `{city.strip()}`
 **»🔰 DOMAIN :** `{DOMAIN}`
 **»🔰 IP VPS :** `{ipsaya.strip()}`
-**◇━━━━━━━━━━━━━━━━━━━━━━━◇**
+**◇━━━━━━━━━━◇** 
 **»🆔User ID :** `{user_id}`
 **»👤Username:@{username}**
 """

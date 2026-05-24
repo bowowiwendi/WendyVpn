@@ -116,36 +116,52 @@ restoreBot() {
     bottoken=$(sed -n '1p' /root/.bckupbot | awk '{print $1}')
     read -p "File ID   : " fileId
     read -p "File PATH : " filePath
+    cd /root || exit 1
     curl -Ss --request GET \
-        --url "https://api.telegram.org/file/bot${bottoken}/${filePath}?file_id=${fileId}" >backup.zip
+        --url "https://api.telegram.org/file/bot${bottoken}/${filePath}?file_id=${fileId}" -o backup.zip
+
+    if [[ ! -f backup.zip ]]; then
+        echo -e "[ ${RED}ERROR${NC} ] • Gagal download backup!"
+        read -n 1 -s -r -p "Press any key to back on menu"
+        mbot
+        return
+    fi
 
     echo -e "[ ${green}INFO${NC} ] • Restore Data..."
-	read -rp "Password File: "  InputPass
-	echo -e "[ ${green}INFO${NC} ] • Getting your data..."
-	unzip -P $InputPass /root/backup.zip &> /dev/null
-    echo -e "[ ${green}INFO${NC} ] • Starting to restore data..."
-    rm -f /root/backup.zip &> /dev/null
-	sleep 1
-    cd /root/backup
-	echo -e "[ ${green}INFO${NC} ] • Please Wait , Restoring In Process Now... "
-	sleep 1
-	cp passwd /etc/ &>/dev/null
-	echo -e "[ ${green}INFO${NC} ] • Restoring passwd data..."
-	sleep 1
-	cp group /etc/ &>/dev/null
-	echo -e "[ ${green}INFO${NC} ] • Restoring group data..."
-	sleep 1
-	cp shadow /etc/ &>/dev/null
-	echo -e "[ ${green}INFO${NC} ] • Restoring shadow data..."
-	sleep 1
-	cp gshadow /etc/ &>/dev/null
-	echo -e "[ ${green}INFO${NC} ] • Restoring gshadow data..."
-	sleep 1
-    cp -r kyt /var/lib/ &>/dev/null
-    cp -r xray /etc/ &>/dev/null
-    cp -r html /var/www/ &>/dev/null
-    rm -rf /root/backup
+    read -rp "Password File: " InputPass
+    echo -e "[ ${green}INFO${NC} ] • Extracting..."
+    unzip -P "$InputPass" -o backup.zip -d /root/ 2>/dev/null || {
+        echo -e "[ ${RED}ERROR${NC} ] • Password salah atau file rusak!"
+        rm -f backup.zip
+        read -n 1 -s -r -p "Press any key to back on menu"
+        mbot
+        return
+    }
     rm -f backup.zip
+
+    if [[ ! -d /root/backup ]]; then
+        echo -e "[ ${RED}ERROR${NC} ] • Direktori backup tidak ditemukan!"
+        read -n 1 -s -r -p "Press any key to back on menu"
+        mbot
+        return
+    fi
+
+    echo -e "[ ${green}INFO${NC} ] • Starting to restore data..."
+    cd /root/backup
+    [[ -f passwd ]] && cp passwd /etc/
+    [[ -f group ]] && cp group /etc/
+    [[ -f shadow ]] && cp shadow /etc/ && chmod 600 /etc/shadow
+    [[ -f gshadow ]] && cp gshadow /etc/ && chmod 600 /etc/gshadow
+    [[ -d kyt ]] && cp -r kyt /var/lib/
+    [[ -d xray ]] && cp -r xray /etc/
+    [[ -d html ]] && cp -r html /var/www/
+    cd /root
+    rm -rf /root/backup
+
+    for svc in xray ws nginx ssh cron; do
+        systemctl restart "$svc" 2>/dev/null
+    done
+
     echo -e "[ ${green}INFO${NC} ] • Done Restore... "
     read -n 1 -s -r -p "Press any key to back on menu"
     mbot

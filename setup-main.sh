@@ -51,10 +51,11 @@ echo -e "${YELLOW}----------------------------------------------------------${NC
 echo ""
 
 # --- Deteksi Arsitektur dan OS ---
-if [[ $( uname -m | awk '{print $1}' ) == "x86_64" ]]; then
-    print_ok "Your Architecture Is Supported ( ${green}$( uname -m )${NC} )"
+ARCH=$(uname -m)
+if [[ "$ARCH" == "x86_64" ]] || [[ "$ARCH" == "aarch64" ]] || [[ "$ARCH" == "arm64" ]]; then
+    print_ok "Your Architecture Is Supported ( ${green}$ARCH${NC} )"
 else
-    print_error "Your Architecture Is Not Supported ( ${YELLOW}$( uname -m )${NC} )"
+    print_error "Your Architecture Is Not Supported ( ${YELLOW}$ARCH${NC} )"
     exit 1
 fi
 
@@ -233,37 +234,26 @@ function pasang_domain() {
 function first_setup() {
     print_install "MENJALANKAN first_setup"
     timedatectl set-timezone Asia/Jakarta || print_error "Gagal mengatur timezone."
-    echo iptables-persistent iptables-persistent/autosave_v4 boolean true | debconf-set-selections
-    echo iptables-persistent iptables-persistent/autosave_v6 boolean true | debconf-set-selections
-    print_success "Directory Xray"
-    if [[ "$OS_ID" == "ubuntu" ]]; then
-        print_ok "Setup Dependencies $OS_NAME"
-        sudo apt update -y
-        print_ok "Installing haproxy from default repo for Ubuntu"
-        apt install -y haproxy || print_error "Gagal menginstal haproxy."
-    elif [[ "$OS_ID" == "debian" ]]; then
-        print_ok "Setup Dependencies For OS Is $OS_NAME"
-        print_ok "Installing haproxy from default repo for Debian"
-        apt install -y haproxy || print_error "Gagal menginstal haproxy."
-    else
-        print_error "Your OS Is Not Supported ($OS_NAME)"
-        exit 1
+    # Dukung iptables-persistent dan netfilter-persistent
+    if [[ "$OS_ID" == "ubuntu" ]] || [[ "$OS_ID" == "debian" ]]; then
+        if apt-cache show iptables-persistent &>/dev/null; then
+            echo iptables-persistent iptables-persistent/autosave_v4 boolean true | debconf-set-selections
+            echo iptables-persistent iptables-persistent/autosave_v6 boolean true | debconf-set-selections
+        fi
     fi
+    print_success "Directory Xray"
+    print_ok "Setup Dependencies $OS_NAME"
+    sudo apt update -y
+    print_ok "Installing haproxy..."
+    apt install -y haproxy || print_error "Gagal menginstal haproxy."
     print_success "HAProxy Installation"
     print_ok "first_setup SELESAI"
 }
 
 function nginx_install() {
     print_install "MENJALANKAN nginx_install"
-    if [[ "$OS_ID" == "ubuntu" ]]; then
-        print_install "Setup nginx For OS Is $OS_NAME"
-        sudo apt install nginx -y || print_error "Gagal menginstal nginx (Ubuntu)."
-    elif [[ "$OS_ID" == "debian" ]]; then
-        print_install "Setup nginx For OS Is $OS_NAME"
-        apt -y install nginx || print_error "Gagal menginstal nginx (Debian)."
-    else
-        print_error " Your OS Is Not Supported ( ${YELLOW}$OS_NAME${FONT} )"
-    fi
+    print_install "Setup nginx For OS Is $OS_NAME"
+    apt install -y nginx || print_error "Gagal menginstal nginx."
     print_success "Nginx Installation"
     print_ok "nginx_install SELESAI"
 }
@@ -271,17 +261,21 @@ function nginx_install() {
 function base_package() {
     print_install "MENJALANKAN base_package"
     print_ok "Menginstal paket dasar..."
-    apt install zip pwgen openssl netcat-openbsd socat cron bash-completion figlet -y || print_error "Gagal menginstal paket dasar 1."
+    apt install -y zip pwgen openssl socat cron bash-completion figlet 2>/dev/null || apt install -y zip pwgen openssl socat cron bash-completion 2>/dev/null || print_error "Gagal menginstal paket dasar"
+    apt install -y netcat-openbsd 2>/dev/null || apt install -y netcat-traditional 2>/dev/null || apt install -y netcat 2>/dev/null || print_ok "netcat dilewati"
     print_ok "Memperbarui dan memutakhirkan sistem..."
     apt update -y
     apt upgrade -y
     apt dist-upgrade -y
     print_ok "Menginstal dan mengkonfigurasi chrony..."
     sudo apt install -y chrony
-    systemctl enable chronyd
-    systemctl restart chronyd
-    systemctl enable chrony
-    systemctl restart chrony
+    if systemctl list-units --type=service 2>/dev/null | grep -q chronyd.service; then
+        systemctl enable chronyd
+        systemctl restart chronyd
+    else
+        systemctl enable chrony
+        systemctl restart chrony
+    fi
     chronyc sourcestats -v
     chronyc tracking -v
     apt install ntpdate -y || print_error "Gagal menginstal ntpdate."
@@ -296,13 +290,22 @@ function base_package() {
     sudo apt remove --purge ufw firewalld -y
     print_ok "Menginstal software-properties-common..."
     sudo apt install -y --no-install-recommends software-properties-common || print_error "Gagal menginstal software-properties-common."
-    echo iptables-persistent iptables-persistent/autosave_v4 boolean true | debconf-set-selections
-    echo iptables-persistent iptables-persistent/autosave_v6 boolean true | debconf-set-selections
+    if apt-cache show iptables-persistent &>/dev/null; then
+        echo iptables-persistent iptables-persistent/autosave_v4 boolean true | debconf-set-selections
+        echo iptables-persistent iptables-persistent/autosave_v6 boolean true | debconf-set-selections
+    fi
     print_ok "Menginstal paket utama..."
-    sudo apt install -y speedtest-cli vnstat libnss3-dev libnspr4-dev pkg-config libpam0g-dev libcap-ng-dev libcap-ng-utils libselinux1-dev libcurl4-nss-dev flex bison make libnss3-tools libevent-dev bc rsyslog dos2unix zlib1g-dev libssl-dev libsqlite3-dev sed dirmngr libxml-parser-perl build-essential gcc g++ python3 htop lsof tar wget curl ruby zip unzip p7zip-full python3-pip libc6 util-linux build-essential ca-certificates bsd-mailx gcc shc make cmake git screen socat xz-utils apt-transport-https dnsutils cron bash-completion ntpdate chrony jq easy-rsa || print_error "Gagal menginstal paket utama."
-    sudo apt install -y netfilter-persistent
-    print_ok "Melewati instalasi msmtp sesuai permintaan"
-    sudo apt install -y msmtp-mta || print_ok "msmtp-mta dilewati"
+    sudo apt install -y vnstat libnss3-dev libnspr4-dev pkg-config libpam0g-dev libcap-ng-dev libcap-ng-utils libselinux1-dev libcurl4-openssl-dev flex bison make libnss3-tools libevent-dev bc rsyslog dos2unix zlib1g-dev libssl-dev libsqlite3-dev sed dirmngr libxml-parser-perl build-essential gcc g++ python3 htop lsof tar wget curl ruby zip unzip python3-pip libc6 util-linux ca-certificates cmake git screen socat xz-utils dnsutils cron bash-completion ntpdate chrony jq || print_error "Gagal menginstal paket utama."
+    # netfilter-persistent - nama berbeda antar versi Ubuntu/Debian
+    sudo apt install -y netfilter-persistent 2>/dev/null || sudo apt install -y iptables-persistent 2>/dev/null || print_ok "netfilter/iptables-persistent dilewati"
+    # easy-rsa - tersedia di semua versi, fallback jika tidak ada
+    sudo apt install -y easy-rsa 2>/dev/null || print_ok "easy-rsa dilewati"
+    sudo apt install -y speedtest-cli 2>/dev/null || pip3 install speedtest-cli 2>/dev/null || print_ok "speedtest-cli dilewati"
+    sudo apt install -y msmtp-mta 2>/dev/null || print_ok "msmtp-mta dilewati"
+    # 7zip: coba 7zip dulu (Ubuntu 24+), fallback ke p7zip-full
+    sudo apt install -y 7zip 2>/dev/null || sudo apt install -y p7zip-full 2>/dev/null || print_ok "7zip/p7zip dilewati"
+    # shc: opsional
+    sudo apt install -y shc 2>/dev/null || print_ok "shc dilewati"
     print_success "Packet Yang Dibutuhkan"
     print_ok "base_package SELESAI"
 }
@@ -578,8 +581,12 @@ function ins_vnstat(){
 function ins_swab(){
     print_install "MENJALANKAN ins_swab"
     gotop_latest="$(curl -s https://api.github.com/repos/xxxserxxx/gotop/releases | grep tag_name | sed -E 's/.*"v(.*)".*/\1/' | head -n 1)"
-    gotop_link="https://github.com/xxxserxxx/gotop/releases/download/v$gotop_latest/gotop_v"$gotop_latest"_linux_amd64.deb"
-    print_ok "Mengunduh gotop versi $gotop_latest..."
+    if [[ "$ARCH" == "aarch64" || "$ARCH" == "arm64" ]]; then
+        gotop_link="https://github.com/xxxserxxx/gotop/releases/download/v$gotop_latest/gotop_v"$gotop_latest"_linux_arm64.deb"
+    else
+        gotop_link="https://github.com/xxxserxxx/gotop/releases/download/v$gotop_latest/gotop_v"$gotop_latest"_linux_amd64.deb"
+    fi
+    print_ok "Mengunduh gotop versi $gotop_latest untuk $ARCH..."
     curl -sL "$gotop_link" -o /tmp/gotop.deb || print_error "Gagal mengunduh gotop."
     dpkg -i /tmp/gotop.deb || print_error "Gagal menginstal gotop."
     print_ok "Membuat file swap..."
@@ -590,7 +597,11 @@ function ins_swab(){
     swapon /swapfile || print_error "Gagal mengaktifkan swap."
     grep -q '/swapfile' /etc/fstab || echo '/swapfile none swap sw 0 0' >> /etc/fstab || print_error "Gagal menambahkan swap ke /etc/fstab."
     print_ok "Menyinkronkan waktu dengan chrony..."
-    chronyd -q 'server 0.id.pool.ntp.org iburst' || print_error "Gagal menyinkronkan waktu dengan chrony."
+    if command -v chronyd &>/dev/null; then
+        chronyd -q 'server 0.id.pool.ntp.org iburst' || print_error "Gagal menyinkronkan waktu dengan chrony."
+    else
+        chronyc -a makestep 2>/dev/null || ntpdate pool.ntp.org || print_ok "Sinkronisasi waktu dilewati"
+    fi
     chronyc sourcestats -v
     chronyc tracking -v
     print_ok "Mengunduh dan menjalankan bbr.sh..."
@@ -770,29 +781,29 @@ function enable_services(){
 
 function ins_backup() {
     print_install "MENJALANKAN ins_backup"
-    print_ok "Melewati instalasi msmtp sesuai permintaan"
-    
-    if ! command -v wondershaper &> /dev/null; then
-        print_ok "wondershaper tidak ditemukan di paket, mengkompilasi dari sumber..."
-        apt install -y git make || print_error "Gagal menginstal dependensi build untuk wondershaper."
-        cd /tmp || exit 1
-        git clone https://github.com/magnific0/wondershaper.git || print_error "Gagal mengkloning repositori wondershaper."
-        cd wondershaper || exit 1
-        sudo make install || print_error "Gagal mengkompilasi/menginstal wondershaper."
-        cd / || exit 1
-        rm -rf /tmp/wondershaper
-        print_ok "wondershaper berhasil dikompilasi dan diinstal."
-    else
-        print_ok "wondershaper sudah terinstal via package manager."
-    fi
     print_ok "Menginstal rclone..."
     apt install -y rclone || print_error "Gagal menginstal rclone."
-    print_ok "Mengkonfigurasi rclone (non-interaktif)..."
-    printf "q\n" | rclone config
-    print_ok "Mengunduh konfigurasi rclone..."
-    wget -O /root/.config/rclone/rclone.conf "${REPO}cfg_conf_js/rclone.conf" || print_error "Gagal mengunduh konfigurasi rclone."
+    print_ok "Menyiapkan direktori konfigurasi rclone..."
+    mkdir -p /root/.config/rclone
+    print_ok "Membuat konfigurasi rclone default..."
+    cat > /root/.config/rclone/rclone.conf << EOF
+# Konfigurasi rclone untuk backup ke Google Drive
+# Cara setup:
+# 1. Jalankan: rclone config
+# 2. Pilih "n" untuk remote baru
+# 3. Beri nama: del
+# 4. Pilih "drive" untuk Google Drive
+# 5. Ikuti instruksi autentikasi
+# 6. Setelah selesai, backup akan berfungsi
+EOF
     touch /home/files
     print_ok "File placeholder /home/files dibuat."
+    print_ok ""
+    print_ok "⚠️  KONFIGURASI RCLONE DIPERLUKAN!"
+    print_ok "Jalankan perintah berikut setelah instalasi selesai:"
+    print_ok "   rclone config"
+    print_ok "Buat remote baru dengan nama 'del' untuk Google Drive"
+    print_ok ""
     print_success "Backup Server"
     print_ok "ins_backup SELESAI"
 }

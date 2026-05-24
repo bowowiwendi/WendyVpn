@@ -1,132 +1,94 @@
 #!/bin/bash
 clear
 
-# Gradasi Biru Timbul
-DARK_BLUE='\033[38;5;18m'   # Biru Tua (bayangan)
-LIGHT_BLUE='\033[38;5;39m'  # Biru Terang (tengah)
-MID_BLUE='\033[38;5;33m'    # Biru Sedang
-CYAN_BLUE='\033[38;5;45m'   # Cyan Biru
-WHITE='\033[1;37m'
-GREEN='\033[1;32m'
-RED='\033[1;31m'
-YELLOW='\033[1;33m'
+C='\033[0;36m'
+W='\033[1;37m'
+G='\033[1;32m'
+Y='\033[1;33m'
+R='\033[1;31m'
 NC='\033[0m'
-
-# Simbol Modern
-ARROW='▶'
-CHECK='✓'
-CROSS='✗'
-GEAR='⚙'
-MONITOR='📊'
-NETWORK='🌐'
-INSTALL='📦'
-CLEAN='🧹'
-USER='👤'
-TOOLS='🔧'
 
 function run(){
 clear
-
-# System Info
 domain=$(cat /etc/xray/domain)
 IPVPS=$(curl -s ipv4.icanhazip.com)
 cores=$(awk -F: '/model name/ {core++} END {print core}' /proc/cpuinfo)
 tram=$(free -m | awk 'NR==2 {print $2}')
 
-# Service Status
 openssh=$(systemctl status ssh | grep Active | awk '{print $3}' | sed 's/(//g' | sed 's/)//g')
 ssh_ws=$(systemctl status ws | grep Active | awk '{print $3}' | sed 's/(//g' | sed 's/)//g')
 xray=$(systemctl status xray | grep Active | awk '{print $3}' | sed 's/(//g' | sed 's/)//g')
 nginx=$(systemctl status nginx | grep Active | awk '{print $3}' | sed 's/(//g' | sed 's/)//g')
 
-# Status Check
 status() {
     if [[ $1 == "running" ]]; then
-        echo -e "${GREEN}${CHECK}${NC} Active"
+        echo -e "${G}Active${NC}"
     else
-        echo -e "${RED}${CROSS}${NC} Inactive"
+        echo -e "${R}Inactive${NC}"
     fi
 }
 
-# Header dengan Efek Timbul
-echo -e "${DARK_BLUE}╔════════════════════════════════════════════════════════════════════════════════════════════════╗${NC}"
-echo -e "${DARK_BLUE}║${NC} ${WHITE}SYSTEM MONITORING${NC} ${MID_BLUE}│${NC} ${WHITE}IP:${LIGHT_BLUE}$IPVPS${NC} ${MID_BLUE}│${NC} ${WHITE}Domain:${LIGHT_BLUE}$domain${NC} ${MID_BLUE}│${NC} ${WHITE}CPU:${LIGHT_BLUE}$cores${NC} ${MID_BLUE}│${NC} ${WHITE}RAM:${LIGHT_BLUE}$tram MB${NC} ${DARK_BLUE}║${NC}"
-echo -e "${DARK_BLUE}╠════════════════════════════════════════════════════════════════════════════════════════════════╣${NC}"
-echo -e "${DARK_BLUE}║${NC} ${ARROW} SSH:$(status $openssh) ${MID_BLUE}│${NC} ${ARROW} WS:$(status $ssh_ws) ${MID_BLUE}│${NC} ${ARROW} Xray:$(status $xray) ${MID_BLUE}│${NC} ${ARROW} Nginx:$(status $nginx) ${DARK_BLUE}║${NC}"
-echo -e "${DARK_BLUE}╚════════════════════════════════════════════════════════════════════════════════════════════════╝${NC}"
+echo -e "${C}┌─────────────────────────────────────────────┐${NC}"
+echo -e "${C}│${NC} ${W}SYSTEM MONITOR${NC}           ${W}IP:${C}$IPVPS${NC}"
+echo -e "${C}│${NC} ${W}Domain:${C}$domain${NC}"
+echo -e "${C}│${NC} ${W}CPU:${C}$cores${NC} Core    ${W}RAM:${C}$tram${NC} MB"
+echo -e "${C}├─────────────────────────────────────────────┤${NC}"
+echo -e "${C}│${NC} SSH: $(status $openssh)   WS: $(status $ssh_ws)"
+echo -e "${C}│${NC} Xray: $(status $xray)  Nginx: $(status $nginx)"
+echo -e "${C}└─────────────────────────────────────────────┘${NC}"
 echo ""
-read -n 1 -s -r -p "${MID_BLUE}Press any key to return to menu...${NC}"
+read -n 1 -s -r -p "${C}Press any key to return to menu...${NC}"
 features
 }
 
 function features() {
 clear
-
-# Menu Header dengan Efek Timbul
-echo -e "${DARK_BLUE}╔════════════════════════════════════════════════════════════════════════════════════════════════╗${NC}"
-echo -e "${DARK_BLUE}║${NC} ${WHITE}SYSTEM CONTROL PANEL${NC} ${DARK_BLUE}                                                                               ║${NC}"
-echo -e "${DARK_BLUE}╠════════════════════════════════════════════════════════════════════════════════════════════════╣${NC}"
-
-# System Monitoring Group
-echo -e "${DARK_BLUE}║${NC} ${YELLOW}${MONITOR} SYSTEM MONITORING${NC} ${DARK_BLUE}                                                                           ║${NC}"
-echo -e "${DARK_BLUE}╠════════════════════════════════════════════════════════════════════════════════════════════════╣${NC}"
-echo -e "${DARK_BLUE}║${NC} ${ARROW} ${LIGHT_BLUE}01.${NC} RUNNING SERVICE STATUS                                                            ${DARK_BLUE}║${NC}"
-echo -e "${DARK_BLUE}║${NC} ${ARROW} ${LIGHT_BLUE}02.${NC} SYSTEM MONITOR                                                                  ${DARK_BLUE}║${NC}"
-echo -e "${DARK_BLUE}║${NC} ${ARROW} ${LIGHT_BLUE}03.${NC} SPEEDTEST                                                                       ${DARK_BLUE}║${NC}"
-echo -e "${DARK_BLUE}║${NC} ${ARROW} ${LIGHT_BLUE}04.${NC} CHECK BANDWIDTH                                                                 ${DARK_BLUE}║${NC}"
-echo -e "${DARK_BLUE}║${NC} ${ARROW} ${LIGHT_BLUE}05.${NC} INFO PORT                                                                       ${DARK_BLUE}║${NC}"
-echo -e "${DARK_BLUE}╠════════════════════════════════════════════════════════════════════════════════════════════════╣${NC}"
-
-# Service Management Group
-echo -e "${DARK_BLUE}║${NC} ${YELLOW}${GEAR} SERVICE MANAGEMENT${NC} ${DARK_BLUE}                                                                            ║${NC}"
-echo -e "${DARK_BLUE}╠════════════════════════════════════════════════════════════════════════════════════════════════╣${NC}"
-echo -e "${DARK_BLUE}║${NC} ${ARROW} ${LIGHT_BLUE}06.${NC} RESTART ALL SERVICES                                                           ${DARK_BLUE}║${NC}"
-echo -e "${DARK_BLUE}║${NC} ${ARROW} ${LIGHT_BLUE}07.${NC} FIX HAPROXY                                                                    ${DARK_BLUE}║${NC}"
-echo -e "${DARK_BLUE}║${NC} ${ARROW} ${LIGHT_BLUE}08.${NC} FIX DROPBEAR                                                                   ${DARK_BLUE}║${NC}"
-echo -e "${DARK_BLUE}║${NC} ${ARROW} ${LIGHT_BLUE}09.${NC} LIMIT SPEED                                                                    ${DARK_BLUE}║${NC}"
-echo -e "${DARK_BLUE}║${NC} ${ARROW} ${LIGHT_BLUE}10.${NC} LIMIT IP XRAY                                                                 ${DARK_BLUE}║${NC}"
-echo -e "${DARK_BLUE}║${NC} ${ARROW} ${LIGHT_BLUE}11.${NC} LIMIT IP SSH                                                                  ${DARK_BLUE}║${NC}"
-echo -e "${DARK_BLUE}╠════════════════════════════════════════════════════════════════════════════════════════════════╣${NC}"
-
-# Network & Domain Group
-echo -e "${DARK_BLUE}║${NC} ${YELLOW}${NETWORK} NETWORK & DOMAIN${NC} ${DARK_BLUE}                                                                              ║${NC}"
-echo -e "${DARK_BLUE}╠════════════════════════════════════════════════════════════════════════════════════════════════╣${NC}"
-echo -e "${DARK_BLUE}║${NC} ${ARROW} ${LIGHT_BLUE}12.${NC} CHANGE DOMAIN                                                                   ${DARK_BLUE}║${NC}"
-echo -e "${DARK_BLUE}║${NC} ${ARROW} ${LIGHT_BLUE}13.${NC} MENU POINTING                                                                  ${DARK_BLUE}║${NC}"
-echo -e "${DARK_BLUE}║${NC} ${ARROW} ${LIGHT_BLUE}14.${NC} FIX POINTING DOMAIN                                                            ${DARK_BLUE}║${NC}"
-echo -e "${DARK_BLUE}║${NC} ${ARROW} ${LIGHT_BLUE}15.${NC} INSTALL SLOWDNS                                                               ${DARK_BLUE}║${NC}"
-echo -e "${DARK_BLUE}║${NC} ${ARROW} ${LIGHT_BLUE}16.${NC} INSTALL WARP                                                                   ${DARK_BLUE}║${NC}"
-echo -e "${DARK_BLUE}║${NC} ${ARROW} ${LIGHT_BLUE}17.${NC} INSTALL DNS MEDIA                                                             ${DARK_BLUE}║${NC}"
-echo -e "${DARK_BLUE}╠════════════════════════════════════════════════════════════════════════════════════════════════╣${NC}"
-
-# Installation Tools Group
-echo -e "${DARK_BLUE}║${NC} ${YELLOW}${INSTALL} INSTALLATION TOOLS${NC} ${DARK_BLUE}                                                                            ║${NC}"
-echo -e "${DARK_BLUE}╠════════════════════════════════════════════════════════════════════════════════════════════════╣${NC}"
-echo -e "${DARK_BLUE}║${NC} ${ARROW} ${LIGHT_BLUE}18.${NC} INSTALL PANEL                                                                   ${DARK_BLUE}║${NC}"
-echo -e "${DARK_BLUE}║${NC} ${ARROW} ${LIGHT_BLUE}19.${NC} INSTALL NOOBZ VPN                                                               ${DARK_BLUE}║${NC}"
-echo -e "${DARK_BLUE}║${NC} ${ARROW} ${LIGHT_BLUE}20.${NC} UNINSTALL NOOBZ VPN                                                            ${DARK_BLUE}║${NC}"
-echo -e "${DARK_BLUE}╠════════════════════════════════════════════════════════════════════════════════════════════════╣${NC}"
-
-# Maintenance & Cleanup Group
-echo -e "${DARK_BLUE}║${NC} ${YELLOW}${CLEAN} MAINTENANCE & CLEANUP${NC} ${DARK_BLUE}                                                                          ║${NC}"
-echo -e "${DARK_BLUE}╠════════════════════════════════════════════════════════════════════════════════════════════════╣${NC}"
-echo -e "${DARK_BLUE}║${NC} ${ARROW} ${LIGHT_BLUE}21.${NC} CLEAR CACHE                                                                     ${DARK_BLUE}║${NC}"
-echo -e "${DARK_BLUE}║${NC} ${ARROW} ${LIGHT_BLUE}22.${NC} CLEAR LOG                                                                       ${DARK_BLUE}║${NC}"
-echo -e "${DARK_BLUE}║${NC} ${ARROW} ${LIGHT_BLUE}23.${NC} AUTO DELETE EXPIRED ACCOUNTS                                                    ${DARK_BLUE}║${NC}"
-echo -e "${DARK_BLUE}║${NC} ${ARROW} ${LIGHT_BLUE}24.${NC} AUTO REBOOT                                                                     ${DARK_BLUE}║${NC}"
-echo -e "${DARK_BLUE}╠════════════════════════════════════════════════════════════════════════════════════════════════╣${NC}"
-
-# Account & System Utilities Group
-echo -e "${DARK_BLUE}║${NC} ${YELLOW}${USER} ACCOUNT & UTILITIES${NC} ${DARK_BLUE}                                                                            ║${NC}"
-echo -e "${DARK_BLUE}╠════════════════════════════════════════════════════════════════════════════════════════════════╣${NC}"
-echo -e "${DARK_BLUE}║${NC} ${ARROW} ${LIGHT_BLUE}25.${NC} REGISTER VPS                                                                     ${DARK_BLUE}║${NC}"
-echo -e "${DARK_BLUE}║${NC} ${ARROW} ${LIGHT_BLUE}26.${NC} CHANGE BANNER                                                                   ${DARK_BLUE}║${NC}"
-echo -e "${DARK_BLUE}║${NC} ${ARROW} ${LIGHT_BLUE}27.${NC} SYSTEM SETTINGS                                                                 ${DARK_BLUE}║${NC}"
-echo -e "${DARK_BLUE}╠════════════════════════════════════════════════════════════════════════════════════════════════╣${NC}"
-echo -e "${DARK_BLUE}║${NC} ${ARROW} ${RED}X.${NC} EXIT                                                                               ${DARK_BLUE}║${NC}"
-echo -e "${DARK_BLUE}╚════════════════════════════════════════════════════════════════════════════════════════════════╝${NC}"
+echo -e "${C}┌─────────────────────────────────────────────┐${NC}"
+echo -e "${C}│${NC}         ${W}FEATURES - SYSTEM CONTROL${NC}"
+echo -e "${C}├─────────────────────────────────────────────┤${NC}"
+echo -e "${C}│${NC} ${Y}MONITORING${NC}"
+echo -e "${C}│${NC}  ${G}1.${NC}  Running Service Status"
+echo -e "${C}│${NC}  ${G}2.${NC}  System Monitor (gotop)"
+echo -e "${C}│${NC}  ${G}3.${NC}  Speedtest"
+echo -e "${C}│${NC}  ${G}4.${NC}  Check Bandwidth"
+echo -e "${C}│${NC}  ${G}5.${NC}  Info Port"
+echo -e "${C}├─────────────────────────────────────────────┤${NC}"
+echo -e "${C}│${NC} ${Y}SERVICE${NC}"
+echo -e "${C}│${NC}  ${G}6.${NC}  Restart All Services"
+echo -e "${C}│${NC}  ${G}7.${NC}  Fix HAProxy"
+echo -e "${C}│${NC}  ${G}8.${NC}  Fix Dropbear"
+echo -e "${C}│${NC}  ${G}9.${NC}  Limit Speed"
+echo -e "${C}│${NC}  ${G}10.${NC} Limit IP Xray"
+echo -e "${C}│${NC}  ${G}11.${NC} Limit IP SSH"
+echo -e "${C}├─────────────────────────────────────────────┤${NC}"
+echo -e "${C}│${NC} ${Y}NETWORK & DOMAIN${NC}"
+echo -e "${C}│${NC}  ${G}12.${NC} Change Domain"
+echo -e "${C}│${NC}  ${G}13.${NC} Menu Pointing"
+echo -e "${C}│${NC}  ${G}14.${NC} Fix Pointing Domain"
+echo -e "${C}│${NC}  ${G}15.${NC} Install SlowDNS"
+echo -e "${C}│${NC}  ${G}16.${NC} Install WARP"
+echo -e "${C}│${NC}  ${G}17.${NC} Install DNS Media"
+echo -e "${C}├─────────────────────────────────────────────┤${NC}"
+echo -e "${C}│${NC} ${Y}INSTALL TOOLS${NC}"
+echo -e "${C}│${NC}  ${G}18.${NC} Install Panel"
+echo -e "${C}│${NC}  ${G}19.${NC} Install Noobz VPN"
+echo -e "${C}│${NC}  ${G}20.${NC} Uninstall Noobz VPN"
+echo -e "${C}├─────────────────────────────────────────────┤${NC}"
+echo -e "${C}│${NC} ${Y}MAINTENANCE${NC}"
+echo -e "${C}│${NC}  ${G}21.${NC} Clear Cache"
+echo -e "${C}│${NC}  ${G}22.${NC} Clear Log"
+echo -e "${C}│${NC}  ${G}23.${NC} Auto Delete Expired"
+echo -e "${C}│${NC}  ${G}24.${NC} Auto Reboot"
+echo -e "${C}├─────────────────────────────────────────────┤${NC}"
+echo -e "${C}│${NC} ${Y}UTILITIES${NC}"
+echo -e "${C}│${NC}  ${G}25.${NC} Register VPS"
+echo -e "${C}│${NC}  ${G}26.${NC} Change Banner"
+echo -e "${C}│${NC}  ${G}27.${NC} System Settings"
+echo -e "${C}├─────────────────────────────────────────────┤${NC}"
+echo -e "${C}│${NC}  ${R}x.${NC}  Exit"
+echo -e "${C}└─────────────────────────────────────────────┘${NC}"
 echo ""
-echo -ne "${MID_BLUE}Enter choice: ${NC}"
+echo -ne "${C}Select option: ${NC}"
 read menu
 
 case $menu in
@@ -158,9 +120,8 @@ case $menu in
 26) clear ; nano /etc/banner.txt ;;
 27) clear ; nano /etc/sysctl.conf ;;
 x|X) clear ; exit 0 ;;
-*) clear ; echo -e "${RED}Invalid option!${NC}" ; sleep 1 ; features ;;
+*) clear ; echo -e "${R}Invalid option!${NC}" ; sleep 1 ; features ;;
 esac
 }
 
-# Start script
 features
