@@ -1,6 +1,5 @@
 from kyt import *
 
-@bot.on(events.NewMessage(pattern=r"(?:.start|/start)$"))
 @bot.on(events.CallbackQuery(data=b'start'))
 async def start(event):
 	inline = [
@@ -9,12 +8,7 @@ async def start(event):
 Button.url("☎️ORDER SC☎️","https://t.me/wendivpn")]]
 	sender = await event.get_sender()
 	val = valid(str(sender.id))
-	if val == "false":
-		try:
-			await event.answer("Akses Ditolak", alert=True)
-		except:
-			await event.reply("Akses Ditolak")
-	elif val == "true":
+	if val == "true":
 		sh = f' cat /etc/ssh/.ssh.db | grep "###" | wc -l'
 		ssh = subprocess.check_output(sh, shell=True).decode("ascii")
 		vm = f' cat /etc/vmess/.vmess.db | grep "###" | wc -l'
@@ -43,9 +37,7 @@ Button.url("☎️ORDER SC☎️","https://t.me/wendivpn")]]
 **»🆔User ID :** `{user_id}`
 **»👤Username:@{username}**
 """
-		x = await event.edit(msg,buttons=inline)
-		if not x:
-			await event.reply(msg,buttons=inline)
+		await event.edit(msg,buttons=inline)
 
 
 

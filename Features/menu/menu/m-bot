@@ -108,24 +108,23 @@ rm -rf bot.zip
 clear
 wget https://raw.githubusercontent.com/bowowiwendi/WendyVpn/ABSTRAK/bot/kyt.zip
 unzip kyt.zip
-pip3 install -r kyt/requirements.txt
-apt install python3-telethon
-apt install python3-requests
-rm -rf kyt.zip
-clear
-echo -e "\033[1;36m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m"
-echo -e "\e[1;97;101m               ADD BOT PANEL              \e[0m"
-echo -e "\033[1;36m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m"
-echo -e "${grenbo}Tutorial Creat Bot and ID Telegram${NC}"
-echo -e "${grenbo}[*] Creat Bot and Token Bot : @BotFather${NC}"
-echo -e "${grenbo}[*] Info Id Telegram : @MissRose_bot , perintah /info${NC}"
-echo -e "\033[1;36m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m"
-read -rp "[*] Input your Bot Token : " -e KEY 
-read -rp "[*] Input Your Id Telegram : " -e CHATID
-echo -e "\033[1;36m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m"
-echo -e BOT_TOKEN='"'$KEY'"' >> /usr/bin/kyt/var.txt 
-echo -e ADMIN='"'$CHATID'"' >> /usr/bin/kyt/var.txt
-echo -e DOMAIN='"'$domain'"' >> /usr/bin/kyt/var.txt
+	apt install -y python3-telethon python3-requests 2>/dev/null || true
+	pip3 install -r kyt/requirements.txt
+	rm -rf kyt.zip
+	clear
+	echo -e "\033[1;36m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m"
+	echo -e "\e[1;97;101m               ADD BOT PANEL              \e[0m"
+	echo -e "\033[1;36m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m"
+	echo -e "${grenbo}Tutorial Creat Bot and ID Telegram${NC}"
+	echo -e "${grenbo}[*] Creat Bot and Token Bot : @BotFather${NC}"
+	echo -e "${grenbo}[*] Info Id Telegram : @MissRose_bot , perintah /info${NC}"
+	echo -e "\033[1;36m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m"
+	read -rp "[*] Input your Bot Token : " -e KEY 
+	read -rp "[*] Input Your Id Telegram : " -e CHATID
+	echo -e "\033[1;36m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m"
+	echo -e BOT_TOKEN='"'$KEY'"' >> /usr/bin/kyt/var.txt 
+	echo -e ADMIN='"'$CHATID'"' >> /usr/bin/kyt/var.txt
+	echo -e DOMAIN='"'$domain'"' >> /usr/bin/kyt/var.txt
 echo -e PUB='"'$PUB'"' >> /usr/bin/kyt/var.txt
 echo -e HOST='"'$NS'"' >> /usr/bin/kyt/var.txt
 if [[ ${c} != "0" ]]; then
@@ -431,17 +430,16 @@ mv bot/* /usr/bin
 chmod +x /usr/bin/*
 rm -rf bot.zip
 clear
-wget https://raw.githubusercontent.com/bowowiwendi/WendyVpn/ABSTRAK/bot/kyt.zip
-unzip kyt.zip
-pip3 install -r kyt/requirements.txt
-apt install python3-telethon
-apt install python3-requests
-rm -rf kyt.zip
-systemctl start kyt 
-systemctl enable kyt
-systemctl restart kyt
-echo -e "Sukses Update Bot"
-read -n 1 -s -r -p "Press [ Enter ] to back menu bot"
+	wget https://raw.githubusercontent.com/bowowiwendi/WendyVpn/ABSTRAK/bot/kyt.zip
+	unzip kyt.zip
+	apt install -y python3-telethon python3-requests 2>/dev/null || true
+	pip3 install -r kyt/requirements.txt
+	rm -rf kyt.zip
+	systemctl start kyt 
+	systemctl enable kyt
+	systemctl restart kyt
+	echo -e "Sukses Update Bot"
+	read -n 1 -s -r -p "Press [ Enter ] to back menu bot"
 m-bot
 }
 #
