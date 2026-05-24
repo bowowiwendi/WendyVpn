@@ -3,7 +3,7 @@
 ## Repo structure
 
 - `setup-main.sh` — **single installer entrypoint**. Run via `wget ... && chmod +x && ./setup-main.sh`
-- `Features/menu/menu/` — canonical shell scripts (~122). **This is the source of truth** for menu items, backup, restore, bot helpers. All edits here must stay in sync with copies inside `bot/kyt.zip`
+- `Features/menu.zip` — canonical shell scripts (~122, zipped). **This is the source of truth** for menu items, backup, restore, bot helpers. All edits here must stay in sync with copies inside `bot/kyt.zip`
 - `cfg_conf_js/` — templates for nginx, haproxy, xray, dropbear, rclone, tun configs
 - `files/` — service files, updater, OpenVPN configs, UDP customizer
 - `bot/` — Telegram bots (kyt.zip, cybervpn.zip, Botdo.zip, botkyt/)
@@ -43,36 +43,32 @@
 
 | Bot | Location | Tech | Service name |
 |---|---|---|---|
-| kyt | `bot/kyt.zip` → `/usr/bin/kyt/` | Python 3 + Telethon | `kyt.service`? (check) |
-| cybervpn | `bot/cybervpn.zip` | Python + Telethon | `cybervpn.service` |
-| Botdo | external GitHub (`bowowiwendi/backup`) | Python + python-telegram-bot | `Botdo.service` |
-| botkyt | `bot/botkyt/` (extracted) | Python + python-telegram-bot | manual |
+| kyt | `bot/kyt.zip` → `/usr/bin/kyt/` | Python 3 + Telethon | kyt.service |
 
-### kyt.zip constraints
+### Editing kyt.zip
 
-- Built from `bot/kyt/kyt/` directory — always rebuild zip after editing any file inside it:
+- `bot/kyt.zip` is the **final artifact** — source tree was removed. To edit:
   ```bash
-  rm -f bot/kyt.zip && cd bot/kyt && zip -r ../kyt.zip kyt/
+  mkdir -p /tmp/kyt_edit && cd /tmp/kyt_edit && unzip -o /root/WendyVpn/bot/kyt.zip && nano kyt/modules/file.py && rm -f /root/WendyVpn/bot/kyt.zip && zip -r /root/WendyVpn/bot/kyt.zip kyt/ && rm -rf /tmp/kyt_edit
   ```
-- Shell scripts in `kyt/shell/bot/` **must match** `Features/menu/menu/` — they are the same scripts deployed to both locations
-- `requirements.txt`: use `telethon>=1.28.0`, **do not add** `keyboard` (headless-incompatible, needs `/dev/uinput`)
+- Shell scripts in `kyt/shell/bot/` must match `Features/menu.zip`
+- `requirements.txt`: use `telethon>=1.28.0`, **do not add** `keyboard`
 - Python entrypoint: `python3 -m kyt` from `WorkingDirectory=/usr/bin`
 - Obfuscated `dist/` (PyArmor) is **never imported** — leave untouched
 
 ### bot.zip
 
 - Contains the same shell helper scripts (backup, restore, cek-*)
-- Rebuild after updating `Features/menu/menu/` scripts:
+- Rebuild after updating `Features/menu.zip` scripts:
   ```bash
-  rsync -a Features/menu/menu/{bot-backup,bot-cek-*,bot-member-ssh,bot-restore,bot-vps-info,notif_*} /tmp/bot_rebuild/bot/
+  cd Features && unzip -o menu.zip 'menu/bot-*' 'menu/notif_*' 'menu/restore' -d /tmp/bot_rebuild/ && cd /tmp/bot_rebuild/menu && zip -r /root/WendyVpn/bot/bot.zip . && rm -rf /tmp/bot_rebuild
   ```
-  Then zip with `zip -r bot/bot.zip bot/`
 
 ## rclone / backup
 
 - `cfg_conf_js/rclone.conf` contains an **expired** Google Drive token. Users must run `rclone config` themselves — the config template has instructions but no valid token
-- Backup script: `Features/menu/menu/bot-backup` — uses absolute paths (`/root/backup/`), validates rclone remote exists before upload
-- Restore script: `Features/menu/menu/restore` — supports Google Drive links (`FILE_ID` extraction), validates `unzip -t`, restarts services after restore
+- Backup script: `Features/menu.zip` → `bot-backup` — uses absolute paths (`/root/backup/`), validates rclone remote exists before upload
+- Restore script: `Features/menu.zip` → `restore` — supports Google Drive links (`FILE_ID` extraction), validates `unzip -t`, restarts services after restore
 
 ## Visual style
 
@@ -83,15 +79,8 @@
 ## Development commands
 
 ```bash
-# Rebuild kyt.zip
-cd bot/kyt && rm -f ../kyt.zip && zip -r ../kyt.zip kyt/
-
-# Rebuild bot.zip
-mkdir -p /tmp/bot && cp Features/menu/menu/{bot-backup,bot-cek-login-ssh,bot-cek-ss,bot-cek-tr,bot-cek-vless,bot-cek-ws.sh,bot-member-ssh,bot-vps-info,restore,notif_backup,notif_delet} /tmp/bot/ && cd /tmp && zip -r /root/WendyVpn/bot/bot.zip bot/
-
-# Commit & push (ABSTRAK branch)
-git add -A && git commit -m "descriptive message"
-git push origin ABSTRAK
+# Edit kyt.zip then rebuild
+mkdir -p /tmp/kyt_edit && cd /tmp/kyt_edit && unzip -o /root/WendyVpn/bot/kyt.zip && nano kyt/modules/file.py && rm -f /root/WendyVpn/bot/kyt.zip && zip -r /root/WendyVpn/bot/kyt.zip kyt/ && rm -rf /tmp/kyt_edit
 ```
 
 ## Out-of-scope / leave untouched
