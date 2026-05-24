@@ -142,14 +142,14 @@ restore_backup() {
                         cp var.txt /usr/bin/kyt/
                         cd /root
                         rm -rf /root/backup
-                        apt update -y
-                        apt install -y python3 python3-pip git
+                        apt update -y >/dev/null 2>&1
+                        apt install -y python3 python3-pip git >/dev/null 2>&1
                         cd /usr/bin
                         wget -q https://raw.githubusercontent.com/bowowiwendi/WendyVpn/ABSTRAK/bot/bot.zip -O bot.zip && \
-                            unzip -o bot.zip && mv bot/* . 2>/dev/null && chmod +x * && rm -rf bot bot.zip
+                            unzip -o bot.zip >/dev/null 2>&1 && mv bot/* . 2>/dev/null && chmod +x * && rm -rf bot bot.zip
                         wget -q https://raw.githubusercontent.com/bowowiwendi/WendyVpn/ABSTRAK/bot/kyt.zip -O kyt.zip && \
-                            unzip -o kyt.zip && pip3 install -r kyt/requirements.txt 2>/dev/null
-                        apt install -y python3-telethon 2>/dev/null
+                            unzip -o kyt.zip >/dev/null 2>&1 && pip3 install -r kyt/requirements.txt >/dev/null 2>&1
+                        apt install -y python3-telethon >/dev/null 2>&1
                         rm -rf kyt.zip
                         cat > /etc/systemd/system/kyt.service << END
 [Unit]
@@ -164,9 +164,9 @@ Restart=always
 [Install]
 WantedBy=multi-user.target
 END
-                        systemctl daemon-reload
-                        systemctl enable kyt
-                        systemctl restart kyt 2>/dev/null
+                        systemctl daemon-reload >/dev/null 2>&1
+                        systemctl enable kyt >/dev/null 2>&1
+                        systemctl restart kyt >/dev/null 2>&1
                         print_success "Bot panel terinstall."
                         break
                         ;;
