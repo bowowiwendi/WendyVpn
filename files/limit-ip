@@ -77,13 +77,12 @@ fi
 }
 cek_ban
 function vmip() {
-    echo -n > /var/log/xray/access.log
-    sleep 900 # Diubah dari 700 (sekitar 11,6 menit) menjadi 900 (15 menit)
+    sleep 60
     data=( $(ls /etc/kyt/limit/vmess/ip) )
 
     for user in "${data[@]}"; do
         iplimit=$(cat /etc/kyt/limit/vmess/ip/$user)
-        ehh=$(cat /var/log/xray/access.log | grep "$user" | cut -d " " -f 3 | sed 's/tcp://g' | cut -d ":" -f 1 | sort | uniq)
+        ehh=$(tail -50 /var/log/xray/access.log | grep "$user" | cut -d " " -f 3 | sed 's/tcp://g' | cut -d ":" -f 1 | sort | uniq)
         cekcek=$(echo -e "$ehh" | wc -l)
         
         if [[ $cekcek -gt $iplimit ]]; then
@@ -101,13 +100,12 @@ function vmip() {
 }
 
 function vlip() {
-    echo -n > /var/log/xray/access.log
-    sleep 900 # Diubah dari 700 menjadi 900
+    sleep 60
     data=( $(ls /etc/kyt/limit/vless/ip) )
 
     for user in "${data[@]}"; do
         iplimit=$(cat /etc/kyt/limit/vless/ip/$user)
-        ehh=$(cat /var/log/xray/access.log | grep "$user" | cut -d " " -f 3 | sed 's/tcp://g' | cut -d ":" -f 1 | sort | uniq)
+        ehh=$(tail -50 /var/log/xray/access.log | grep "$user" | cut -d " " -f 3 | sed 's/tcp://g' | cut -d ":" -f 1 | sort | uniq)
         cekcek=$(echo -e "$ehh" | wc -l)
        
         if [[ $cekcek -gt $iplimit ]]; then
@@ -125,13 +123,12 @@ function vlip() {
 }
 
 function trip() {
-    echo -n > /var/log/xray/access.log
-    sleep 900 # Diubah dari 700 menjadi 900
+    sleep 60
     data=( $(ls /etc/kyt/limit/trojan/ip) )
 
     for user in "${data[@]}"; do
         iplimit=$(cat /etc/kyt/limit/trojan/ip/$user)
-        ehh=$(cat /var/log/xray/access.log | grep "$user" | cut -d " " -f 3 | sed 's/tcp://g' | cut -d ":" -f 1 | sort | uniq)
+        ehh=$(tail -50 /var/log/xray/access.log | grep "$user" | cut -d " " -f 3 | sed 's/tcp://g' | cut -d ":" -f 1 | sort | uniq)
         cekcek=$(echo -e "$ehh" | wc -l)
 
         if [[ $cekcek -gt $iplimit ]]; then
@@ -181,14 +178,13 @@ notif_unlock
 }
 
 function auto_unlock() {
-    echo -n > /var/log/xray/access.log
-    sleep 900 # Diubah dari 700 menjadi 900
+    sleep 60
     
     for protocol in vmess vless trojan; do
         data=( $(grep -E "^#.*$protocol$" /etc/xray/.lock.db | cut -d ' ' -f 2) )
         
         for user in "${data[@]}"; do
-            ehh=$(cat /var/log/xray/access.log | grep "$user" | cut -d " " -f 3 | sed 's/tcp://g' | cut -d ":" -f 1 | sort | uniq)
+            ehh=$(tail -50 /var/log/xray/access.log | grep "$user" | cut -d " " -f 3 | sed 's/tcp://g' | cut -d ":" -f 1 | sort | uniq)
             cekcek=$(echo -e "$ehh" | wc -l)
             
             if [[ $cekcek -eq 0 ]]; then

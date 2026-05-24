@@ -738,7 +738,7 @@ EOF
     print_ok "Menambahkan cron job untuk rotasi log Nginx..."
     (crontab -l 2>/dev/null; echo "*/1 * * * * root echo -n > /var/log/nginx/access.log") | crontab - || print_error "Gagal menambahkan cron job rotasi log Nginx."
     print_ok "Menambahkan cron job untuk rotasi log Xray..."
-    (crontab -l 2>/dev/null; echo "*/1 * * * * root echo -n > /var/log/xray/access.log") | crontab - || print_error "Gagal menambahkan cron job rotasi log Xray."
+    (crontab -l 2>/dev/null; echo "*/30 * * * * root echo -n > /var/log/xray/access.log") | crontab - || print_error "Gagal menambahkan cron job rotasi log Xray."
     echo "/bin/false" >>/etc/shells
     echo "/usr/sbin/nologin" >>/etc/shells
     print_ok "Shell /bin/false dan /usr/sbin/nologin ditambahkan ke /etc/shells."
