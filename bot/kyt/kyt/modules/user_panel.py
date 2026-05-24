@@ -1,4 +1,5 @@
 from kyt import *
+from kyt.modules.bayar_gg import create_payment, add_pending, CALLBACK_HOST
 
 # ── CONSTANTS ─────────────────────────────────────────────────────────
 SVC_EMOJI = {'ssh':'🔐','vmess':'📡','vless':'🔷','trojan':'🔰','shadowsocks':'🌑'}
@@ -111,10 +112,89 @@ async def up_saldo(event):
 		f"💰 **SALDO ANDA**\n\n"
 		f"💵 Saldo : `{format_rupiah(bal)}`\n"
 		f"🆔 ID    : `{tid}`\n"
-		f"{tx_lines}\n"
-		f"_Hubungi admin untuk top up._",
-		buttons=[[Button.inline("‹ Back","up-main")]]
+		f"{tx_lines}\n",
+		buttons=[
+			[Button.inline("💳 Top Up QRIS","up-qris")],
+			[Button.inline("‹ Back","up-main")]
+		]
 	)
+
+# ── QRIS TOP UP ────────────────────────────────────────────────────────
+QRIS_AMOUNTS = [5000, 10000, 25000, 50000, 100000]
+
+@bot.on(events.CallbackQuery(data=b'up-qris'))
+async def up_qris(event):
+	btns = []
+	row = []
+	for i, amt in enumerate(QRIS_AMOUNTS):
+		label = f"Rp{amt//1000}k"
+		row.append(Button.inline(label, f"up-qris-{amt}".encode()))
+		if len(row) == 2 or i == len(QRIS_AMOUNTS) - 1:
+			btns.append(row)
+			row = []
+	btns.append([Button.inline("‹ Back","up-saldo")])
+	await event.edit("💳 **TOP UP VIA QRIS**\n\nPilih nominal:", buttons=btns)
+
+@bot.on(events.CallbackQuery(func=lambda e: e.data.startswith(b'up-qris-')))
+async def up_qris_pay(event):
+	sender = await event.get_sender()
+	tid = str(sender.id)
+	amount_str = event.data.decode().replace('up-qris-','')
+	try:
+		amount = int(amount_str)
+	except:
+		return
+	await event.edit("⏳ Membuat pembayaran...", buttons=None)
+	res = create_payment(
+		amount=amount,
+		description=f"Top Up {format_rupiah(amount)} - {tid}",
+		customer_name=sender.first_name or "User",
+		callback_url=f"{CALLBACK_HOST}/bayargg-callback" if CALLBACK_HOST else ""
+	)
+	if not res.get("success"):
+		await event.edit(
+			f"❌ **Gagal membuat pembayaran**\n\n{res.get('error', 'Unknown error')}",
+			buttons=[[Button.inline("‹ Coba Lagi","up-qris")]]
+		)
+		return
+	data = res["data"]
+	invoice_id = data["invoice_id"]
+	add_pending(tid, invoice_id, amount)
+	payment_url = data.get("payment_url", "")
+	qris_url = data.get("qris_dynamic_image_url", "") or data.get("qris_static_image_url", "")
+	msg = (
+		f"💳 **Pembayaran QRIS**\n\n"
+		f"💰 Nominal: `{format_rupiah(amount)}`\n"
+		f"📄 Invoice: `{invoice_id}`\n"
+		f"⏳ Status: **Pending**\n\n"
+		f"**Cara bayar:**\n"
+		f"1. Scan QRIS di bawah via aplikasi e-wallet (GoPay/OVO/DANA/dll)\n"
+		f"2. Atau klik link: [Bayar Sekarang]({payment_url})\n"
+		f"3. Saldo akan otomatis bertambah setelah pembayaran terkonfirmasi\n\n"
+		f"_Menunggu pembayaran..._"
+	)
+	btns = [
+		[Button.url("🔗 Bayar Via Link", payment_url)],
+		[Button.inline("🔄 Cek Status","up-qris-cek"),
+		 Button.inline("❌ Batal","up-qris-batal")]
+	]
+	if qris_url:
+		try:
+			await bot.send_file(event.chat_id, qris_url, caption=msg, buttons=btns)
+		except:
+			await event.respond(msg, buttons=btns)
+	else:
+		await event.respond(msg, buttons=btns)
+	await event.delete()
+
+@bot.on(events.CallbackQuery(data=b'up-qris-cek'))
+async def up_qris_cek(event):
+	await event.answer("Saldo otomatis bertambah dalam beberapa menit setelah pembayaran dikonfirmasi. Silakan cek saldo via menu Saldo.", alert=True)
+
+@bot.on(events.CallbackQuery(data=b'up-qris-batal'))
+async def up_qris_batal(event):
+	await event.edit("❌ Pembayaran dibatalkan.",
+		buttons=[[Button.inline("‹ Kembali","up-saldo")]])
 
 # ── BELI LAYANAN ──────────────────────────────────────────────────────
 @bot.on(events.CallbackQuery(data=b'up-beli'))
