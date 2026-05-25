@@ -980,14 +980,22 @@ function install_openvpn() {
     else
         print_error "Gagal mengunduh skrip konfigurasi kustom (openvpn). Konfigurasi dasar mungkin tidak lengkap."
     fi
-    print_ok "Mengaktifkan dan merestart layanan OpenVPN (server)..."
-    if ! systemctl enable openvpn-server@server; then
-        print_error "Gagal mengaktifkan layanan openvpn-server@server."
+    print_ok "Mengaktifkan dan merestart layanan OpenVPN (server-tcp & server-udp)..."
+    if ! systemctl enable openvpn-server@server-tcp; then
+        print_error "Gagal mengaktifkan layanan openvpn-server@server-tcp."
     fi
-    if systemctl restart openvpn-server@server; then
-        print_ok "Layanan openvpn-server@server berhasil direstart."
+    if ! systemctl enable openvpn-server@server-udp; then
+        print_error "Gagal mengaktifkan layanan openvpn-server@server-udp."
+    fi
+    if systemctl restart openvpn-server@server-tcp; then
+        print_ok "Layanan openvpn-server@server-tcp berhasil direstart."
     else
-        print_error "Gagal merestart layanan openvpn-server@server. Pastikan konfigurasi sudah dibuat dengan benar."
+        print_error "Gagal merestart layanan openvpn-server@server-tcp. Pastikan konfigurasi sudah dibuat dengan benar."
+    fi
+    if systemctl restart openvpn-server@server-udp; then
+        print_ok "Layanan openvpn-server@server-udp berhasil direstart."
+    else
+        print_error "Gagal merestart layanan openvpn-server@server-udp. Pastikan konfigurasi sudah dibuat dengan benar."
     fi
     print_success "OpenVPN"
     print_ok "install_openvpn SELESAI"
