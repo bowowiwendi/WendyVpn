@@ -17,8 +17,8 @@
 <pre><code>wget https://raw.githubusercontent.com/fisabiliyusri/SLDNS/main/slowdns/install-sldns && chmod +x install-sldns && ./install-sldns</code></pre>
 
 ### TESTED ON OS 
-- UBUNTU 20
-- DEBIAN 10 ( Recomended )
+- UBUNTU 20+
+- DEBIAN 10+
 
 ### PORT INFO
 ```
