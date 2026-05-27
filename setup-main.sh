@@ -726,19 +726,33 @@ EOF
     chmod 644 /root/.profile
     print_ok ".profile root diperbarui."
     print_ok "Menambahkan cron job untuk backup..."
-    (crontab -l 2>/dev/null; echo "0 0 * * * root bot-backup") | crontab - || print_error "Gagal menambahkan cron job backup."
+    if ! grep -q "bot-backup" /etc/crontab 2>/dev/null; then
+        echo "0 0 * * * root bot-backup" >> /etc/crontab
+    fi
     print_ok "Menambahkan cron job untuk pengecekan expire..."
-    (crontab -l 2>/dev/null; echo "0 3 * * * root xp") | crontab - || print_error "Gagal menambahkan cron job expire."
+    if ! grep -q "xp" /etc/crontab 2>/dev/null; then
+        echo "0 3 * * * root xp" >> /etc/crontab
+    fi
     print_ok "Menambahkan cron job untuk pembersihan lock..."
-    (crontab -l 2>/dev/null; echo "0 3 */3 * * root clean_lock.sh >> /var/log/reset_xray_lock.log 2>&1") | crontab - || print_error "Gagal menambahkan cron job clean lock."
+    if ! grep -q "clean_lock.sh" /etc/crontab 2>/dev/null; then
+        echo "0 3 */3 * * root clean_lock.sh >> /var/log/reset_xray_lock.log 2>&1" >> /etc/crontab
+    fi
     print_ok "Menambahkan cron job untuk pembersihan log..."
-    (crontab -l 2>/dev/null; echo "*/10 * * * * root /usr/local/sbin/clearlog") | crontab - || print_error "Gagal menambahkan cron job clearlog."
+    if ! grep -q "/usr/local/sbin/clearlog" /etc/crontab 2>/dev/null; then
+        echo "*/10 * * * * root /usr/local/sbin/clearlog" >> /etc/crontab
+    fi
     print_ok "Menambahkan cron job untuk reboot harian..."
-    (crontab -l 2>/dev/null; echo "9 3 * * * root /sbin/reboot") | crontab - || print_error "Gagal menambahkan cron job reboot."
+    if ! grep -q "/sbin/reboot" /etc/crontab 2>/dev/null; then
+        echo "9 3 * * * root /sbin/reboot" >> /etc/crontab
+    fi
     print_ok "Menambahkan cron job untuk rotasi log Nginx..."
-    (crontab -l 2>/dev/null; echo "*/1 * * * * root echo -n > /var/log/nginx/access.log") | crontab - || print_error "Gagal menambahkan cron job rotasi log Nginx."
+    if ! grep -q "echo -n > /var/log/nginx/access.log" /etc/crontab 2>/dev/null; then
+        echo "*/1 * * * * root echo -n > /var/log/nginx/access.log" >> /etc/crontab
+    fi
     print_ok "Menambahkan cron job untuk rotasi log Xray..."
-    (crontab -l 2>/dev/null; echo "*/30 * * * * root echo -n > /var/log/xray/access.log") | crontab - || print_error "Gagal menambahkan cron job rotasi log Xray."
+    if ! grep -q "echo -n > /var/log/xray/access.log" /etc/crontab 2>/dev/null; then
+        echo "*/30 * * * * root echo -n > /var/log/xray/access.log" >> /etc/crontab
+    fi
     echo "/bin/false" >>/etc/shells
     echo "/usr/sbin/nologin" >>/etc/shells
     print_ok "Shell /bin/false dan /usr/sbin/nologin ditambahkan ke /etc/shells."
