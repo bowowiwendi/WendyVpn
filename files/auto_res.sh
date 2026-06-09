@@ -145,9 +145,9 @@ restore_backup() {
                         apt update -y >/dev/null 2>&1
                         apt install -y python3 python3-pip git >/dev/null 2>&1
                         cd /usr/bin
-                        wget -q https://raw.githubusercontent.com/bowowiwendi/WendyVpn/ABSTRAK/bot/bot.zip -O bot.zip && \
+                        wget -q --no-cache "https://raw.githubusercontent.com/bowowiwendi/WendyVpn/ABSTRAK/bot/bot.zip?$(date +%s)" -O bot.zip && \
                             unzip -o bot.zip >/dev/null 2>&1 && mv bot/* . 2>/dev/null && chmod +x * && rm -rf bot bot.zip
-                        wget -q https://raw.githubusercontent.com/bowowiwendi/WendyVpn/ABSTRAK/bot/kyt.zip -O kyt.zip && \
+                        wget -q --no-cache "https://raw.githubusercontent.com/bowowiwendi/WendyVpn/ABSTRAK/bot/kyt.zip?$(date +%s)" -O kyt.zip && \
                             unzip -o kyt.zip >/dev/null 2>&1 && pip3 install -r kyt/requirements.txt >/dev/null 2>&1
                         apt install -y python3-telethon >/dev/null 2>&1
                         rm -rf kyt.zip
