@@ -26,19 +26,20 @@ setup_cloudflare_dns() {
         exit 1
     fi
     
-    # Create A Record
-    echo "🔧 Creating A record for $dns..."
-    response=$(curl -sLX POST "https://api.cloudflare.com/client/v4/zones/$zone_id/dns_records" \
-    -H "X-Auth-Email: $CF_ID" \
-    -H "X-Auth-Key: $CF_KEY" \
-    -H "Content-Type: application/json" \
-    --data '{"type":"A","name":"'$dns'","content":"'$IP'","ttl":120,"proxied":false}')
-    local record_id=$(echo "$response" | jq -r .result.id)
-    if [[ -z "$record_id" || "$record_id" == "null" ]]; then
-        echo "❌ Failed to create A record for $dns"
-        echo "$response"
-        exit 1
-    fi
+    for record_name in "$dns" "api.$dns" "panel.$dns"; do
+        echo "🔧 Creating A record for $record_name..."
+        response=$(curl -sLX POST "https://api.cloudflare.com/client/v4/zones/$zone_id/dns_records" \
+        -H "X-Auth-Email: $CF_ID" \
+        -H "X-Auth-Key: $CF_KEY" \
+        -H "Content-Type: application/json" \
+        --data '{"type":"A","name":"'$record_name'","content":"'$IP'","ttl":120,"proxied":false}')
+        local record_id=$(echo "$response" | jq -r .result.id)
+        if [[ -z "$record_id" || "$record_id" == "null" ]]; then
+            echo "❌ Failed to create A record for $record_name"
+            echo "$response"
+            exit 1
+        fi
+    done
     
     # Save domain info
     mkdir -p /etc/xray

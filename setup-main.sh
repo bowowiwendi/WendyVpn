@@ -328,7 +328,7 @@ function pasang_ssl() {
     /root/.acme.sh/acme.sh --upgrade --auto-upgrade || print_error "Gagal memutakhirkan acme.sh."
     /root/.acme.sh/acme.sh --set-default-ca --server letsencrypt || print_error "Gagal mengatur CA default untuk acme.sh."
     print_ok "Menerbitkan sertifikat SSL..."
-    /root/.acme.sh/acme.sh --issue -d $domain --standalone -k ec-256 || print_error "Gagal menerbitkan sertifikat SSL untuk $domain."
+    /root/.acme.sh/acme.sh --issue -d $domain -d api.$domain -d panel.$domain --standalone -k ec-256 || print_error "Gagal menerbitkan sertifikat SSL untuk $domain."
     ~/.acme.sh/acme.sh --installcert -d $domain --fullchainpath /etc/xray/xray.crt --keypath /etc/xray/xray.key --ecc || print_error "Gagal menginstal sertifikat SSL untuk $domain."
     chmod 644 /etc/xray/xray.key
     print_ok "Permission key diatur ke 644."
@@ -710,6 +710,28 @@ function menu(){
     print_ok "menu SELESAI"
 }
 
+function install_api_dashboard() {
+    print_install "MENJALANKAN install_api_dashboard"
+    mkdir -p /etc/wendy-api
+    if [ ! -f /etc/wendy-api/token ]; then
+        openssl rand -hex 24 >/etc/wendy-api/token || print_error "Gagal membuat token API."
+    fi
+    if [ ! -f /etc/wendy-api/panel_token ]; then
+        openssl rand -hex 24 >/etc/wendy-api/panel_token || print_error "Gagal membuat token panel."
+    fi
+    chmod 600 /etc/wendy-api/token
+    chmod 600 /etc/wendy-api/panel_token
+    print_ok "Mengunduh wendy-api.py dan service..."
+    wget -O /usr/local/bin/wendy-api.py "${REPO}files/wendy-api.py" || print_error "Gagal mengunduh wendy-api.py."
+    wget -O /etc/systemd/system/wendy-api.service "${REPO}files/wendy-api.service" || print_error "Gagal mengunduh wendy-api.service."
+    chmod +x /usr/local/bin/wendy-api.py
+    chmod 644 /etc/systemd/system/wendy-api.service
+    systemctl daemon-reload || print_error "Gagal memuat ulang daemon systemd."
+    systemctl enable --now wendy-api || print_error "Gagal mengaktifkan wendy-api."
+    print_success "Wendy API Dashboard"
+    print_ok "install_api_dashboard SELESAI"
+}
+
 function profile(){
     print_install "MENJALANKAN profile"
     cat >/root/.profile <<EOF
@@ -788,6 +810,7 @@ function enable_services(){
     systemctl restart xray || print_error "Gagal merestart xray."
     systemctl restart cron || print_error "Gagal merestart cron."
     systemctl restart haproxy || print_error "Gagal merestart haproxy."
+    systemctl restart wendy-api || print_error "Gagal merestart wendy-api."
     print_success "Enable Core Services"
     clear
     print_ok "enable_services SELESAI"
@@ -1040,6 +1063,7 @@ function install(){
     ins_Fail2ban
     ins_epro
     menu
+    install_api_dashboard
     ins_restart
     enable_services
     restart_system
