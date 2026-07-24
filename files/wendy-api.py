@@ -10,6 +10,41 @@ import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
 
+# ── Auto-fix: remove api./panel. server_name from nginx config ──
+_NGINX_CONF_PATHS = [
+    "/etc/nginx/sites-enabled/xray.conf",
+    "/etc/nginx/conf.d/xray.conf",
+    "/etc/nginx/nginx.conf",
+]
+for _cfg in _NGINX_CONF_PATHS:
+    if os.path.isfile(_cfg):
+        try:
+            with open(_cfg) as _f:
+                _orig = _f.read()
+            _fixed = re.sub(
+                r'^\s*server_name\s+.*\bapi\..*\bpanel\..*;\s*\n?',
+                '',
+                _orig,
+                flags=re.MULTILINE | re.IGNORECASE,
+            )
+            if _fixed != _orig:
+                with open(_cfg, "w") as _f:
+                    _f.write(_fixed)
+                code = subprocess.run(
+                    ["nginx", "-t"],
+                    capture_output=True,
+                    timeout=5,
+                ).returncode
+                if code == 0 and subprocess.run(
+                    ["systemctl", "is-active", "--quiet", "nginx"]
+                ).returncode == 0:
+                    subprocess.run(
+                        ["systemctl", "reload", "nginx"],
+                        capture_output=True,
+                        timeout=10,
+                    )
+        except Exception:
+            pass
 
 HOST = "127.0.0.1"
 PORT = 9000
