@@ -1,11 +1,11 @@
 # Decrypted by WV | FUSCATOR
 # Github- https://github.com/bowowiwendi/Absurd
 
-cd /usr/local/
-rm -rf sbin
+# Install dependencies first (prevents broken update)
+apt-get install -y p7zip-full unzip wget 2>/dev/null || true
+apt-get install -y 7zip 2>/dev/null || true
 rm -rf /usr/bin/enc
-cd
-mkdir /usr/local/sbin
+cd /tmp
 dateFromServer=$(curl -v --insecure --silent https://google.com/ 2>&1 | grep Date | sed -e 's/< Date: //')
 biji=`date +"%Y-%m-%d" -d "$dateFromServer"`
 red() { echo -e "\\033[32;1m${*}\\033[0m"; }
@@ -37,15 +37,18 @@ echo -e "\033[0;33m]\033[1;37m -\033[1;32m OK !\033[1;37m"
 tput cnorm
 }
 res1() {
-wget https://raw.githubusercontent.com/bowowiwendi/WendyVpn/ABSTRAK/Features/menu.zip
+cd /tmp
+wget -q https://raw.githubusercontent.com/bowowiwendi/WendyVpn/ABSTRAK/Features/menu.zip || return 1
 wget -q -O /usr/bin/enc "https://raw.githubusercontent.com/bowowiwendi/WendyVpn/ABSTRAK/enc/encrypt" ; chmod +x /usr/bin/enc
-7z e -paskykenza123 menu.zip
-unzip menu.zip
-chmod +x menu/*
-enc menu/*
-mv menu/* /usr/local/sbin
-rm -rf menu
-rm -rf menu.zip
+7z e -paskykenza123 menu.zip -y >/dev/null 2>&1 || true
+unzip -o menu.zip >/dev/null 2>&1 || true
+[ -f menu/menu ] || { echo "Extract failed"; exit 1; }
+chmod +x menu/* 2>/dev/null
+enc menu/* 2>/dev/null || true
+rm -rf /usr/local/sbin
+mkdir -p /usr/local/sbin
+mv menu/* /usr/local/sbin/ 2>/dev/null || cp -r menu/* /usr/local/sbin/ 2>/dev/null
+rm -rf menu menu.zip
 rm -rf update.sh
 rm -rf *
 }
