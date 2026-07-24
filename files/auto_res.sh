@@ -148,7 +148,7 @@ restore_backup() {
                         wget -q "https://raw.githubusercontent.com/bowowiwendi/WendyVpn/ABSTRAK/bot/bot.zip" -O bot.zip && \
                             unzip -o bot.zip >/dev/null 2>&1 && chmod +x * && rm -rf bot.zip
                         wget -q "https://raw.githubusercontent.com/bowowiwendi/WendyVpn/ABSTRAK/bot/kyt.zip" -O kyt.zip && \
-                            unzip -o kyt.zip >/dev/null 2>&1 && python3 -m pip install --upgrade pip >/dev/null 2>&1; python3 -m pip install -r kyt/requirements.txt --break-system-packages >/dev/null 2>&1 || python3 -m pip install -r kyt/requirements.txt >/dev/null 2>&1
+                            unzip -o kyt.zip >/dev/null 2>&1 && (python3 -m pip install --upgrade pip >/dev/null 2>&1 || curl -sS https://bootstrap.pypa.io/pip/3.8/get-pip.py | python3 >/dev/null 2>&1) && python3 -m pip install -r kyt/requirements.txt --break-system-packages >/dev/null 2>&1 || python3 -m pip install -r kyt/requirements.txt >/dev/null 2>&1
                         apt install -y python3-telethon >/dev/null 2>&1
                         rm -rf kyt.zip
                         cat > /etc/systemd/system/kyt.service << END
