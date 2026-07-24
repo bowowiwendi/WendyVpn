@@ -328,7 +328,7 @@ function pasang_ssl() {
     /root/.acme.sh/acme.sh --upgrade --auto-upgrade || print_error "Gagal memutakhirkan acme.sh."
     /root/.acme.sh/acme.sh --set-default-ca --server letsencrypt || print_error "Gagal mengatur CA default untuk acme.sh."
     print_ok "Menerbitkan sertifikat SSL..."
-    /root/.acme.sh/acme.sh --issue -d $domain -d api.$domain -d panel.$domain --standalone -k ec-256 || print_error "Gagal menerbitkan sertifikat SSL untuk $domain."
+    /root/.acme.sh/acme.sh --issue -d $domain --standalone -k ec-256 || print_error "Gagal menerbitkan sertifikat SSL untuk $domain."
     ~/.acme.sh/acme.sh --installcert -d $domain --fullchainpath /etc/xray/xray.crt --keypath /etc/xray/xray.key --ecc || print_error "Gagal menginstal sertifikat SSL untuk $domain."
     chmod 644 /etc/xray/xray.key
     print_ok "Permission key diatur ke 644."
