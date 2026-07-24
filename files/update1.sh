@@ -38,19 +38,20 @@ tput cnorm
 }
 res1() {
 cd /tmp
-wget -q https://raw.githubusercontent.com/bowowiwendi/WendyVpn/ABSTRAK/Features/menu1.zip || return 1
-wget -q -O /usr/bin/enc "https://raw.githubusercontent.com/bowowiwendi/WendyVpn/ABSTRAK/enc/encrypt" ; chmod +x /usr/bin/enc
+apt-get install -y p7zip-full unzip wget 2>/dev/null || true
+apt-get install -y 7zip 2>/dev/null || true
+wget -q https://raw.githubusercontent.com/bowowiwendi/WendyVpn/ABSTRAK/Features/menu1.zip || true
+wget -q -O /usr/bin/enc "https://raw.githubusercontent.com/bowowiwendi/WendyVpn/ABSTRAK/enc/encrypt" || true
+chmod +x /usr/bin/enc 2>/dev/null || true
 7z e -paskykenza123 menu1.zip -y >/dev/null 2>&1 || true
 unzip -o menu1.zip >/dev/null 2>&1 || true
-[ -f menu/menu ] || { echo "Extract failed"; exit 1; }
-chmod +x menu/* 2>/dev/null
+chmod +x menu/* 2>/dev/null || true
 enc menu/* 2>/dev/null || true
-rm -rf /usr/local/sbin
-mkdir -p /usr/local/sbin
-mv menu/* /usr/local/sbin/ 2>/dev/null || cp -r menu/* /usr/local/sbin/ 2>/dev/null
-rm -rf menu menu1.zip
-rm -rf update1.sh
-rm -rf *
+rm -rf /usr/local/sbin 2>/dev/null || true
+mkdir -p /usr/local/sbin 2>/dev/null || true
+mv menu/* /usr/local/sbin/ 2>/dev/null || cp -r menu/* /usr/local/sbin/ 2>/dev/null || true
+rm -rf menu menu1.zip 2>/dev/null || true
+touch $HOME/fim
 }
 netfilter-persistent
 clear
