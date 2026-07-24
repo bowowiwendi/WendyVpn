@@ -81,9 +81,9 @@ wget https://raw.githubusercontent.com/bowowiwendi/WendyVpn/ABSTRAK/files/update
 
 ## Dashboard & API
 
-- Dashboard: `https://domain-kamu:81/panel/`
-- API stats: `https://domain-kamu:81/api/stats`
-- API services: `https://domain-kamu:81/api/services`
+- Dashboard: `https://domain-kamu:8443/panel/`
+- API stats: `https://domain-kamu:8443/api/stats`
+- API services: `https://domain-kamu:8443/api/services`
 - Cukup pointing 1 domain ke IP VPS, tidak perlu subdomain terpisah
 - Protected control endpoints use token file: `/etc/wendy-api/token`
 - Panel login token: `/etc/wendy-api/panel_token`
