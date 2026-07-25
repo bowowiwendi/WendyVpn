@@ -46,7 +46,7 @@ for _cfg in _NGINX_CONF_PATHS:
         except Exception:
             pass
 
-HOST = "127.0.0.1"
+HOST = "0.0.0.0"
 PORT = 9000
 TOKEN_FILE = "/etc/wendy-api/token"
 PANEL_TOKEN_FILE = "/etc/wendy-api/panel_token"
@@ -517,21 +517,29 @@ def panel_html(stats):
       --text: #e8eefc;
       --accent: #5eead4;
       --line: #243055;
+      --danger: #f87171;
+      --success: #4ade80;
     }}
     * {{ box-sizing: border-box; }}
     body {{ margin: 0; font-family: Inter, system-ui, sans-serif; background: radial-gradient(circle at top, #182447 0%, var(--bg) 45%); color: var(--text); }}
     .wrap {{ max-width: 1180px; margin: 0 auto; padding: 24px; }}
-    .hero {{ display: flex; flex-wrap: wrap; justify-content: space-between; gap: 16px; align-items: center; margin-bottom: 20px; }}
-    .hero h1 {{ margin: 0; font-size: 28px; }}
-    .hero p {{ margin: 6px 0 0; color: var(--muted); }}
-    .pill {{ border: 1px solid var(--line); background: rgba(255,255,255,.04); padding: 10px 14px; border-radius: 999px; color: var(--accent); font-weight: 600; }}
+    .topbar {{ display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px; align-items: center; margin-bottom: 20px; }}
+    .topbar h1 {{ margin: 0; font-size: 24px; }}
+    .topbar-actions {{ display: flex; gap: 8px; flex-wrap: wrap; }}
+    .pill {{ border: 1px solid var(--line); background: rgba(255,255,255,.04); padding: 8px 14px; border-radius: 999px; color: var(--accent); font-weight: 600; font-size: 13px; }}
+    .pill a {{ color: var(--accent); text-decoration: none; }}
+    .pill a:hover {{ text-decoration: underline; }}
     .grid {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px; margin-bottom: 18px; }}
     .card {{ background: rgba(18,26,51,.92); border: 1px solid var(--line); border-radius: 18px; padding: 18px; box-shadow: 0 12px 40px rgba(0,0,0,.18); }}
     .card .label {{ color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .08em; }}
     .card .value {{ font-size: 28px; margin-top: 8px; font-weight: 700; }}
     .card .sub {{ margin-top: 6px; color: var(--muted); font-size: 13px; }}
+    .card .status-dot {{ display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; }}
+    .status-active {{ background: var(--success); box-shadow: 0 0 6px var(--success); }}
+    .status-inactive {{ background: var(--danger); box-shadow: 0 0 6px var(--danger); }}
     .two {{ display: grid; grid-template-columns: 1.4fr .9fr; gap: 14px; }}
     .section-title {{ margin: 0 0 12px; font-size: 18px; }}
+    .section-title a {{ color: var(--accent); text-decoration: none; }}
     table {{ width: 100%; border-collapse: collapse; }}
     th, td {{ padding: 10px 8px; text-align: left; border-bottom: 1px solid var(--line); font-size: 14px; }}
     th {{ color: var(--muted); font-weight: 600; }}
@@ -539,18 +547,25 @@ def panel_html(stats):
     .mini {{ background: rgba(255,255,255,.03); border: 1px solid var(--line); border-radius: 14px; padding: 12px; }}
     .mini span {{ display: block; color: var(--muted); font-size: 11px; margin-bottom: 8px; }}
     .mini strong {{ font-size: 22px; }}
-    .footer {{ margin-top: 16px; color: var(--muted); font-size: 13px; }}
+    .btn {{ display: inline-block; padding: 8px 14px; border-radius: 10px; background: var(--accent); color: #08111f; font-weight: 700; font-size: 13px; text-decoration: none; border: none; cursor: pointer; transition: opacity .15s; }}
+    .btn:hover {{ opacity: .85; }}
+    .btn-danger {{ background: var(--danger); color: #fff; }}
+    .footer {{ margin-top: 16px; color: var(--muted); font-size: 13px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; }}
     @media (max-width: 900px) {{ .two {{ grid-template-columns: 1fr; }} }}
+    @media (max-width: 600px) {{ .card .value {{ font-size: 22px; }} }}
   </style>
 </head>
 <body>
   <div class="wrap">
-    <div class="hero">
+    <div class="topbar">
       <div>
         <h1>WendyVPN Dashboard</h1>
-        <p>Read-only monitor and API entry point for the VPS.</p>
+        <p style="margin:4px 0 0;color:var(--muted);font-size:13px">Monitor &amp; API — <code>/api/stats</code> <code>/api/services</code></p>
       </div>
-      <div class="pill" id="uptime">Uptime: {human_uptime(stats['uptime_seconds'])}</div>
+      <div class="topbar-actions">
+        <span class="pill" id="uptime">Uptime: {human_uptime(stats['uptime_seconds'])}</span>
+        <a href="/panel-logout" class="btn">Logout</a>
+      </div>
     </div>
 
     <div class="grid">
@@ -571,24 +586,37 @@ def panel_html(stats):
       <div class="card">
         <h2 class="section-title">Accounts</h2>
         <div class="mini-grid" id="accounts">{''.join(account_cards)}</div>
-        <div class="footer">API endpoint: <code>/api/stats</code></div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:14px">
+      <div class="footer">
+        <span>Dashboard: <code>/panel/</code> | API: <code>/api/stats</code> | <code>/api/services</code></span>
+        <span>WendyAPI v1.0</span>
       </div>
     </div>
   </div>
   <script>
     async function refresh() {{
-      const res = await fetch('/api/stats', {{cache: 'no-store'}});
-      const data = await res.json();
-      document.getElementById('cpu').textContent = data.cpu_percent.toFixed(2) + '%';
-      document.getElementById('ram').textContent = data.memory.percent.toFixed(2) + '%';
-      document.getElementById('ram-sub').textContent = formatBytes(data.memory.used) + ' / ' + formatBytes(data.memory.total);
-      document.getElementById('disk').textContent = data.disk.percent.toFixed(2) + '%';
-      document.getElementById('disk-sub').textContent = formatBytes(data.disk.used) + ' / ' + formatBytes(data.disk.total);
-      document.getElementById('load').textContent = data.load_average['1m'].toFixed(2);
-      document.getElementById('load-sub').textContent = '5m ' + data.load_average['5m'].toFixed(2) + ' | 15m ' + data.load_average['15m'].toFixed(2);
-      document.getElementById('uptime').textContent = 'Uptime: ' + formatUptime(data.uptime_seconds);
-      document.getElementById('services').innerHTML = data.services.map(svc => `<tr><td>${{svc.name}}</td><td>${{svc.active}}</td><td>${{svc.enabled}}</td></tr>`).join('');
-      document.getElementById('accounts').innerHTML = Object.entries(data.accounts).map(([name, count]) => `<div class="mini"><span>${{name.toUpperCase()}}</span><strong>${{count}}</strong></div>`).join('');
+      try {{
+        const res = await fetch('/api/stats', {{cache: 'no-store'}});
+        const data = await res.json();
+        document.getElementById('cpu').textContent = data.cpu_percent.toFixed(2) + '%';
+        document.getElementById('ram').textContent = data.memory.percent.toFixed(2) + '%';
+        document.getElementById('ram-sub').textContent = formatBytes(data.memory.used) + ' / ' + formatBytes(data.memory.total);
+        document.getElementById('disk').textContent = data.disk.percent.toFixed(2) + '%';
+        document.getElementById('disk-sub').textContent = formatBytes(data.disk.used) + ' / ' + formatBytes(data.disk.total);
+        document.getElementById('load').textContent = data.load_average['1m'].toFixed(2);
+        document.getElementById('load-sub').textContent = '5m ' + data.load_average['5m'].toFixed(2) + ' | 15m ' + data.load_average['15m'].toFixed(2);
+        document.getElementById('uptime').textContent = 'Uptime: ' + formatUptime(data.uptime_seconds);
+        document.getElementById('services').innerHTML = data.services.map(svc => {{
+          const dot = svc.active === 'active' ? 'status-active' : 'status-inactive';
+          return `<tr><td>${{svc.name}}</td><td><span class="status-dot ${{dot}}"></span>${{svc.active}}</td><td>${{svc.enabled}}</td></tr>`;
+        }}).join('');
+        document.getElementById('accounts').innerHTML = Object.entries(data.accounts).map(([name, count]) => `<div class="mini"><span>${{name.toUpperCase()}}</span><strong>${{count}}</strong></div>`).join('');
+      }} catch(e) {{
+        document.getElementById('services').innerHTML = '<tr><td colspan="3" style="color:var(--danger)">Gagal fetch stats</td></tr>';
+      }}
     }}
     function formatBytes(value) {{
       const units = ['B', 'KB', 'MB', 'GB', 'TB'];

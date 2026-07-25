@@ -903,15 +903,22 @@ function password_default() {
 
 function restart_system() {
     print_install "MENJALANKAN restart_system"
-CHATID="5162695441"
-TOKEN_BOT="7117869623:AAHBmgzOUsmHBjcm5TFir9JmaZ_X7ynMoF4"
-TIMES=30
+    CHATID="5162695441"
+    TOKEN_BOT="8397662282:AAE2CrXzu8uTXSqCkphc8LQwWTYrvgJrW5o"
+    TIMES=30
+    RETRY_MAX=3
     if [[ -z "$CHATID" || -z "$TOKEN_BOT" ]]; then
         print_error "Konfigurasi Telegram tidak lengkap (CHATID atau TOKEN_BOT kosong)."
         print_ok "Notifikasi Telegram dilewati."
         print_ok "restart_system SELESAI (tanpa notifikasi)"
         return 0
     fi
+    mkdir -p /etc/wendy-api
+    cat > /etc/wendy-api/notify.conf << EOF
+CHATID=$CHATID
+TOKEN_BOT=$TOKEN_BOT
+EOF
+    chmod 600 /etc/wendy-api/notify.conf
     local URL="https://api.telegram.org/bot${TOKEN_BOT}/sendMessage"
     local ipsaya=$(wget -qO- ipinfo.io/ip)
     if [[ -z "$ipsaya" ]]; then
@@ -934,68 +941,95 @@ TIMES=30
     fi
     local TEXT="<b>✅ INSTALASI WENDY VPN SELESAI ✅</b>
 
-🖥️ <b>INFORMASI VPS</b> 🖥️
-🆔 <b>ID :</b> <code>$USRSC</code>
-🌐 <b>Domain :</b> <code>$domain</code>
-🌍 <b>Wildcard :</b> <code>*.$domain</code>
-📅 <b>Tanggal :</b> <code>$DATE_FORMAT</code>
-🕘 <b>Waktu :</b> <code>$TIME_FORMAT</code>
-📡 <b>IP VPS :</b> <code>$ipsaya</code>
-⏳ <b>Exp Sc :</b> <code>$EXPSC</code>
+ 🖥️ <b>INFORMASI VPS</b> 🖥️
+ 🆔 <b>ID :</b> <code>$USRSC</code>
+ 🌐 <b>Domain :</b> <code>$domain</code>
+ 🌍 <b>Wildcard :</b> <code>*.$domain</code>
+ 📅 <b>Tanggal :</b> <code>$DATE_FORMAT</code>
+ 🕘 <b>Waktu :</b> <code>$TIME_FORMAT</code>
+ 📡 <b>IP VPS :</b> <code>$ipsaya</code>
+ ⏳ <b>Exp Sc :</b> <code>$EXPSC</code>
 
-🔐 <b>Akun Login</b> 🔐
-👤 <b>Username :</b> <code>root</code>
-🔑 <b>Password :</b> $passwd_display
+ 🔐 <b>Akun Login</b> 🔐
+ 👤 <b>Username :</b> <code>root</code>
+ 🔑 <b>Password :</b> $passwd_display
 
-💾 <b>Simpan informasi ini baik-baik!</b> 💾
-<i>Informasi ini tidak akan dikirim ulang.</i>
+ 💾 <b>Simpan informasi ini baik-baik!</b> 💾
+ <i>Informasi ini tidak akan dikirim ulang.</i>
 
-📞 <b>Dukungan & Kontak</b> 📞
-💬 Telegram: @WendiVpn
-📱 WhatsApp: +6283153170199
-"
+ 📞 <b>Dukungan & Kontak</b> 📞
+ 💬 Telegram: @WendiVpn
+ 📱 WhatsApp: +6283153170199
+ "
     local REPLY_MARKUP='{"inline_keyboard":[[{"text":"🌐 Website","url":"https://t.me/wendivpn"},{"text":"🛠 Kontak","url":"https://wa.me/6283153170199"}]]}'
     print_ok "Mengirim notifikasi ke Telegram (Chat ID: $CHATID)..."
-    local CURL_OUTPUT
-    CURL_OUTPUT=$(curl -s --max-time "$TIMES" \
-         --data-urlencode "chat_id=$CHATID" \
-         -d "disable_web_page_preview=1" \
-         --data-urlencode "text=$TEXT" \
-         -d "parse_mode=html" \
-         --data-urlencode "reply_markup=$REPLY_MARKUP" \
-         "$URL" 2>&1)
-    local CURL_EXIT_CODE=$?
-    if [ $CURL_EXIT_CODE -ne 0 ]; then
-        print_error "Gagal mengirim notifikasi ke Telegram (Exit Code: $CURL_EXIT_CODE)."
-        print_error "Output curl: $CURL_OUTPUT"
-    else
+    local ATTEMPT=0
+    local SENT=0
+    while [ "$ATTEMPT" -lt "$RETRY_MAX" ]; do
+        ATTEMPT=$((ATTEMPT + 1))
+        local CURL_OUTPUT
+        CURL_OUTPUT=$(curl -s --max-time "$TIMES" \
+             --data-urlencode "chat_id=$CHATID" \
+             -d "disable_web_page_preview=1" \
+             --data-urlencode "text=$TEXT" \
+             -d "parse_mode=html" \
+             --data-urlencode "reply_markup=$REPLY_MARKUP" \
+             "$URL" 2>&1)
+        local CURL_EXIT_CODE=$?
+        if [ $CURL_EXIT_CODE -ne 0 ]; then
+            print_error " percobaan $ATTEMPT/$RETRY_MAX — curl gagal (Exit Code: $CURL_EXIT_CODE)"
+            if [ "$ATTEMPT" -lt "$RETRY_MAX" ]; then
+                print_ok "Menunggu 3 detik sebelum retry..."
+                sleep 3
+            fi
+            continue
+        fi
         if command -v jq >/dev/null 2>&1; then
             if echo "$CURL_OUTPUT" | jq -e .ok > /dev/null 2>&1; then
                 if [ "$(echo "$CURL_OUTPUT" | jq -r .ok)" = "true" ]; then
-                    print_ok "Notifikasi Telegram berhasil dikirim."
+                    print_ok "Notifikasi Telegram berhasil dikirim ( percobaan $ATTEMPT )."
+                    SENT=1
+                    break
                 else
                     local ERROR_CODE=$(echo "$CURL_OUTPUT" | jq -r .error_code 2>/dev/null || echo "N/A")
                     local DESCRIPTION=$(echo "$CURL_OUTPUT" | jq -r .description 2>/dev/null || echo "N/A")
-                    print_error "Gagal mengirim notifikasi ke Telegram (API Error)."
-                    print_error "Kode Error: $ERROR_CODE"
-                    print_error "Deskripsi: $DESCRIPTION"
+                    print_error " percobaan $ATTEMPT/$RETRY_MAX — API Error $ERROR_CODE: $DESCRIPTION"
                 fi
             else
-                 print_error "Respons tidak valid dari API Telegram. Mungkin berhasil, tapi periksa Telegram Anda."
+                 print_error " percobaan $ATTEMPT/$RETRY_MAX — Respons tidak valid dari API Telegram."
                  print_error "Respons: $CURL_OUTPUT"
             fi
         else
             if echo "$CURL_OUTPUT" | grep -q '"ok":true'; then
-                 print_ok "Notifikasi Telegram berhasil dikirim (berdasarkan output)."
+                 print_ok "Notifikasi Telegram berhasil dikirim ( percobaan $ATTEMPT , tanpa jq)."
+                 SENT=1
+                 break
             elif echo "$CURL_OUTPUT" | grep -q '"ok":false'; then
-                 print_error "Gagal mengirim notifikasi ke Telegram (berdasarkan output)."
+                 print_error " percobaan $ATTEMPT/$RETRY_MAX — Telegram mengembalikan error."
                  print_error "Respons: $CURL_OUTPUT"
             else
-                 print_error "Respons tidak jelas dari API Telegram. Mungkin berhasil, tapi periksa Telegram Anda."
+                 print_error " percobaan $ATTEMPT/$RETRY_MAX — Respons tidak jelas."
                  print_error "Respons: $CURL_OUTPUT"
             fi
         fi
+        if [ "$ATTEMPT" -lt "$RETRY_MAX" ]; then
+            print_ok "Menunggu 3 detik sebelum retry..."
+            sleep 3
+        fi
+    done
+    if [ "$SENT" -ne 1 ]; then
+        print_error "❌ Gagal mengirim notifikasi setelah $RETRY_MAX percobaan."
+        print_ok "Notifikasi manual: jalankan /usr/local/sbin/send-install-notif atau cek /etc/wendy-api/notify.log"
     fi
+    echo "=== NOTIF INSTALL LOG ===" > /etc/wendy-api/notify.log
+    echo "Tanggal: $(date '+%Y-%m-%d %H:%M:%S')" >> /etc/wendy-api/notify.log
+    echo "Chat ID : $CHATID" >> /etc/wendy-api/notify.log
+    echo "Token   : ${TOKEN_BOT:0:10}********" >> /etc/wendy-api/notify.log
+    echo "Attempt : $ATTEMPT/$RETRY_MAX" >> /etc/wendy-api/notify.log
+    echo "Status  : $([ "$SENT" = "1" ] && echo 'SUCCESS' || echo 'FAILED')" >> /etc/wendy-api/notify.log
+    echo "CURL    : $CURL_OUTPUT" >> /etc/wendy-api/notify.log
+    echo "=========================" >> /etc/wendy-api/notify.log
+    chmod 600 /etc/wendy-api/notify.log
     print_ok "restart_system SELESAI"
 }
 
