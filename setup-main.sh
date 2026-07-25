@@ -716,11 +716,7 @@ function install_api_dashboard() {
     if [ ! -f /etc/wendy-api/token ]; then
         openssl rand -hex 24 >/etc/wendy-api/token || print_error "Gagal membuat token API."
     fi
-    if [ ! -f /etc/wendy-api/panel_token ]; then
-        openssl rand -hex 24 >/etc/wendy-api/panel_token || print_error "Gagal membuat token panel."
-    fi
     chmod 600 /etc/wendy-api/token
-    chmod 600 /etc/wendy-api/panel_token
     print_ok "Mengunduh wendy-api.py dan service..."
     wget -O /usr/local/bin/wendy-api.py "${REPO}files/wendy-api.py" || print_error "Gagal mengunduh wendy-api.py."
     wget -O /etc/systemd/system/wendy-api.service "${REPO}files/wendy-api.service" || print_error "Gagal mengunduh wendy-api.service."
