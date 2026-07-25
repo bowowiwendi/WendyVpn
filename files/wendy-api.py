@@ -804,6 +804,28 @@ class Handler(BaseHTTPRequestHandler):
                 payload, status = {"ok": False, "error": "not_found"}, 404
             self._send_json(payload, status=status)
             return
+        if len(parts) == 3 and parts[0] == "api" and parts[1] == "system":
+            if not self._require_token():
+                return
+            length = int(self.headers.get("Content-Length", "0") or "0")
+            try:
+                body = json.loads(self.rfile.read(length).decode("utf-8") or "{}")
+            except Exception:
+                self._send_json({"ok": False, "error": "invalid_json"}, status=400)
+                return
+            if parts[2] == "bot-config":
+                bot_token = (body.get("bot_token") or "").strip()
+                chat_id = (body.get("chat_id") or "").strip()
+                if not bot_token or not chat_id:
+                    self._send_json({"ok": False, "error": "bot_token and chat_id required"}, status=400)
+                    return
+                os.makedirs("/etc/bot", exist_ok=True)
+                with open("/etc/bot/.bot.db", "w") as f:
+                    f.write(f"#bot# {bot_token} {chat_id}\n")
+                self._send_json({"ok": True, "stdout": "Bot config updated"})
+                return
+            self._send_json({"ok": False, "error": "not_found"}, status=404)
+            return
         if len(parts) == 2 and parts[0] == "api" and parts[1] == "command":
             if not self._require_token():
                 return
