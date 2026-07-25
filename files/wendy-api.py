@@ -138,8 +138,11 @@ def run(cmd):
     return subprocess.run(cmd, capture_output=True, text=True)
 
 
-def run_shell(command, timeout=120):
-    return subprocess.run(command, shell=True, capture_output=True, text=True, timeout=timeout)
+def run_shell(command, timeout=120, env_extra=None):
+    env = os.environ.copy()
+    if env_extra:
+        env.update(env_extra)
+    return subprocess.run(command, shell=True, capture_output=True, text=True, timeout=timeout, env=env)
 
 
 def api_error(message, status=400):
@@ -201,6 +204,7 @@ def handle_account_create(body):
     days = str(body.get("days", "1"))
     bug = str(body.get("bug", ""))
     trial = bool(body.get("trial", False))
+    env = {"NO_NOTIF": "1"} if body.get("no_notif") else {}
 
     if trial:
         script = TRIAL_SCRIPTS[service]
@@ -217,7 +221,7 @@ def handle_account_create(body):
         else:
             values = [username, limit_ip, days, quota, bug]
         command = shell_quote_lines(values, script)
-    return account_response(run_shell(command), service, username)
+    return account_response(run_shell(command, env_extra=env), service, username)
 
 
 def handle_account_renew(body):
@@ -229,12 +233,13 @@ def handle_account_renew(body):
     days = str(body.get("days", "1"))
     quota = str(body.get("quota", "100"))
     limit_ip = str(body.get("limit_ip", "2"))
+    env = {"NO_NOTIF": "1"} if body.get("no_notif") else {}
     script = RENEW_SCRIPTS[service]
     if service in ("vmess", "vless", "trojan"):
         values = [username, days, quota, limit_ip]
     else:
         values = [username, days]
-    return account_response(run_shell(shell_quote_lines(values, script)), service, username)
+    return account_response(run_shell(shell_quote_lines(values, script), env_extra=env), service, username)
 
 
 def handle_account_delete(body):
@@ -243,8 +248,9 @@ def handle_account_delete(body):
     err, status = validate_service_username(service, username)
     if err:
         return err, status
+    env = {"NO_NOTIF": "1"} if body.get("no_notif") else {}
     script = DELETE_SCRIPTS[service]
-    return account_response(run_shell(shell_quote_lines([username], script)), service, username)
+    return account_response(run_shell(shell_quote_lines([username], script), env_extra=env), service, username)
 
 
 def handle_restart_service(body):
