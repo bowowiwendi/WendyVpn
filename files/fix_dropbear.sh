@@ -11,6 +11,7 @@ URL="https://github.com/mkj/dropbear/archive/refs/tags/DROPBEAR_${VERSION}.tar.g
 echo "[fix_dropbear] Instalasi dependensi build..."
 apt-get update -y || true
 apt-get install -y build-essential zlib1g-dev libtomcrypt-dev libtommath-dev wget
+apt-get install -y libcrypt-dev 2>/dev/null || apt-get install -y libxcrypt-dev 2>/dev/null || true
 
 TMPDIR=$(mktemp -d)
 trap 'rm -rf "$TMPDIR"' EXIT
