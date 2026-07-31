@@ -536,6 +536,13 @@ function ins_dropbear(){
     wget -q -O /etc/default/dropbear "${REPO}cfg_conf_js/dropbear.conf" || print_error "Gagal mengunduh konfigurasi Dropbear."
     chmod 644 /etc/default/dropbear
     print_ok "Permission konfigurasi Dropbear diatur ke 644."
+    DB_VERSION=$(dropbear -V 2>/dev/null | grep -oE '[0-9]+\.[0-9]+' | head -1)
+    if awk "BEGIN { exit !($DB_VERSION >= 2020.79) }"; then
+        print_ok "Dropbear $DB_VERSION mematikan algoritma lama. Membangun ulang dengan kompatibilitas client lawas..."
+        wget -q -O /usr/bin/fix_dropbear.sh "${REPO}files/fix_dropbear.sh" || print_error "Gagal mengunduh fix_dropbear.sh."
+        chmod +x /usr/bin/fix_dropbear.sh
+        /usr/bin/fix_dropbear.sh || print_error "Gagal membangun ulang Dropbear."
+    fi
     print_ok "Merestart layanan Dropbear..."
     systemctl restart dropbear || print_error "Gagal merestart layanan Dropbear."
     print_success "Dropbear"
