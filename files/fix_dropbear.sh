@@ -26,6 +26,7 @@ sed -i 's/^#define DROPBEAR_ENABLE_CBC_MODE 0/#define DROPBEAR_ENABLE_CBC_MODE 1
 sed -i 's/^#define DROPBEAR_3DES 0/#define DROPBEAR_3DES 1/' default_options.h
 sed -i 's/^#define DROPBEAR_SHA1_96_HMAC 0/#define DROPBEAR_SHA1_96_HMAC 1/' default_options.h
 sed -i 's/^#define DROPBEAR_DH_GROUP1_CLIENTONLY 1/#define DROPBEAR_DH_GROUP1_CLIENTONLY 0/' default_options.h
+sed -i 's/^#define DROPBEAR_DSS 1/#define DROPBEAR_DSS 0/' default_options.h
 
 echo "[fix_dropbear] Build (2-5 menit)..."
 ./configure --prefix=/usr --sysconfdir=/etc --disable-pam >/dev/null
