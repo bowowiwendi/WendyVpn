@@ -13,22 +13,17 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 echo "  FIX ALL - PERBAIKAN OTOMATIS SETELAH UPDATE"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
-# ── 1. Dropbear: pastikan algoritma lama aktif ──
-DB_VERSION=$(dropbear -V 2>/dev/null | grep -oE '[0-9]+\.[0-9]+' | head -1)
-if awk "BEGIN { exit !($DB_VERSION >= 2020.79) }"; then
-    echo "[1/4] Dropbear $DB_VERSION terdeteksi. Cek algoritma lama..."
-    if ssh -o StrictHostKeyChecking=no -o ConnectTimeout=5 -o PreferredAuthentications=none \
-        -c aes128-cbc,3des-cbc -m hmac-sha1-96 -p 143 root@127.0.0.1 true 2>&1 \
-        | grep -qE "no matching cipher|refused|failed"; then
-        echo "[1/4] Algoritma lama belum aktif. Membangun ulang dropbear (2-5 menit)..."
-        wget -qO /usr/bin/fix_dropbear.sh "${REPO}files/fix_dropbear.sh"
-        chmod +x /usr/bin/fix_dropbear.sh
-        /usr/bin/fix_dropbear.sh
-    else
-        echo "[1/4] Dropbear: algoritma lama sudah aktif. Skip rebuild."
-    fi
+# ── 1. Dropbear: pastikan algoritma lama aktif (CBC/3DES/hmac-sha1-96) ──
+echo "[1/4] Cek algoritma lama pada dropbear..."
+if ssh -o StrictHostKeyChecking=no -o ConnectTimeout=5 -o PreferredAuthentications=none \
+    -c aes128-cbc,3des-cbc -m hmac-sha1-96 -p 143 root@127.0.0.1 true 2>&1 \
+    | grep -qE "no matching cipher|refused|failed"; then
+    echo "[1/4] Algoritma lama belum aktif. Membangun ulang dropbear (2-5 menit)..."
+    wget -qO /usr/bin/fix_dropbear.sh "${REPO}files/fix_dropbear.sh"
+    chmod +x /usr/bin/fix_dropbear.sh
+    /usr/bin/fix_dropbear.sh
 else
-    echo "[1/4] Dropbear $DB_VERSION (lama). Tidak perlu rebuild."
+    echo "[1/4] Dropbear: algoritma lama sudah aktif. Skip rebuild."
 fi
 
 # ── 2. Wendy API: install/update (API only, tanpa dashboard) ──
@@ -62,7 +57,7 @@ else
 fi
 if ssh -o StrictHostKeyChecking=no -o ConnectTimeout=5 -o PreferredAuthentications=none \
     -c aes128-cbc,3des-cbc -m hmac-sha1-96 -p 143 root@127.0.0.1 true 2>&1 \
-    | grep -q "no matching cipher"; then
+    | grep -qE "no matching cipher|refused|failed"; then
     echo "  ✗ dropbear: algoritma lama GAGAL"
 else
     echo "  ✓ dropbear: algoritma lama OK"

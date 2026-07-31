@@ -46,7 +46,7 @@ sleep 1
 systemctl restart dropbear
 
 echo "[fix_dropbear] Verifikasi handshake dengan cipher lama..."
-if ssh -o StrictHostKeyChecking=no -o ConnectTimeout=5 -o PreferredAuthentications=none -c aes128-cbc,3des-cbc -m hmac-sha1-96 -p 143 root@127.0.0.1 true 2>&1 | grep -q "no matching cipher"; then
+if ssh -o StrictHostKeyChecking=no -o ConnectTimeout=5 -o PreferredAuthentications=none -c aes128-cbc,3des-cbc -m hmac-sha1-96 -p 143 root@127.0.0.1 true 2>&1 | grep -qE "no matching cipher|refused|failed"; then
     echo "[fix_dropbear] PERINGATAN: cipher lama masih tidak tersedia!"
 else
     echo "[fix_dropbear] OK: handshake cipher lama diterima."
