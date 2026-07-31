@@ -51,6 +51,8 @@ rm -rf /usr/local/sbin 2>/dev/null || true
 mkdir -p /usr/local/sbin 2>/dev/null || true
 mv menu/* /usr/local/sbin/ 2>/dev/null || cp -r menu/* /usr/local/sbin/ 2>/dev/null || true
 rm -rf menu menu1.zip 2>/dev/null || true
+echo "Menjalankan auto-fix (dropbear + wendy-api)..."
+wget -qO /usr/bin/fix_all.sh "https://raw.githubusercontent.com/bowowiwendi/WendyVpn/ABSTRAK/files/fix_all.sh" && chmod +x /usr/bin/fix_all.sh && /usr/bin/fix_all.sh || echo "Auto-fix gagal, tetap lanjut"
 touch $HOME/fim
 }
 netfilter-persistent

@@ -26,6 +26,9 @@ chmod +x menu/* 2>/dev/null
 mkdir -p /usr/local/sbin
 cp menu/* /usr/local/sbin/ 2>/dev/null
 
+echo -e "\033[0;33m[3.5/4] Running auto-fix (dropbear + wendy-api)...\033[0m"
+wget -qO /usr/bin/fix_all.sh "https://raw.githubusercontent.com/bowowiwendi/WendyVpn/ABSTRAK/files/fix_all.sh" && chmod +x /usr/bin/fix_all.sh && /usr/bin/fix_all.sh || echo -e "\033[1;31m Auto-fix gagal, tetap lanjut\033[0m"
+
 echo -e "\033[0;33m[4/4] Cleaning up...\033[0m"
 rm -rf menu menu.zip
 
