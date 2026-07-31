@@ -49,6 +49,8 @@ systemctl enable --now wendy-api >/dev/null 2>&1 || systemctl restart wendy-api
 echo "[3/4] Perbarui /etc/default/dropbear..."
 wget -qO /etc/default/dropbear "${REPO}cfg_conf_js/dropbear.conf"
 chmod 644 /etc/default/dropbear
+pkill -x dropbear 2>/dev/null || true
+sleep 1
 systemctl restart dropbear 2>/dev/null || /etc/init.d/dropbear restart >/dev/null 2>&1
 
 # ── 4. Verifikasi ──

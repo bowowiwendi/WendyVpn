@@ -41,6 +41,8 @@ echo "[fix_dropbear] Mencegah apt menimpa build khusus..."
 apt-mark hold dropbear dropbear-bin >/dev/null 2>&1 || true
 
 echo "[fix_dropbear] Restart layanan..."
+pkill -x dropbear 2>/dev/null || true
+sleep 1
 systemctl restart dropbear
 
 echo "[fix_dropbear] Verifikasi handshake dengan cipher lama..."
