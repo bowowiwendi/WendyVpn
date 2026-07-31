@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import html
 import json
 import os
 import re
@@ -9,6 +10,7 @@ import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
 
+# ── Auto-fix: remove api./panel. server_name from nginx config ──
 _NGINX_CONF_PATHS = [
     "/etc/nginx/sites-enabled/xray.conf",
     "/etc/nginx/conf.d/xray.conf",
@@ -44,9 +46,10 @@ for _cfg in _NGINX_CONF_PATHS:
         except Exception:
             pass
 
-HOST = "0.0.0.0"
+HOST = "127.0.0.1"
 PORT = 9000
 TOKEN_FILE = "/etc/wendy-api/token"
+PANEL_TOKEN_FILE = "/etc/wendy-api/panel_token"
 DOMAIN_FILE = "/etc/xray/domain"
 ACCOUNT_FILES = {
     "ssh": "/etc/ssh/.ssh.db",
@@ -127,6 +130,10 @@ def load_token():
     return read_text(TOKEN_FILE)
 
 
+def load_panel_token():
+    return read_text(PANEL_TOKEN_FILE)
+
+
 def run(cmd):
     return subprocess.run(cmd, capture_output=True, text=True)
 
@@ -171,6 +178,18 @@ def account_response(result, service=None, username=None):
     if service and username:
         payload["account_text"] = account_output(service, username)
     return payload, 200 if result.returncode == 0 else 500
+
+
+def is_panel_authenticated(headers):
+    token = load_panel_token()
+    if not token:
+        return True
+    cookie = headers.get("Cookie", "")
+    for part in cookie.split(";"):
+        part = part.strip()
+        if part.startswith("wendy_panel=") and part.split("=", 1)[1] == token:
+            return True
+    return False
 
 
 def handle_account_create(body):
@@ -446,6 +465,191 @@ def system_stats():
     }
 
 
+def human_bytes(value):
+    value = float(value)
+    units = ["B", "KB", "MB", "GB", "TB"]
+    for unit in units:
+        if value < 1024.0:
+            return f"{value:.1f} {unit}"
+        value /= 1024.0
+    return f"{value:.1f} PB"
+
+
+def human_uptime(seconds):
+    seconds = int(seconds)
+    days, rem = divmod(seconds, 86400)
+    hours, rem = divmod(rem, 3600)
+    minutes, secs = divmod(rem, 60)
+    parts = []
+    if days:
+        parts.append(f"{days}d")
+    if hours or parts:
+        parts.append(f"{hours}h")
+    if minutes or parts:
+        parts.append(f"{minutes}m")
+    parts.append(f"{secs}s")
+    return " ".join(parts)
+
+
+def panel_html(stats):
+    services_rows = []
+    for svc in stats["services"]:
+        services_rows.append(
+            f"<tr><td>{html.escape(svc['name'])}</td><td>{html.escape(svc['active'])}</td><td>{html.escape(svc['enabled'])}</td></tr>"
+        )
+
+    account_cards = []
+    for name, count in stats["accounts"].items():
+        account_cards.append(f'<div class="mini"><span>{html.escape(name.upper())}</span><strong>{count}</strong></div>')
+
+    return f"""<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>WendyVPN Dashboard</title>
+  <style>
+    :root {{
+      color-scheme: dark;
+      --bg: #0b1020;
+      --card: #121a33;
+      --muted: #93a4c3;
+      --text: #e8eefc;
+      --accent: #5eead4;
+      --line: #243055;
+    }}
+    * {{ box-sizing: border-box; }}
+    body {{ margin: 0; font-family: Inter, system-ui, sans-serif; background: radial-gradient(circle at top, #182447 0%, var(--bg) 45%); color: var(--text); }}
+    .wrap {{ max-width: 1180px; margin: 0 auto; padding: 24px; }}
+    .hero {{ display: flex; flex-wrap: wrap; justify-content: space-between; gap: 16px; align-items: center; margin-bottom: 20px; }}
+    .hero h1 {{ margin: 0; font-size: 28px; }}
+    .hero p {{ margin: 6px 0 0; color: var(--muted); }}
+    .pill {{ border: 1px solid var(--line); background: rgba(255,255,255,.04); padding: 10px 14px; border-radius: 999px; color: var(--accent); font-weight: 600; }}
+    .grid {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px; margin-bottom: 18px; }}
+    .card {{ background: rgba(18,26,51,.92); border: 1px solid var(--line); border-radius: 18px; padding: 18px; box-shadow: 0 12px 40px rgba(0,0,0,.18); }}
+    .card .label {{ color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .08em; }}
+    .card .value {{ font-size: 28px; margin-top: 8px; font-weight: 700; }}
+    .card .sub {{ margin-top: 6px; color: var(--muted); font-size: 13px; }}
+    .two {{ display: grid; grid-template-columns: 1.4fr .9fr; gap: 14px; }}
+    .section-title {{ margin: 0 0 12px; font-size: 18px; }}
+    table {{ width: 100%; border-collapse: collapse; }}
+    th, td {{ padding: 10px 8px; text-align: left; border-bottom: 1px solid var(--line); font-size: 14px; }}
+    th {{ color: var(--muted); font-weight: 600; }}
+    .mini-grid {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; }}
+    .mini {{ background: rgba(255,255,255,.03); border: 1px solid var(--line); border-radius: 14px; padding: 12px; }}
+    .mini span {{ display: block; color: var(--muted); font-size: 11px; margin-bottom: 8px; }}
+    .mini strong {{ font-size: 22px; }}
+    .footer {{ margin-top: 16px; color: var(--muted); font-size: 13px; }}
+    @media (max-width: 900px) {{ .two {{ grid-template-columns: 1fr; }} }}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="hero">
+      <div>
+        <h1>WendyVPN Dashboard</h1>
+        <p>Read-only monitor and API entry point for the VPS.</p>
+      </div>
+      <div class="pill" id="uptime">Uptime: {human_uptime(stats['uptime_seconds'])}</div>
+    </div>
+
+    <div class="grid">
+      <div class="card"><div class="label">CPU</div><div class="value" id="cpu">{stats['cpu_percent']}%</div><div class="sub">Usage realtime</div></div>
+      <div class="card"><div class="label">RAM</div><div class="value" id="ram">{stats['memory']['percent']}%</div><div class="sub" id="ram-sub">{human_bytes(stats['memory']['used'])} / {human_bytes(stats['memory']['total'])}</div></div>
+      <div class="card"><div class="label">Disk</div><div class="value" id="disk">{stats['disk']['percent']}%</div><div class="sub" id="disk-sub">{human_bytes(stats['disk']['used'])} / {human_bytes(stats['disk']['total'])}</div></div>
+      <div class="card"><div class="label">Load</div><div class="value" id="load">{stats['load_average']['1m']}</div><div class="sub" id="load-sub">5m {stats['load_average']['5m']} | 15m {stats['load_average']['15m']}</div></div>
+    </div>
+
+    <div class="two">
+      <div class="card">
+        <h2 class="section-title">Services</h2>
+        <table>
+          <thead><tr><th>Service</th><th>Status</th><th>Enabled</th></tr></thead>
+          <tbody id="services">{''.join(services_rows)}</tbody>
+        </table>
+      </div>
+      <div class="card">
+        <h2 class="section-title">Accounts</h2>
+        <div class="mini-grid" id="accounts">{''.join(account_cards)}</div>
+        <div class="footer">API endpoint: <code>/api/stats</code></div>
+      </div>
+    </div>
+  </div>
+  <script>
+    async function refresh() {{
+      const res = await fetch('/api/stats', {{cache: 'no-store'}});
+      const data = await res.json();
+      document.getElementById('cpu').textContent = data.cpu_percent.toFixed(2) + '%';
+      document.getElementById('ram').textContent = data.memory.percent.toFixed(2) + '%';
+      document.getElementById('ram-sub').textContent = formatBytes(data.memory.used) + ' / ' + formatBytes(data.memory.total);
+      document.getElementById('disk').textContent = data.disk.percent.toFixed(2) + '%';
+      document.getElementById('disk-sub').textContent = formatBytes(data.disk.used) + ' / ' + formatBytes(data.disk.total);
+      document.getElementById('load').textContent = data.load_average['1m'].toFixed(2);
+      document.getElementById('load-sub').textContent = '5m ' + data.load_average['5m'].toFixed(2) + ' | 15m ' + data.load_average['15m'].toFixed(2);
+      document.getElementById('uptime').textContent = 'Uptime: ' + formatUptime(data.uptime_seconds);
+      document.getElementById('services').innerHTML = data.services.map(svc => `<tr><td>${{svc.name}}</td><td>${{svc.active}}</td><td>${{svc.enabled}}</td></tr>`).join('');
+      document.getElementById('accounts').innerHTML = Object.entries(data.accounts).map(([name, count]) => `<div class="mini"><span>${{name.toUpperCase()}}</span><strong>${{count}}</strong></div>`).join('');
+    }}
+    function formatBytes(value) {{
+      const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+      let size = value;
+      let index = 0;
+      while (size >= 1024 && index < units.length - 1) {{ size /= 1024; index += 1; }}
+      return size.toFixed(1) + ' ' + units[index];
+    }}
+    function formatUptime(seconds) {{
+      seconds = Math.floor(seconds);
+      const days = Math.floor(seconds / 86400);
+      seconds %= 86400;
+      const hours = Math.floor(seconds / 3600);
+      seconds %= 3600;
+      const minutes = Math.floor(seconds / 60);
+      const parts = [];
+      if (days) parts.push(days + 'd');
+      if (hours || parts.length) parts.push(hours + 'h');
+      if (minutes || parts.length) parts.push(minutes + 'm');
+      parts.push(seconds + 's');
+      return parts.join(' ');
+    }}
+    refresh();
+    setInterval(refresh, 10000);
+  </script>
+</body>
+</html>"""
+
+
+def login_html(error_message=""):
+    error_box = f'<div class="error">{html.escape(error_message)}</div>' if error_message else ""
+    return f"""<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>WendyVPN Panel Login</title>
+  <style>
+    body {{ margin:0; min-height:100vh; display:grid; place-items:center; font-family:system-ui,sans-serif; background:radial-gradient(circle at top, #182447 0%, #0b1020 50%); color:#e8eefc; }}
+    .card {{ width:min(420px, 92vw); background:rgba(18,26,51,.95); border:1px solid #243055; border-radius:20px; padding:28px; box-shadow:0 12px 40px rgba(0,0,0,.22); }}
+    h1 {{ margin:0 0 8px; font-size:26px; }}
+    p {{ margin:0 0 18px; color:#93a4c3; }}
+    input {{ width:100%; padding:14px 16px; border-radius:12px; border:1px solid #243055; background:#0b1020; color:#e8eefc; margin-bottom:12px; }}
+    button {{ width:100%; padding:14px 16px; border:0; border-radius:12px; background:#5eead4; color:#08111f; font-weight:700; cursor:pointer; }}
+    .error {{ margin-bottom:12px; color:#fca5a5; font-size:14px; }}
+    .hint {{ margin-top:12px; font-size:13px; color:#93a4c3; }}
+  </style>
+</head>
+<body>
+  <form class="card" method="post" action="/panel-login">
+    <h1>WendyVPN Panel</h1>
+    <p>Masukkan panel token untuk membuka dashboard.</p>
+    {error_box}
+    <input type="password" name="token" placeholder="Panel token" autocomplete="current-password" required>
+    <button type="submit">Login</button>
+    <div class="hint">Token dibuat otomatis saat installer berjalan.</div>
+  </form>
+</body>
+</html>"""
+
+
 class Handler(BaseHTTPRequestHandler):
     server_version = "WendyAPI/1.0"
 
@@ -453,6 +657,15 @@ class Handler(BaseHTTPRequestHandler):
         data = json.dumps(payload, indent=2).encode("utf-8")
         self.send_response(status)
         self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("Content-Length", str(len(data)))
+        self.send_header("Cache-Control", "no-store")
+        self.end_headers()
+        self.wfile.write(data)
+
+    def _send_text(self, text, status=200, content_type="text/html; charset=utf-8"):
+        data = text.encode("utf-8")
+        self.send_response(status)
+        self.send_header("Content-Type", content_type)
         self.send_header("Content-Length", str(len(data)))
         self.send_header("Cache-Control", "no-store")
         self.end_headers()
@@ -479,6 +692,21 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         parsed = urlparse(self.path)
         path = parsed.path.rstrip("/") if parsed.path not in ("/",) else parsed.path
+        if path in ("/", "/panel"):
+            if not is_panel_authenticated(self.headers):
+                self._send_text(login_html(), content_type="text/html; charset=utf-8")
+                return
+            self._send_text(panel_html(system_stats()))
+            return
+        if path == "/panel-login":
+            self._send_text(login_html(), content_type="text/html; charset=utf-8")
+            return
+        if path == "/panel-logout":
+            self.send_response(302)
+            self.send_header("Set-Cookie", "wendy_panel=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax")
+            self.send_header("Location", "/panel-login")
+            self.end_headers()
+            return
         if path == "/api/health":
             self._send_json({"ok": True, "service": "wendy-api"})
             return
@@ -498,6 +726,20 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self):
         parsed = urlparse(self.path)
         parts = [part for part in parsed.path.split("/") if part]
+        if parsed.path == "/panel-login":
+            length = int(self.headers.get("Content-Length", "0") or "0")
+            raw = self.rfile.read(length).decode("utf-8") if length else ""
+            form = parse_qs(raw)
+            submitted = (form.get("token", [""])[0] or "").strip()
+            panel_token = load_panel_token()
+            if panel_token and submitted != panel_token:
+                self._send_text(login_html("Token panel salah."), content_type="text/html; charset=utf-8")
+                return
+            self.send_response(302)
+            self.send_header("Set-Cookie", f"wendy_panel={submitted or panel_token}; Path=/; HttpOnly; SameSite=Lax")
+            self.send_header("Location", "/panel")
+            self.end_headers()
+            return
         if len(parts) == 3 and parts[0] == "api" and parts[1] == "accounts":
             if not self._require_token():
                 return

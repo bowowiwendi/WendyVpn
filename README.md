@@ -79,14 +79,14 @@ wget https://raw.githubusercontent.com/bowowiwendi/WendyVpn/ABSTRAK/files/update
 | Setting → **📦 DB Backup** | Auto backup database ke admin |
 | Setting → **📦 DB Backup → Restore DB** | Restore database dari file |
 
-## API
+## Dashboard & API
 
-API tersedia di port `8443` dengan prefix `/api/`. Semua endpoint kecuali `/api/health` dilindungi oleh token yang disimpan di `/etc/wendy-api/token`.
-
-- API health: `https://domain-kamu:8443/api/health`
+- Dashboard: `https://domain-kamu:8443/panel/`
 - API stats: `https://domain-kamu:8443/api/stats`
 - API services: `https://domain-kamu:8443/api/services`
 - Cukup pointing 1 domain ke IP VPS, tidak perlu subdomain terpisah
+- Protected control endpoints use token file: `/etc/wendy-api/token`
+- Panel login token: `/etc/wendy-api/panel_token`
 
 ## Contact
 
