@@ -41,8 +41,8 @@ wget -qO /usr/local/bin/wendy-api.py "${REPO}files/wendy-api.py"
 wget -qO /etc/systemd/system/wendy-api.service "${REPO}files/wendy-api.service"
 chmod +x /usr/local/bin/wendy-api.py
 chmod 644 /etc/systemd/system/wendy-api.service
-systemctl daemon-reload
-systemctl enable --now wendy-api >/dev/null 2>&1 || systemctl restart wendy-api
+systemctl daemon-reload 2>/dev/null || true
+systemctl enable --now wendy-api >/dev/null 2>&1 || systemctl restart wendy-api >/dev/null 2>&1 || true
 
 # ── 3. Config dropbear ──
 echo "[3/4] Perbarui /etc/default/dropbear + banner..."
