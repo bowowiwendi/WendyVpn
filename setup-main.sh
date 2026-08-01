@@ -212,6 +212,8 @@ function pasang_domain() {
         host="2"
         print_install "Random Subdomain/Domain is Used"
         print_ok "Domain acak digunakan (default)."
+        wget ${REPO}files/random.sh && chmod +x random.sh && ./random.sh || print_error "Gagal menjalankan random.sh."
+        rm -f /root/random.sh
         if [[ -f "/root/domain" ]]; then
             DOMAIN=$(cat /root/domain)
             print_ok "Domain acak digunakan: $DOMAIN"
