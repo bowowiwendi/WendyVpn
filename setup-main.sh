@@ -648,6 +648,8 @@ function ins_Fail2ban(){
     sed -i 's@^DROPBEAR_BANNER=.*@DROPBEAR_BANNER="/etc/banner.txt"@g' /etc/default/dropbear
     print_ok "Mengunduh banner..."
     wget -O /etc/banner.txt "${REPO}banner/issue.net" || print_error "Gagal mengunduh banner."
+    # Dropbear butuh banner.txt SEBELUM start (EXTRA_ARGS -b), restart setelah banner dibuat
+    systemctl restart dropbear 2>/dev/null || /etc/init.d/dropbear restart >/dev/null 2>&1
     print_success "Fail2ban"
     print_ok "ins_Fail2ban SELESAI"
 }
