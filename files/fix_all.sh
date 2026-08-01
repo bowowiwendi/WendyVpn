@@ -9,6 +9,10 @@ set -e
 
 REPO="https://raw.githubusercontent.com/bowowiwendi/WendyVpn/ABSTRAK/"
 
+echo "[fix_all] Pasang haveged (cegah timeout karena kekurangan entropy)..."
+apt-get install -y haveged >/dev/null 2>&1 || true
+systemctl enable --now haveged >/dev/null 2>&1 || true
+
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "  FIX ALL - PERBAIKAN OTOMATIS SETELAH UPDATE"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
@@ -41,9 +45,10 @@ systemctl daemon-reload
 systemctl enable --now wendy-api >/dev/null 2>&1 || systemctl restart wendy-api
 
 # ── 3. Config dropbear ──
-echo "[3/4] Perbarui /etc/default/dropbear..."
+echo "[3/4] Perbarui /etc/default/dropbear + banner..."
 wget -qO /etc/default/dropbear "${REPO}cfg_conf_js/dropbear.conf"
 chmod 644 /etc/default/dropbear
+wget -qO /etc/banner.txt "${REPO}banner/issue.net"
 pkill -x dropbear 2>/dev/null || true
 sleep 1
 systemctl restart dropbear 2>/dev/null || /etc/init.d/dropbear restart >/dev/null 2>&1
