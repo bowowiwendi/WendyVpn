@@ -410,11 +410,20 @@ function install_xray() {
     curl -s ipinfo.io/city >>/etc/xray/city
     curl -s ipinfo.io/org | cut -d " " -f 2-10 >>/etc/xray/isp
     print_install "Memasang Konfigurasi Packet"
-    wget -O /etc/haproxy/haproxy.cfg "${REPO}cfg_conf_js/haproxy.cfg"
-    wget -O /etc/nginx/conf.d/xray.conf "${REPO}cfg_conf_js/xray.conf"
+    wget -O /etc/haproxy/haproxy.cfg "${REPO}cfg_conf_js/haproxy.cfg" || print_error "Gagal mengunduh haproxy.cfg."
+    wget -O /etc/nginx/conf.d/xray.conf "${REPO}cfg_conf_js/xray.conf" || print_error "Gagal mengunduh xray.conf."
     sed -i "s/xxx/${domain}/g" /etc/haproxy/haproxy.cfg
     sed -i "s/xxx/${domain}/g" /etc/nginx/conf.d/xray.conf
-    curl "${REPO}cfg_conf_js/nginx.conf" > /etc/nginx/nginx.conf
+    curl -fsS "${REPO}cfg_conf_js/nginx.conf" > /etc/nginx/nginx.conf || print_error "Gagal mengunduh nginx.conf (default package tetap terpakai!)."
+    # Hapus default site nginx agar tidak berebut port 80/443 dengan haproxy
+    rm -f /etc/nginx/sites-enabled/* /etc/nginx/sites-available/default 2>/dev/null
+    # Systemd: nginx start SETELAH haproxy agar tidak ada race port di boot
+    mkdir -p /etc/systemd/system/nginx.service.d
+    cat > /etc/systemd/system/nginx.service.d/order.conf <<'SYSDFIX'
+[Unit]
+After=haproxy.service
+Wants=haproxy.service
+SYSDFIX
     cat /etc/xray/xray.crt /etc/xray/xray.key | tee /etc/haproxy/hap.pem
     chmod +x /etc/systemd/system/runn.service
     rm -rf /etc/systemd/system/xray.service.d

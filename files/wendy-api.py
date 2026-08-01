@@ -264,7 +264,7 @@ def handle_command_clean_lock():
 
 
 def handle_command_backup():
-    result = run_shell("bot-backup", timeout=180)
+    result = run_shell("bot-backup", timeout=600)
     return ({"ok": result.returncode == 0, "stdout": result.stdout, "stderr": result.stderr, "returncode": result.returncode}, 200 if result.returncode == 0 else 500)
 
 
