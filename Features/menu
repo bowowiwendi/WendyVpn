@@ -490,7 +490,7 @@ case $opt in
     ;;
 9 | 09)
     clear
-    upp
+    bash /usr/bin/update-scripts.sh
     ;;
 10)
     clear
