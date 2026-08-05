@@ -1,0 +1,151 @@
+#!/bin/bash
+uuid=$(cat /proc/sys/kernel/random/uuid)
+domain=$(cat /etc/xray/domain)
+user=$1
+Quota=$2
+iplimit=$3
+masaaktif=$4
+tgl=$(date -d "$masaaktif days" +"%d")
+bln=$(date -d "$masaaktif days" +"%b")
+thn=$(date -d "$masaaktif days" +"%Y")
+expe="$tgl $bln, $thn"
+tgl2=$(date +"%d")
+bln2=$(date +"%b")
+thn2=$(date +"%Y")
+tnggl="$tgl2 $bln2, $thn2"
+exp=$(date -d "$masaaktif days" +"%Y-%m-%d")
+
+vmess_tls_link="vmess://$(echo -n "{\"v\":\"2\",\"ps\":\"${user}\",\"add\":\"${domain}\",\"port\":\"443\",\"id\":\"${uuid}\",\"aid\":\"0\",\"net\":\"ws\",\"path\":\"/vmess\",\"type\":\"none\",\"host\":\"${domain}\",\"tls\":\"tls\"}" | base64 -w 0)"
+vmess_nontls_link="vmess://$(echo -n "{\"v\":\"2\",\"ps\":\"${user}\",\"add\":\"${domain}\",\"port\":\"80\",\"id\":\"${uuid}\",\"aid\":\"0\",\"net\":\"ws\",\"path\":\"/vmess\",\"type\":\"none\",\"host\":\"${domain}\",\"tls\":\"none\"}" | base64 -w 0)"
+vmess_grpc_link="vmess://$(echo -n "{\"v\":\"2\",\"ps\":\"${user}\",\"add\":\"${domain}\",\"port\":\"443\",\"id\":\"${uuid}\",\"aid\":\"0\",\"net\":\"grpc\",\"path\":\"vmess-grpc\",\"type\":\"none\",\"host\":\"${domain}\",\"tls\":\"tls\"}" | base64 -w 0)"
+
+sed -i '/#vmess$/a\### '"$user $exp"'\
+},{"id": "'""$uuid""'","alterId": '"0"',"email": "'""$user""'"' /etc/xray/config.json
+sed -i '/#vmessgrpc$/a\## '"$user $exp"'\
+},{"id": "'""$uuid""'","alterId": '"0"',"email": "'""$user""'"' /etc/xray/config.json
+
+json_output=$(cat <<EOF
+{
+  "username": "$user",
+  "domain": "$domain",
+  "uuid": "$uuid",
+  "quota": "$Quota GB",
+  "ip_limit": "$iplimit IP",
+  "expired": "$expe",
+  "vmess_tls_link": "$vmess_tls_link",
+  "vmess_nontls_link": "$vmess_nontls_link",
+  "vmess_grpc_link": "$vmess_grpc_link"
+}
+EOF
+)
+
+[ ! -e /etc/vmess ] && mkdir -p /etc/vmess
+
+if [[ $iplimit -gt 0 ]]; then
+  mkdir -p /etc/kyt/limit/vmess/ip
+  echo -e "$iplimit" > /etc/kyt/limit/vmess/ip/$user
+fi
+
+[ -z ${Quota} ] && Quota="0"
+
+c=$(echo "${Quota}" | sed 's/[^0-9]*//g')
+d=$((${c} * 1024 * 1024 * 1024))
+
+[[ ${c} != "0" ]] && echo "${d}" > /etc/vmess/${user}
+
+DATADB=$(cat /etc/vmess/.vmess.db | grep "^###" | grep -w "${user}" | awk '{print $2}')
+[[ "${DATADB}" != '' ]] && sed -i "/\b${user}\b/d" /etc/vmess/.vmess.db
+echo "### ${user} ${exp} ${uuid} ${Quota} ${iplimit}" >> /etc/vmess/.vmess.db
+
+cat >/var/www/html/vmess-$user.txt <<-END
+=====================
+   Vmess Account 
+=====================
+Remarks : ${user}
+Domain : ${domain}
+User Quota : ${Quota} GB
+User Ip : ${iplimit} IP
+Port TLS : 400-900
+Port none TLS : 80, 8080, 8081-9999
+id : ${uuid}
+alterId : 0
+Security : auto
+Network : ws
+Path : /Multi-Path
+Dynamic : https://bugmu.com/path
+ServiceName : vmess-grpc
+=====================
+ Link Akun Vmess                   
+=====================
+Link TLS: 
+${vmess_tls_link}
+=====================
+Link none TLS: 
+${vmess_nontls_link}
+=====================
+Link GRPC: 
+${vmess_grpc_link}
+=====================
+# Format Vmess WS TLS
+=====================
+proxies:
+  - name: Vmess-$user-WS TLS
+    server: ${domain}
+    port: 443
+    type: vmess
+    uuid: ${uuid}
+    alterId: 0
+    cipher: auto
+    tls: true
+    skip-cert-verify: true
+    servername: ${domain}
+    network: ws
+    ws-opts:
+      path: /vmess
+      headers:
+        Host: ${domain}
+    udp: true
+=====================
+# Format Vmess WS Non TLS
+=====================
+proxies:
+  - name: Vmess-$user-WS Non TLS
+    server: ${domain}
+    port: 80
+    type: vmess
+    uuid: ${uuid}
+    alterId: 0
+    cipher: auto
+    tls: false
+    skip-cert-verify: true
+    servername: ${domain}
+    network: ws
+    ws-opts:
+      path: /vmess
+      headers:
+        Host: ${domain}
+    udp: true
+=====================
+# Format Vmess gRPC
+=====================
+proxies:
+  - name: Vmess-$user-gRPC (SNI)
+    server: ${domain}
+    port: 443
+    type: vmess
+    uuid: ${uuid}
+    alterId: 0
+    cipher: auto
+    tls: true
+    skip-cert-verify: true
+    servername: ${domain}
+    network: grpc
+    grpc-opts:
+      grpc-service-name: vmess-grpc
+    udp: true
+END
+
+echo "$json_output"
+systemctl restart xray > /dev/null 2>&1
+systemctl restart nginx > /dev/null 2>&1
+service cron restart > /dev/null 2>&1

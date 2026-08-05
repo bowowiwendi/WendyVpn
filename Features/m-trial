@@ -1,0 +1,82 @@
+#!/bin/bash
+Green="\e[92;1m"
+RED="\033[31m"
+YELLOW="\033[33m"
+BLUE="\033[36m"
+FONT="\033[0m"
+GREENBG="\033[42;37m"
+REDBG="\033[41;37m"
+OK="${Green}--->${FONT}"
+ERROR="${RED}[ERROR]${FONT}"
+GRAY="\e[1;30m"
+NC='\e[0m'
+red='\e[1;31m'
+green='\e[0;32m'
+DF='\e[39m'
+Bold='\e[1m'
+Blink='\e[5m'
+yell='\e[33m'
+red='\e[31m'
+green='\e[32m'
+blue='\e[34m'
+PURPLE='\e[35m'
+cyan='\e[36m'
+Lred='\e[91m'
+Lgreen='\e[92m'
+Lyellow='\e[93m'
+NC='\e[0m'
+GREEN='\033[0;32m'
+ORANGE='\033[0;33m'
+LIGHT='\033[0;37m'
+grenbo="\e[92;1m"
+red() { echo -e "\\033[32;1m${*}\\033[0m"; }
+# Getting
+CHATID=$(grep -E "^#bot# " "/etc/bot/.bot.db" | cut -d ' ' -f 3)
+KEY=$(grep -E "^#bot# " "/etc/bot/.bot.db" | cut -d ' ' -f 2)
+export TIME="1"
+export URL="https://api.telegram.org/bot$KEY/sendMessage"
+NS=$(cat /root/nsdomain > /dev/null 2>&1)
+PUB=$(cat /etc/slowdns/server.pub > /dev/null 2>&1)
+clear
+#IZIN SCRIPT
+MYIP=$(curl -sS ipv4.icanhazip.com)
+echo -e "\e[32mloading...\e[0m"
+clear
+echo -e "\e[32mloading...\e[0m"
+clear
+echo -e "\033[1;93m┌──────────────────────────────────────────┐\033[0m"
+echo -e "                 MENU TRIAL              $NC" 
+echo -e "\033[1;93m└──────────────────────────────────────────┘\033[0m"
+echo -e "\033[1;93m┌──────────────────────────────────────────┐\033[0m"
+echo -e "  ${ORANGE}1.${NC} \033[0;36m Trial Account SSH & OVPN ${NC}"
+echo -e "  ${ORANGE}2.${NC} \033[0;36m Trial Account XRAY SS WS/GRPC${NC}"
+echo -e "  ${ORANGE}3.${NC} \033[0;36m Trial Account XRAY TR WS/GRPC${NC}"
+echo -e "  ${ORANGE}4.${NC} \033[0;36m Trial Account XRAY VLESS WS/GRPC${NC}"
+echo -e "  ${ORANGE}5.${NC} \033[0;36m Trial Account XRAY VMESS WS/GRPC${NC}"
+echo -e "  ${ORANGE}6.${NC} \033[0;36m Delet Trial Account${NC}"
+echo -e "\033[1;93m└──────────────────────────────────────────┘\033[0m"
+echo -e ""
+read -p "Select From Options [ 1 - 5 ] : " menu
+case $menu in
+1)
+    trial
+    ;;
+2)
+    trialss
+    ;;
+3)
+    trialtr
+    ;;
+4)
+    trialvless
+    ;;
+5)
+    trialws
+    ;;
+6)
+    xp
+    ;;
+*)
+    menu
+    ;;
+esac

@@ -1,0 +1,185 @@
+#!/bin/bash
+RED='\033[0;31m'
+NC='\033[0m'
+GREEN='\033[0;32m'
+ORANGE='\033[0;33m'
+BLUE='\033[0;34m'
+CYAN='\033[0;36m'
+LIGHT='\033[0;37m'
+
+CHATID=$(grep -E "^#bot# " "/etc/bot/.bot.db" 2>/dev/null | cut -d ' ' -f 3)
+KEY=$(grep -E "^#bot# " "/etc/bot/.bot.db" 2>/dev/null | cut -d ' ' -f 2)
+TIME="10"
+URL="https://api.telegram.org/bot$KEY/sendMessage"
+
+function notif_restore() {
+    [[ -z "$KEY" || -z "$CHATID" ]] && return
+    TEXT="
+◇━━━━━━━━━━━━━━━━━━━━━━━━◇
+   ⚠️ RESTORE NOTIF ⚠️
+     Detail Restore VPS
+◇━━━━━━━━━━━━━━━━━━━━━━━━◇
+     Restore Vps Done
+◇━━━━━━━━━━━━━━━━━━━━━━━━◇
+"
+    curl -s --max-time $TIME -d "chat_id=$CHATID&disable_web_page_preview=1&text=$TEXT&parse_mode=html" $URL >/dev/null
+}
+
+function restore() {
+    clear
+    echo -e "\033[1;93m┌──────────────────────────────────────────┐\033[0m"
+    echo -e "\033[1;93m│$NC      RESTORE BACKUP VPS            $NC"
+    echo -e "\033[1;93m└──────────────────────────────────────────┘\033[0m"
+    echo ""
+    echo "Masukkan link backup (Google Drive atau direct zip):"
+    read -p "Link: " -e url
+    echo ""
+
+    if [[ -z "$url" ]]; then
+        echo -e "${RED}Link tidak boleh kosong!${NC}"
+        read -n 1 -s -r -p "Press [ Enter ] to back"
+        menu
+        return
+    fi
+
+    cd /root || { echo "Gagal ke /root"; exit 1; }
+    rm -rf /root/backup
+
+    # Download backup
+    echo "Mengunduh backup..."
+    if echo "$url" | grep -q "drive.google.com"; then
+        FILE_ID=$(echo "$url" | grep -oP '(?<=/d/)[^/]+|(?<=id=)[^&]+')
+        if [[ -n "$FILE_ID" ]]; then
+            wget -q --show-progress --load-cookies /tmp/cookies.txt \
+                "https://docs.google.com/uc?export=download&confirm=t&id=$FILE_ID" -O backup.zip 2>/dev/null || \
+            wget -q --show-progress "https://docs.google.com/uc?export=download&id=$FILE_ID" -O backup.zip || {
+                echo -e "${RED}Gagal download dari Google Drive${NC}"
+                read -n 1 -s -r -p "Press [ Enter ] to back"
+                menu
+                return
+            }
+        else
+            wget -q --show-progress -O backup.zip "$url" || {
+                echo -e "${RED}Gagal download backup${NC}"
+                read -n 1 -s -r -p "Press [ Enter ] to back"
+                menu
+                return
+            }
+        fi
+    else
+        wget -q --show-progress -O backup.zip "$url" || {
+            echo -e "${RED}Gagal download backup${NC}"
+            read -n 1 -s -r -p "Press [ Enter ] to back"
+            menu
+            return
+        }
+    fi
+
+    # Validasi file zip
+    if ! unzip -t backup.zip &>/dev/null; then
+        echo -e "${RED}File backup.zip rusak atau tidak valid!${NC}"
+        rm -f backup.zip
+        read -n 1 -s -r -p "Press [ Enter ] to back"
+        menu
+        return
+    fi
+
+    unzip -o backup.zip
+    rm -f backup.zip
+
+    if [[ ! -d /root/backup ]]; then
+        echo -e "${RED}Direktori backup tidak ditemukan setelah ekstrak!${NC}"
+        read -n 1 -s -r -p "Press [ Enter ] to back"
+        menu
+        return
+    fi
+
+    echo "Memulihkan data..."
+    cd /root/backup
+
+    # System files
+    [[ -f passwd ]] && cp passwd /etc/ && echo "  ✓ passwd"
+    [[ -f group ]] && cp group /etc/ && echo "  ✓ group"
+    [[ -f shadow ]] && cp shadow /etc/ && echo "  ✓ shadow"
+    [[ -f gshadow ]] && cp gshadow /etc/ && echo "  ✓ gshadow"
+    [[ -f crontab ]] && cp crontab /etc/ && echo "  ✓ crontab"
+
+    # VPN databases
+    [[ -f .ssh.db ]] && cp .ssh.db /etc/ssh/ && echo "  ✓ ssh.db"
+    [[ -f .vmess.db ]] && cp .vmess.db /etc/vmess/ && echo "  ✓ vmess.db"
+    [[ -f .vless.db ]] && cp .vless.db /etc/vless/ && echo "  ✓ vless.db"
+    [[ -f .trojan.db ]] && cp .trojan.db /etc/trojan/ && echo "  ✓ trojan.db"
+    [[ -f .shadowsocks.db ]] && cp .shadowsocks.db /etc/shadowsocks/ && echo "  ✓ shadowsocks.db"
+
+    # Directories
+    [[ -d xray ]] && cp -r xray /etc/ && echo "  ✓ xray config"
+    [[ -d bot ]] && cp -r bot /etc/ && echo "  ✓ bot config"
+    [[ -d html ]] && cp -r html /var/www/ && echo "  ✓ www/html"
+    [[ -d kyt ]] && cp -r kyt /var/lib/ && echo "  ✓ kyt data"
+    [[ -d limit ]] && cp -r limit /etc/kyt/ && echo "  ✓ limit config"
+    [[ -d vmess ]] && cp -r vmess /etc/ && echo "  ✓ vmess data"
+    [[ -d vless ]] && cp -r vless /etc/ && echo "  ✓ vless data"
+    [[ -d trojan ]] && cp -r trojan /etc/ && echo "  ✓ trojan data"
+    [[ -d shadowsocks ]] && cp -r shadowsocks /etc/ && echo "  ✓ shadowsocks data"
+    [[ -d ssh ]] && cp -r ssh /etc/ && echo "  ✓ ssh data"
+
+    # Bot var.txt
+    if [[ -f var.txt ]]; then
+        echo ""
+        echo "File var.txt (konfigurasi bot) ditemukan."
+        read -p "Install ulang bot panel? (y/n): " RESPONSE
+        if [[ "$RESPONSE" =~ ^[Yy]$ ]]; then
+            echo "Menginstal bot panel..."
+            mkdir -p /usr/bin/kyt
+            cp var.txt /usr/bin/kyt/
+            apt update -y
+            apt install -y python3 python3-pip git
+            cd /usr/bin
+            wget -q https://raw.githubusercontent.com/bowowiwendi/WendyVpn/ABSTRAK/bot/bot.zip && \
+                unzip -o bot.zip && mv bot/* . 2>/dev/null && chmod +x * && rm -rf bot bot.zip
+            wget -q https://raw.githubusercontent.com/bowowiwendi/WendyVpn/ABSTRAK/bot/kyt.zip && \
+                unzip -o kyt.zip && pip3 install -r kyt/requirements.txt 2>/dev/null
+            apt install -y python3-telethon 2>/dev/null
+            rm -rf kyt.zip
+            cat > /etc/systemd/system/kyt.service << END
+[Unit]
+Description=Bot Panel - @kyt
+After=network.target
+
+[Service]
+WorkingDirectory=/usr/bin
+ExecStart=/usr/bin/python3 -m kyt
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
+END
+            systemctl daemon-reload
+            systemctl enable kyt
+            systemctl restart kyt 2>/dev/null
+            echo "  ✓ Bot panel terinstall"
+        fi
+    fi
+
+    # Fix permissions
+    echo "Memperbaiki permission..."
+    chmod 600 /etc/shadow /etc/gshadow 2>/dev/null
+    chmod 644 /etc/passwd /etc/group 2>/dev/null
+
+    # Restart services
+    echo "Merestart layanan..."
+    for svc in xray ws nginx haproxy ssh dropbear cron; do
+        systemctl restart "$svc" 2>/dev/null && echo "  ✓ $svc" || echo "  - $svc (skip)"
+    done
+
+    cd /root
+    rm -rf /root/backup
+    notif_restore
+
+    echo ""
+    echo -e "${GREEN}Restore selesai!${NC}"
+    read -n 1 -s -r -p "Press [ Enter ] to menu"
+    menu
+}
+
+restore

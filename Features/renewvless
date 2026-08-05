@@ -1,0 +1,114 @@
+#!/bin/bash
+export HOME=/root
+export TERM=xterm
+
+red='\e[1;31m'
+green='\e[0;32m'
+NC='\e[0m'
+green() { echo -e "\\033[32;1m${*}\\033[0m"; }
+red() { echo -e "\\033[31;1m${*}\\033[0m"; }
+domain=$(cat /etc/xray/domain)
+
+clear
+function send_log() {
+TIMES="10"
+CHATID=$(grep -E "^#bot# " "/etc/bot/.bot.db" | cut -d ' ' -f 3)
+KEY=$(grep -E "^#bot# " "/etc/bot/.bot.db" | cut -d ' ' -f 2)
+URL="https://api.telegram.org/bot$KEY/sendMessage"
+TEXT2="
+<code>───────────────────────────</code>
+      ✨SUCCES RENEW  VLESS✨
+<code>───────────────────────────</code>
+USERNAME: <code>$user</code>
+Expired On: $exp4
+Quota: $Quota
+Limit IP: $iplim
+Domain: $domain
+<code>───────────────────────────</code>
+"
+curl -s --max-time $TIMES -d "chat_id=$CHATID&disable_web_page_preview=1&text=$TEXT2&parse_mode=html" $URL >/dev/null
+}    
+
+read -rp "Input Username : " user
+read -p "Expired (days): " masaaktif
+read -p "Limit User (GB): " Quota
+read -p "Limit User (IP): " iplim
+
+# Check user existence and prioritize config.json
+found_in_config=false
+found_in_lock=false
+if grep -q "^#& $user " "/etc/xray/config.json"; then
+    exp=$(grep -wE "^#& $user" "/etc/xray/config.json" | cut -d ' ' -f 3 | sort | uniq)
+    found_in_config=true
+fi
+if grep -q "^#& $user " "/etc/xray/.lock.db"; then
+    if [ "$found_in_config" = false ]; then
+        exp=$(grep -wE "^#& $user" "/etc/xray/.lock.db" | cut -d ' ' -f 3 | sort | uniq)
+        uuid=$(grep -wE "^#& $user" "/etc/xray/.lock.db" | cut -d ' ' -f 4 | sort | uniq)
+    fi
+    found_in_lock=true
+fi
+
+if [ "$found_in_config" = false ] && [ "$found_in_lock" = false ]; then
+    echo -e "${red}User $user tidak ditemukan di config atau database lock!${NC}"
+    exit 1
+fi
+
+echo ${iplim} > /etc/kyt/limit/vless/ip/${user}
+echo 0 > /etc/limit/vless/${user}
+if [ ! -e /etc/vless/ ]; then
+  mkdir -p /etc/vless/
+fi
+
+if [ -z ${Quota} ]; then
+  Quota="0"
+fi
+
+c=$(echo "${Quota}" | sed 's/[^0-9]*//g')
+d=$((${c} * 1024 * 1024 * 1024))
+
+if [[ ${c} != "0" ]]; then
+  echo "${d}" >/etc/vless/${user}
+fi
+
+now=$(date +%Y-%m-%d)
+d1=$(date -d "$exp" +%s)
+d2=$(date -d "$now" +%s)
+exp2=$(( (d1 - d2) / 86400 ))
+
+# If expired or no remaining days, start from current date
+if [[ $exp2 -le 0 ]]; then
+    exp3=$masaaktif
+    exp4=$(date -d "$exp3 days" +"%Y-%m-%d")
+else
+    exp3=$(($exp2 + $masaaktif))
+    exp4=$(date -d "$exp3 days" +"%Y-%m-%d")
+fi
+
+# Handle unlocking if found in .lock.db only
+if [ "$found_in_config" = false ] && [ "$found_in_lock" = true ]; then
+    sed -i "/^#& $user/,/^},{/d" /etc/xray/config.json
+    sed -i "/^#&& $user/,/^},{/d" /etc/xray/config.json
+    sed -i '/#vless$/a\#& '"$user $exp4"'\
+},{"id": "'""$uuid""'","email": "'""$user""'"' /etc/xray/config.json
+    sed -i '/#vlessgrpc$/a\#&& '"$user $exp4"'\
+},{"id": "'""$uuid""'","email": "'""$user""'"' /etc/xray/config.json
+    sed -i "/^#& $user .*/d" /etc/xray/.lock.db
+fi
+
+# Update expiration in all relevant files
+if [ "$found_in_config" = true ]; then
+    sed -i "/^#& $user/c\#& $user $exp4" /etc/xray/config.json
+    sed -i "/^#&& $user/c\#&& $user $exp4" /etc/xray/config.json
+fi
+sed -i "/^### $user/c\### $user $exp4" /root/akun/vless/.vless.conf
+sed -i "/^### $user/c\### $user $exp4" /etc/vless/.vless.db
+
+# If found in both, remove from .lock.db
+if [ "$found_in_lock" = true ] && [ "$found_in_config" = true ]; then
+    sed -i "/^#& $user .*/d" /etc/xray/.lock.db
+fi
+
+systemctl restart xray > /dev/null 2>&1
+send_log
+echo -e "${green}User $user berhasil diperbarui hingga $exp4${NC}"

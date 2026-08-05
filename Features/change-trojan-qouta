@@ -1,0 +1,82 @@
+#!/bin/bash
+
+BlueCyan="\033[5;36m"
+WhiteBe="\033[5;37m"
+yellow="\033[0;33m"
+ungu="\033[0;35m"
+Xark="\033[0m"
+GreenBe="\033[5;32m"
+Red="\033[0;31m"
+
+# . Liner 
+function baris_panjang() {
+  echo -e "${BlueCyan} ——————————————————————————————————— ${Xark} "
+}
+
+function vip_Banner() {
+clear
+baris_panjang
+echo -e "${ungu}               vip TUNNELING      ${Xark} "
+baris_panjang
+}
+
+function change_vmess_quota() {
+    vip_Banner
+    echo -e ""
+    read -p "Input UserName: " user
+    baris_panjang
+    quota_file="/etc/trojan/${user}"
+
+    # Validasi apakah file kuota sudah ada
+    if [ -e "$quota_file" ]; then
+        # Baca quota saat ini jika file sudah ada
+        current_quota=$(cat "$quota_file")
+        echo "Kuota saat ini untuk pengguna $user: $((current_quota / 1024 / 1024 / 1024)) GB"
+    else
+        # Jika file belum ada, buat file baru
+        echo "0" > "$quota_file"  # Set quota awal ke 0
+        echo "Membuat file quota baru untuk pengguna $user"
+    fi
+
+    read -p "Input New Quota : " new_quota
+    baris_panjang
+    sleep 1
+    clear
+
+    # Validasi jika masukan kosong atau tidak valid
+    if [[ -z "$new_quota" || ! "$new_quota" =~ ^[0-9]+$ ]]; then
+        echo "Masukan tidak valid. Kuota tidak berubah."
+        return 1
+    fi
+
+    # Konversi kuota ke byte
+    new_quota_bytes=$((new_quota * 1024 * 1024 * 1024))
+    echo "${new_quota_bytes}" > "${quota_file}"
+    
+    baris_panjang
+    echo -e "${GreenBe}Succesfuly New So $new_quota GB In $user. ${Xark}"
+    # Sc_Credit  # Komentar atau hapus jika tidak diperlukan
+    # Ambil data user dari database
+    user_data=$(grep -w "^### $user" "/etc/trojan/.trojan.db")
+    if [[ -z "$user_data" ]]; then
+        echo -e "${Red}Error: User tidak ditemukan di database${Xark}"
+        return 1
+    fi
+    
+    # Parse data user
+    exp=$(echo $user_data | awk '{print $3}')
+    uuid=$(echo $user_data | awk '{print $4}')
+    iplimit=$(echo $user_data | awk '{print $6}')
+
+    # Hapus entri lama dan tambahkan yang baru ke dalam database
+    DATADB=$(cat /etc/trojan/.trojan.db | grep "^###" | grep -w "${user}" | awk '{print $2}')
+    if [[ "${DATADB}" != '' ]]; then
+        sed -i "/\b${user}\b/d" /etc/trojan/.trojan.db
+    fi
+    echo "### ${user} ${exp} ${uuid} ${new_quota_bytes} ${iplimit}" >>/etc/trojan/.trojan.db
+
+    echo -e "\033[5;32m Succesfully ${Xark}."
+}
+
+# Panggil fungsi untuk mengganti kuota VMess
+change_vmess_quota

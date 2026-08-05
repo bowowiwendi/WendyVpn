@@ -1,0 +1,163 @@
+#!/bin/bash
+z="\033[1;93m"
+domain=$(cat /etc/xray/domain)
+clear
+function addn(){
+    clear
+  echo -e "\033[1;93m┌──────────────────────────────────────────┐\033[0m"
+  echo -e "\033[1;96m              CREATE TITLE NOOBZ            \033[0m"
+  echo -e "\033[1;93m└──────────────────────────────────────────┘\033[0m"
+  echo -e ""
+    read -p " USERNAME      : " username
+    read -p " PASSWORD      : " password
+    read -p " DAY           : " days
+noobzvpns --add-user ${username} ${password} --expired-user ${username} ${days} --info-user ${username}
+echo -e "$domain:80"
+echo -e "$domain:443"
+echo -e "Selesai"
+read -p "press !! [ ENTER ] to menu noobz"
+noobz
+}
+function renewn(){
+    clear
+  echo -e "\033[1;93m┌──────────────────────────────────────────┐\033[0m"
+  echo -e "\033[1;96m              RENEW NAMA NOOBZ             \033[0m"
+  echo -e "\033[1;93m└──────────────────────────────────────────┘\033[0m"
+  noobzvpns --info-all-user
+  echo -e ""
+    read -p " NAMA LAMA      : " old_username
+    read -p " NAMA BARU      : " username
+    read -p " Password       : " pass
+    read -p " DAY            : " days
+    noobzvpns --rename-user ${old_username} ${username} --password-user ${username} ${pass} --expired-user ${username} ${days}
+echo -e "Selesai"
+read -p "press !! [ ENTER ] to menu noobz"
+noobz
+}
+function blokn(){
+    clear
+  echo -e "\033[1;93m┌──────────────────────────────────────────┐\033[0m"
+  echo -e "\033[1;96m                 KUNCI NOOBZ                \033[0m"
+  echo -e "\033[1;93m└──────────────────────────────────────────┘\033[0m"
+  noobzvpns --info-all-user
+  echo -e ""
+    read -p " USERNAME      : " username
+    noobzvpns --block-user ${username}
+echo -e "Selesai"
+read -p "press !! [ ENTER ] to menu noobz"
+noobz
+}
+function unblokn(){
+    clear
+  echo -e "\033[1;93m┌──────────────────────────────────────────┐\033[0m"
+  echo -e "\033[1;96m               BUKA KUNCI NOOBZ                \033[0m"
+  echo -e "\033[1;93m└──────────────────────────────────────────┘\033[0m"
+  noobzvpns --info-all-user
+  echo -e ""
+    read -p " USERNAME      : " username
+    noobzvpns --unblock-user ${username}
+echo -e "Selesai"
+read -p "press !! [ ENTER ] to menu noobz"
+noobz
+}
+function deln(){
+    clear
+  echo -e "\033[1;93m┌──────────────────────────────────────────┐\033[0m"
+  echo -e "\033[1;96m                 DELET NOOBZ                \033[0m"
+  echo -e "\033[1;93m└──────────────────────────────────────────┘\033[0m"
+  noobzvpns --info-all-user
+  echo -e ""
+    read -p " USERNAME      : " username
+    noobzvpns --remove-user ${username}
+echo -e "Selesai"
+read -p "press !! [ ENTER ] to menu noobz"
+noobz
+}
+function info(){
+    clear
+  echo -e "\033[1;93m┌──────────────────────────────────────────┐\033[0m"
+  echo -e "\033[1;96m               INFO AKUN NOOBZ              \033[0m"
+  echo -e "\033[1;93m└──────────────────────────────────────────┘\033[0m"
+  echo -e ""
+    read -p " USERNAME      : " username
+    noobzvpns --info-user ${username}
+echo -e "Selesai"
+read -p "press !! [ ENTER ] to menu noobz"
+noobz
+}
+clear
+echo -e "\033[96m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo -e " \e[1;971m                 MENU NOOBZ                         \e[0m"
+echo -e "\033[96m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo -e "  ${grenbo}[01]${NC}${YELL} Buat Akun ${NC}"
+echo -e "  ${grenbo}[02]${NC}${YELL} Renew Akun ${NC}"
+echo -e "  ${grenbo}[03]${NC}${YELL} Block Akun ${NC}"
+echo -e "  ${grenbo}[04]${NC}${YELL} Unblock Akun ${NC}"
+echo -e "  ${grenbo}[05]${NC}${YELL} Hapus Akun ${NC}"
+echo -e "  ${grenbo}[06]${NC}${YELL} Info Akun ${NC}"
+echo -e "  ${grenbo}[07]${NC}${YELL} Info Semua Akun ${NC}"
+echo -e "  ${grenbo}[08]${NC}${YELL} Status Noobz Akun ${NC}"
+echo -e "  ${grenbo}[19]${NC}${YELL} Log Noobz Akun ${NC}"
+echo -e "  ${grenbo}[10]${NC}${YELL} Start Noobz ${NC}"
+echo -e "  ${grenbo}[11]${NC}${YELL} Restart Noobz ${NC}"
+echo -e "  ${grenbo}[12]${NC}${YELL} Stop Noobz ${NC}"
+echo -e "  ${grenbo}[13]${NC}${YELL} Autostart Noobz ${NC}"
+echo -e "  ${grenbo}[14]${NC}${YELL} Off Autostart Noobz ${NC}"
+echo -e "  ${grenbo}[15]${NC}${YELL} Hapus Semua Akun ${NC}"
+echo -e ""
+echo -e "  ${grenbo}[0]${NC}${YELL} Back To Menu${NC}"
+echo -e ""
+read -p "  Select From Options [ 1 - 15 or 0 ] : " menu
+case $menu in
+1) clear ;
+    addn
+    ;;
+2) clear ;
+    renewn
+    ;;
+3) clear ;
+    blokn
+    ;;
+4) clear ;
+    unblokn
+    ;;
+5) clear ;
+    deln
+    ;;
+6) clear ;
+    info
+    ;;
+7) clear ;
+    noobzvpns --info-all-user
+echo -e "Selesai"
+read -p "press !! [ ENTER ] to menu noobz"
+noobz
+    ;;
+8) clear ;
+    systemctl status noobzvpns.service -l
+    ;;
+9) clear ;
+    journalctl -u noobzvpns.service
+    ;;
+10) clear ;
+    systemctl start noobzvpns.service
+    ;;
+11) clear ;
+    systemctl restart noobzvpns.service
+    ;;
+12) clear ;
+    systemctl stop noobzvpns.service
+    ;;
+13) clear ;
+    systemctl enable noobzvpns.service
+    ;;
+14) clear ;
+    systemctl disable noobzvpns.service
+    ;;
+15) clear ;
+    noobzvpns --remove-all-user
+    ;;
+*) clear ;
+    menu
+    ;;
+esac

@@ -1,0 +1,162 @@
+#!/bin/bash
+RED='\033[0;31m'
+NC='\033[0m'
+GREEN='\033[0;32m'
+ORANGE='\033[0;33m'
+BLUE='\033[0;34m'
+CYAN='\033[0;36m'
+LIGHT='\033[0;37m'
+
+LOCKFILE="/tmp/.bot-backup.lock"
+TIMESTAMP_FILE="/root/.backup_last_time"
+MIN_INTERVAL=21600
+
+if [ -f "$LOCKFILE" ] && kill -0 $(cat "$LOCKFILE") 2>/dev/null; then
+    echo "Backup sedang berjalan, skip..."
+    exit 0
+fi
+echo $$ > "$LOCKFILE"
+trap "rm -f $LOCKFILE" EXIT
+
+if [ -f "$TIMESTAMP_FILE" ]; then
+    last=$(cat "$TIMESTAMP_FILE")
+    now=$(date +%s)
+    diff=$(( now - last ))
+    if [ "$diff" -lt "$MIN_INTERVAL" ]; then
+        echo "Backup sudah dilakukan kurang dari 6 jam yang lalu, skip..."
+        rm -f "$LOCKFILE"
+        exit 0
+    fi
+fi
+
+ISPVPS=$(cat /etc/xray/isp 2>/dev/null)
+CITY=$(cat /etc/xray/city 2>/dev/null)
+RAM=$(free -m | awk '/^Mem:/ {print $2}')
+IP=$(curl -sS ipv4.icanhazip.com 2>/dev/null) || IP="Tidak Diketahui"
+domain=$(cat /etc/xray/domain 2>/dev/null)
+date=$(date +"%Y-%m-%d")
+ZIP="/root/WT-$domain-$date.zip"
+
+function bot_cred(){
+    CHATID=$(grep -E "^#bot# " "/etc/bot/.bot.db" 2>/dev/null | cut -d ' ' -f 3)
+    KEY=$(grep -E "^#bot# " "/etc/bot/.bot.db" 2>/dev/null | cut -d ' ' -f 2)
+}
+
+function send_log(){
+    bot_cred
+    [ -z "$KEY" ] || [ -z "$CHATID" ] && return 1
+    local TIME="10"
+    local TEXT="
+◇━━━━━━━━━━━━━━━━◇
+        📦BACKUP YOUR VPS📦
+◇━━━━━━━━━━━━━━━━◇
+🌐DOMAIN  :  $domain
+🖥️YOUR VPS IP  :  $IP 
+📅DATE  :  $date
+📡ISP :  $ISPVPS
+📍LOCATION  :  $CITY
+💾RAM :  $RAM MB
+🔗LINK BACKUP :  $fix
+◇━━━━━━━━━━━━━━━━◇
+Back to >>> /menu
+"
+    curl -s -X POST "https://api.telegram.org/bot$KEY/sendMessage" --data-urlencode "chat_id=$CHATID" --data-urlencode "text=$TEXT" >/dev/null
+}
+
+# Fallback: kirim file backup langsung ke Telegram, jangan tinggal di dalam VPS
+function send_file(){
+    bot_cred
+    [ -z "$KEY" ] || [ -z "$CHATID" ] || [ ! -f "$ZIP" ] && return 1
+    curl -s -X POST "https://api.telegram.org/bot$KEY/sendDocument" \
+        -F "chat_id=$CHATID" \
+        -F "document=@$ZIP" \
+        -F "caption=📦 Backup $domain ($date)" >/dev/null
+}
+
+echo "Mohon bersabar proses backup sedang berlangsung!!!"
+rm -rf /root/backup
+mkdir -p /root/backup
+
+cd /root || { echo "Gagal pindah ke /root"; exit 1; }
+
+cp /etc/passwd /root/backup/ || echo "Warning: passwd"
+cp /etc/group /root/backup/ || echo "Warning: group"
+cp /etc/shadow /root/backup/ || echo "Warning: shadow"
+cp /etc/gshadow /root/backup/ || echo "Warning: gshadow"
+cp /etc/crontab /root/backup/ || echo "Warning: crontab"
+cp /etc/vmess/.vmess.db /root/backup/ 2>/dev/null || echo "Warning: .vmess.db"
+cp /etc/ssh/.ssh.db /root/backup/ 2>/dev/null || echo "Warning: .ssh.db"
+cp /etc/vless/.vless.db /root/backup/ 2>/dev/null || echo "Warning: .vless.db"
+cp /etc/trojan/.trojan.db /root/backup/ 2>/dev/null || echo "Warning: .trojan.db"
+cp /usr/bin/kyt/var.txt /root/backup/ 2>/dev/null || echo "Warning: var.txt"
+cp /etc/shadowsocks/.shadowsocks.db /root/backup/ 2>/dev/null || echo "Warning: .shadowsocks.db"
+cp -r /etc/kyt/limit /root/backup/ 2>/dev/null || echo "Warning: limit"
+cp -r /etc/vmess /root/backup/ 2>/dev/null || echo "Warning: vmess"
+cp -r /etc/trojan /root/backup/ 2>/dev/null || echo "Warning: trojan"
+cp -r /etc/vless /root/backup/ 2>/dev/null || echo "Warning: vless"
+cp -r /etc/bot /root/backup/ 2>/dev/null || echo "Warning: bot"
+cp -r /etc/shadowsocks /root/backup/ 2>/dev/null || echo "Warning: shadowsocks"
+cp -r /var/lib/kyt/ /root/backup/kyt 2>/dev/null || echo "Warning: kyt"
+cp -r /etc/xray /root/backup/xray 2>/dev/null || echo "Warning: xray"
+cp -r /var/www/html/ /root/backup/html 2>/dev/null || echo "Warning: html"
+
+cd /root || exit 1
+rm -f "$ZIP"
+zip -r "$ZIP" backup/ || { echo "Gagal membuat zip"; rm -rf /root/backup; exit 1; }
+
+BACKUP_OK=0
+fix=""
+if command -v rclone &>/dev/null && rclone listremotes 2>/dev/null | grep -q "^[a-zA-Z0-9_-]*:"; then
+    # Ambil remote pertama yang ditemukan
+    REMOTE=$(rclone listremotes | head -n1)
+    if rclone copy "$ZIP" "$REMOTE/backup/" 2>/dev/null; then
+        url=$(rclone link "${REMOTE}backup/$(basename "$ZIP")" 2>/dev/null)
+        id=$(echo "$url" | sed -n 's#.*/file/d/\([^/]*\).*#\1#p; s#.*[?&]id=\([^&]*\).*#\1#p' | head -n1)
+        if [ -n "$id" ]; then
+            fix="https://drive.google.com/u/0/uc?id=${id}&export=download"
+        elif [ -n "$url" ]; then
+            fix="$url"
+        fi
+    fi
+fi
+
+if [ -z "$fix" ]; then
+    if send_file; then
+        fix="📎 File backup terkirim via Telegram (lampiran di atas)"
+        STATUS="SUCCESSFULL BACKUP YOUR VPS (via Telegram)"
+        BACKUP_OK=1
+    else
+        fix="❌ Upload gagal, cek rclone / bot config"
+        STATUS="BACKUP FAILED"
+    fi
+else
+    STATUS="SUCCESSFULL BACKUP YOUR VPS"
+    BACKUP_OK=1
+fi
+
+[ "$BACKUP_OK" = "1" ] && date +%s > "$TIMESTAMP_FILE"
+
+clear
+send_log
+echo -e "
+Detail Backup 
+==================================
+$STATUS
+Please Save The Following Data
+__________________________________
+YOUR VPS IP : $IP
+DOMAIN      : $domain
+DATE        : $date
+ISP         : $ISPVPS
+LOCATION    : $CITY
+RAM         : $RAM MB
+LINK BACKUP : $fix
+==================================
+"
+echo "Silahkan copy Link dan restore di VPS baru"
+echo ""
+sleep 1
+rm -rf /root/backup
+rm -f "$ZIP"
+
+[ "$BACKUP_OK" = "1" ] && exit 0 || exit 1

@@ -1,0 +1,536 @@
+#!/bin/bash
+# COLOR VALIDATION
+clear
+# Modern Color Palette
+BIBlack='\033[1;90m'      # Black
+BIRed='\033[1;91m'        # Red
+BIGreen='\033[1;92m'      # Green
+BIYellow='\033[1;93m'     # Yellow
+BIBlue='\033[1;94m'       # Blue
+BIPurple='\033[1;95m'     # Purple
+BICyan='\033[1;96m'       # Cyan
+BIWhite='\033[1;97m'      # White
+UWhite='\033[4;37m'       # Underline White
+On_IPurple='\033[0;105m'  # Background Purple
+On_IRed='\033[0;101m'     # Background Red
+NC='\033[0m'              # No Color
+
+# Self-heal: ensure all menu scripts are executable
+chmod +x /usr/local/sbin/* /usr/bin/kyt* 2>/dev/null
+chmod +x /usr/local/bin/wendy-api.py 2>/dev/null
+
+# API Tokens (display helper)
+api_token=$(cat /etc/wendy-api/token 2>/dev/null || echo '-')
+
+# Legacy Colors (mapped to new or kept for compatibility if used in other scripts)
+AQUOS=$BICyan
+y=$BIYellow
+BGX="\033[42m"
+CYAN=$BICyan
+z=$BICyan
+RED=$BIRed
+gray=$BIBlack
+Blue=$BIBlue
+green=$BIGreen
+grenbo=$BIGreen
+purple=$BIPurple
+YELL=$BIYellow
+
+# Load or set FIGLET_TEXT
+FIGLET_FILE="/usr/bin/figlet_text"
+if [[ -f "$FIGLET_FILE" ]]; then
+    FIGLET_TEXT=$(cat "$FIGLET_FILE")
+else
+    FIGLET_TEXT="${FIGLET_TEXT:-SHL STORE}"
+fi
+
+# SYSTEM INFORMATION
+UDPX="https://docs.google.com/uc?export=download&confirm=$(wget --quiet --save-cookies /tmp/cookies.txt --keep-session-cookies --no-check-certificate 'https://docs.google.com/uc?export=download&id=1S3IE25v_fyUfCLslnujFBSBMNunDHDk2' -O- | sed -rn 's/.*confirm=([0-9A-Za-z_]+).*/\1\n/p')&id=1S3IE25v_fyUfCLslnujFBSBMNunDHDk2" 
+ISP=$(cat /etc/xray/isp) 
+CITY=$(cat /etc/xray/city) 
+IPVPS=$(curl -s ipv4.icanhazip.com) 
+domain=$(cat /etc/xray/domain) 
+RAM=$(free -m | awk 'NR==2 {print $2}') 
+USAGERAM=$(free -m | awk 'NR==2 {print $3}') 
+MEMOFREE=$(printf '%-1s' "$(free -m | awk 'NR==2{printf "%.2f%%", $3*100/$2 }')") 
+LOADCPU=$(printf '%-0.00001s' "$(top -bn1 | awk '/Cpu/ { cpu = "" 100 - $8 "%" }; END { print cpu }')") 
+MODEL=$(cat /etc/os-release | grep -w PRETTY_NAME | head -n1 | sed 's/=//g' | sed 's/"//g' | sed 's/PRETTY_NAME//g') 
+CORE=$(printf '%-1s' "$(grep -c cpu[0-9] /proc/stat)") 
+TIMEZONE=$(printf '%(%H:%M:%S)T') 
+SERONLINE=$(uptime -p | cut -d " " -f 2-10000) 
+Repo="https://raw.githubusercontent.com/bowowiwendi/WendyVpn/ABSTRAK/"
+regist="https://raw.githubusercontent.com/bowowiwendi/ipvps/main/main/ip"
+MYIP=$(curl -sS ipv4.icanhazip.com) 
+
+# FUNCTION DEFINITIONS
+
+function fun_bar() {
+    CMD[0]="$1"
+    CMD[1]="$2"
+    (
+        [[ -e $HOME/fim ]] && rm $HOME/fim
+        ${CMD[0]} -y >/dev/null 2>&1
+        ${CMD[1]} -y >/dev/null 2>&1
+        touch $HOME/fim
+    ) >/dev/null 2>&1 &
+    tput civis
+    # Modern spinner
+    spinner=("⣾" "⣽" "⣻" "⢿" "⡿" "⣟" "⣯" "⣷")
+    while true; do
+        for symbol in "${spinner[@]}"; do
+            printf "\r ${BICyan}%s ${BIWhite}Processing...${NC}" "$symbol"
+            sleep 0.1
+        done
+        [[ -e $HOME/fim ]] && rm $HOME/fim && break
+    done
+    printf "\r ${BIGreen}✓ Completed!${NC}          \n"
+    tput cnorm
+}
+
+function upp(){
+    clear
+    echo -e "${BICyan}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo -e "${BIWhite}              UPDATE SCRIPT                ${NC}"
+    echo -e "${BICyan}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo -e "${BIYellow}Menjalankan update penuh: menu + semua config layanan (nginx/haproxy/ws/dropbear) + fix_all...${NC}"
+    wget -qO /tmp/update-script.sh "https://raw.githubusercontent.com/bowowiwendi/WendyVpn/ABSTRAK/files/update.sh"
+    if [ $? -ne 0 ]; then
+        echo -e "${BIRed}Download FAILED${NC}"
+        sleep 2
+        menu
+        return
+    fi
+    chmod +x /tmp/update-script.sh
+    bash /tmp/update-script.sh
+    rm -f /tmp/update-script.sh
+}
+
+function update_core(){
+    clear
+    echo -e "${BICyan}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo -e "${BIWhite}         UPDATE CORE CONFIG               ${NC}"
+    echo -e "${BICyan}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo -e ""
+    echo -e "${BIYellow}Backing up current configs...${NC}"
+    mkdir -p /root/backup-config
+    cp /usr/local/bin/wendy-api.py /root/backup-config/wendy-api.py.bak 2>/dev/null
+    cp /etc/haproxy/haproxy.cfg /root/backup-config/haproxy.cfg.bak 2>/dev/null
+    cp /etc/nginx/conf.d/xray.conf /root/backup-config/xray.conf.bak 2>/dev/null
+    echo -e "${BIGreen}✓ Backup saved to /root/backup-config/${NC}"
+    echo -e ""
+
+    # 1. Install/Update wendy-api
+    echo -e "${BIYellow}[1/4] Installing/Updating wendy-api...${NC}"
+
+    # Download service file if missing
+    if [ ! -f /etc/systemd/system/wendy-api.service ]; then
+        wget -q -O /etc/systemd/system/wendy-api.service "${Repo}files/wendy-api.service" 2>/dev/null
+        if [ -f /etc/systemd/system/wendy-api.service ]; then
+            systemctl daemon-reload
+            echo -e "${BIGreen}  ✓ service file created${NC}"
+        fi
+    fi
+
+    # Create config directory and token if missing
+    mkdir -p /etc/wendy-api
+    if [ ! -f /etc/wendy-api/token ]; then
+        openssl rand -hex 24 >/etc/wendy-api/token
+        chmod 600 /etc/wendy-api/token
+        echo -e "${BIYellow}  ✓ API token created: $(cat /etc/wendy-api/token)${NC}"
+    fi
+
+    # Download wendy-api.py
+    wget -q -O /usr/local/bin/wendy-api.py "${Repo}files/wendy-api.py" 2>/dev/null
+    if [ $? -ne 0 ]; then
+        echo -e "${BIRed}✗ Download failed, restoring backup${NC}"
+        cp /root/backup-config/wendy-api.py.bak /usr/local/bin/wendy-api.py 2>/dev/null
+    else
+        chmod +x /usr/local/bin/wendy-api.py
+        systemctl enable --now wendy-api 2>/dev/null
+        systemctl restart wendy-api 2>/dev/null
+        if systemctl is-active --quiet wendy-api; then
+            echo -e "${BIGreen}✓ wendy-api running on http://127.0.0.1:9000${NC}"
+        else
+            echo -e "${BIRed}✗ wendy-api failed to start, check: journalctl -u wendy-api${NC}"
+        fi
+    fi
+    echo -e ""
+
+    # 2. Update xray.conf & fix nginx ports SEBELUM haproxy start
+    echo -e "${BIYellow}[2/4] Updating xray.conf & fixing nginx ports...${NC}"
+    # Download nginx.conf (pastikan tidak include sites-enabled)
+    wget -q -O /etc/nginx/nginx.conf "${Repo}cfg_conf_js/nginx.conf" 2>/dev/null
+    wget -q -O /etc/nginx/conf.d/xray.conf "${Repo}cfg_conf_js/xray.conf" 2>/dev/null
+    if [ $? -ne 0 ]; then
+        echo -e "${BIRed}✗ Download failed, restoring backup${NC}"
+        cp /root/backup-config/xray.conf.bak /etc/nginx/conf.d/xray.conf 2>/dev/null
+    else
+        domain=$(cat /etc/xray/domain 2>/dev/null || echo "")
+        if [ -n "$domain" ]; then
+            sed -i "s/xxx/${domain}/g" /etc/nginx/conf.d/xray.conf 2>/dev/null
+        fi
+    fi
+
+    # Hapus default site nginx + semua file yg mungkin ada di sites-enabled
+    rm -f /etc/nginx/sites-enabled/* /etc/nginx/sites-available/default 2>/dev/null
+
+    # Fix port 80/443 di SEMUA nginx config
+    NGINX_CONF=$(grep -rlE 'listen (80|443)' /etc/nginx/ 2>/dev/null)
+    if [ -n "$NGINX_CONF" ]; then
+        echo -e "${BIYellow}  Nginx pakai 80/443 → pindah ke 81/8443${NC}"
+        while IFS= read -r f; do
+            sed -i \
+                -e 's/listen\s*80\b/listen 81/g' \
+                -e 's/listen\s*443\s*ssl/listen 8443 ssl/g' \
+                -e 's/\[::]:80/\[::]:81/g' \
+                -e 's/\[::]:443 ssl/\[::]:8443 ssl/g' "$f" 2>/dev/null
+        done <<< "$NGINX_CONF"
+    fi
+
+    # Verifikasi: pastikan tidak ada listen 80/443 sama sekali
+    if grep -qrE 'listen (80|443)' /etc/nginx/ 2>/dev/null; then
+        echo -e "${BIRed}  ⚠ Masih ada file dengan port 80/443!${NC}"
+        grep -rlE 'listen (80|443)' /etc/nginx/ 2>/dev/null | while read f; do
+            echo -e "  ${BIRed}$f${NC}"
+        done
+    else
+        echo -e "${BIGreen}  ✓ Tidak ada config dengan port 80/443${NC}"
+    fi
+
+    # Systemd: nginx jalan SETELAH haproxy (Wants= biar ga strict)
+    mkdir -p /etc/systemd/system/nginx.service.d
+    cat > /etc/systemd/system/nginx.service.d/order.conf << 'SYSDFIX'
+[Unit]
+After=haproxy.service
+Wants=haproxy.service
+SYSDFIX
+    systemctl daemon-reload 2>/dev/null
+    echo -e "${BIYellow}  ✓ systemd: nginx → after haproxy${NC}"
+
+    # Restart nginx (port 81/8443 bukan 80/443)
+    nginx -t 2>/dev/null
+    if [ $? -eq 0 ]; then
+        systemctl restart nginx 2>/dev/null && echo -e "${BIGreen}✓ nginx running (port 81/8443)${NC}" || echo -e "${BIRed}✗ nginx restart failed${NC}"
+    else
+        echo -e "${BIRed}✗ Nginx config error, restore backup${NC}"
+        cp /root/backup-config/xray.conf.bak /etc/nginx/conf.d/xray.conf 2>/dev/null
+        nginx -t 2>/dev/null && systemctl restart nginx 2>/dev/null
+    fi
+    echo -e ""
+
+    # 3. Update haproxy.cfg (port 80/443 sudah free karena nginx pindah)
+    echo -e "${BIYellow}[3/4] Updating haproxy.cfg...${NC}"
+    domain=$(cat /etc/xray/domain 2>/dev/null || echo "")
+    wget -q -O /etc/haproxy/haproxy.cfg "${Repo}cfg_conf_js/haproxy.cfg" 2>/dev/null
+    if [ $? -ne 0 ]; then
+        echo -e "${BIRed}✗ Download failed, restoring backup${NC}"
+        cp /root/backup-config/haproxy.cfg.bak /etc/haproxy/haproxy.cfg 2>/dev/null
+    else
+        sed -i "s/xxx/${domain}/g" /etc/haproxy/haproxy.cfg 2>/dev/null
+        if [ ! -f /etc/haproxy/hap.pem ]; then
+            cat /etc/xray/xray.crt /etc/xray/xray.key 2>/dev/null | tee /etc/haproxy/hap.pem >/dev/null && \
+                echo -e "${BIYellow}  hap.pem created${NC}"
+        fi
+        # Remove chroot jika ada
+        sed -i '/^[[:space:]]*chroot/d' /etc/haproxy/haproxy.cfg 2>/dev/null
+        echo -e "${BIYellow}  Validating haproxy config...${NC}"
+        haproxy -c -f /etc/haproxy/haproxy.cfg 2>/dev/null
+        if [ $? -eq 0 ]; then
+            systemctl restart haproxy 2>/dev/null && echo -e "${BIGreen}✓ haproxy running (port 80/443)${NC}" || echo -e "${BIRed}✗ restart failed${NC}"
+        else
+            echo -e "${BIRed}✗ Config invalid, restoring backup${NC}"
+            cp /root/backup-config/haproxy.cfg.bak /etc/haproxy/haproxy.cfg 2>/dev/null
+            systemctl restart haproxy 2>/dev/null
+        fi
+    fi
+    echo -e ""
+
+    # 4. Final verification
+    echo -e "${BIYellow}[4/4] Verifikasi...${NC}"
+    for svc in nginx haproxy wendy-api; do
+        if systemctl is-active --quiet "$svc"; then
+            echo -e "${BIGreen}✓ $svc running${NC}"
+        else
+            echo -e "${BIRed}✗ $svc DOWN${NC}"
+        fi
+    done
+
+    echo -e ""
+    echo -e "${BICyan}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo -e "${BIGreen}✓ Update core selesai${NC}"
+    echo -e "${BIYellow}Backup disimpan di /root/backup-config/${NC}"
+    echo -e "${BICyan}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    sleep 2
+    menu
+}
+
+function edit_figlet_text(){
+    clear
+    echo -e "${BICyan}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo -e "${BIWhite}          EDIT FIGLET TEXT                ${NC}"
+    echo -e "${BICyan}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo -e ""
+    echo -e "Current Text: ${BIGreen}$FIGLET_TEXT${NC}"
+    echo -e ""
+    read -p "Enter new Text (leave blank to keep current): " new_text
+    if [[ -n "$new_text" ]]; then
+        # Validate input (basic check for printable characters)
+        if [[ "$new_text" =~ ^[a-zA-Z0-9[:space:]]+$ ]]; then
+            FIGLET_TEXT="$new_text"
+            echo "$FIGLET_TEXT" > "$FIGLET_FILE"
+            echo -e "${BIGreen}Text updated to: $FIGLET_TEXT${NC}"
+        else
+            echo -e "${BIRed}Error: Invalid input. Use alphanumeric characters and spaces only.${NC}"
+        fi
+    else
+        echo -e "${BIYellow}Text unchanged.${NC}"
+    fi
+    echo -e ""
+    echo -e "${BIGreen}Returning to menu in 3 seconds...${NC}"
+    sleep 3
+    menu
+}
+
+# USERNAME IZIN IP
+username=$(curl -sS ${regist} | grep $MYIP | awk '{print $2}')
+if [ -z "$username" ]; then
+    username=$(cat /usr/bin/user) # Jika variabel kosong, isi dengan "anonim"
+fi
+echo "$username" >/usr/bin/user
+rm -f /usr/bin/e
+valid=$(curl -sS ${regist} | grep $MYIP | awk '{print $3}')
+echo "$valid" > /usr/bin/e
+
+# DETAIL ORDER IZIN IP
+username=$(cat /usr/bin/user)
+exp=$(cat /usr/bin/e)
+
+# DAYS LEFT
+DATE=$(date +'%Y-%m-%d')
+if [ "$valid" != "lifetime" ]; then
+    d1=$(date -d "$valid" +%s)
+    d2=$(date -d "$DATE" +%s)
+    certifacate=$(((d1 - d2) / 86400))
+else
+    certifacate="Unlimited"
+fi
+
+# VPS INFORMATION
+ping_result=$(ping -c 1 google.com | grep 'time=' | awk -F'time=' '{print $2}' | awk '{print $1}')
+uptime="$(uptime -p | cut -d " " -f 2-10)"
+cpu_usage1="$(ps aux | awk 'BEGIN {sum=0} {sum+=$3}; END {print sum}')"
+cpu_usage="$((${cpu_usage1/\.*} / ${coREDiilik:-1}))"
+cpu_usage+=" %"
+ISP=$(curl -s ipinfo.io/org | cut -d " " -f 2-10 )
+WKT=$(curl -s ipinfo.io/timezone )
+DAY=$(date +%A)
+DATE=$(date +%m/%d/%Y)
+DATE2=$(date -R | cut -d " " -f -5)
+IPVPS=$(curl -s ipinfo.io/ip )
+cname=$( awk -F: '/model name/ {name=$2} END {print name}' /proc/cpuinfo )
+cores=$( awk -F: '/model name/ {core++} END {print core}' /proc/cpuinfo )
+freq=$( awk -F: ' /cpu MHz/ {freq=$2} END {print freq}' /proc/cpuinfo )
+tram=$( free -m | awk 'NR==2 {print $2}' )
+uram=$( free -m | awk 'NR==2 {print $3}' )
+fram=$( free -m | awk 'NR==2 {print $4}' )
+ssh_service=$(/etc/init.d/ssh status | grep Active | awk '{print $3}' | cut -d "(" -f2 | cut -d ")" -f1)
+dropbear_service=$(/etc/init.d/dropbear status | grep Active | awk '{print $3}' | cut -d "(" -f2 | cut -d ")" -f1)
+haproxy_service=$(systemctl status haproxy | grep Active | awk '{print $3}' | cut -d "(" -f2 | cut -d ")" -f1)
+xray_service=$(systemctl status xray | grep Active | awk '{print $3}' | cut -d "(" -f2 | cut -d ")" -f1)
+nginx_service=$(systemctl status nginx | grep Active | awk '{print $3}' | cut -d "(" -f2 | cut -d ")" -f1)
+
+# STATUS SERVICE SSH 
+if [[ $ssh_service == "running" ]]; then 
+   status_ssh="${BIGreen}ON ${NC}"
+else
+   status_ssh="${BIRed}OFF${NC}"
+fi
+
+# SSH Websocket Proxy
+ssh_ws=$( systemctl status ws | grep Active | awk '{print $3}' | sed 's/(//g' | sed 's/)//g' )
+if [[ $ssh_ws == "running" ]]; then
+    status_ws_epro="${BIGreen}ON ${NC}"
+else
+    status_ws_epro="${BIRed}OFF${NC}"
+fi
+
+# STATUS SERVICE HAPROXY
+if [[ $haproxy_service == "running" ]]; then 
+   status_haproxy="${BIGreen}ON ${NC}"
+else
+   status_haproxy="${BIRed}OFF${NC}"
+fi
+
+# STATUS SERVICE XRAY
+if [[ $xray_service == "running" ]]; then 
+   status_xray="${BIGreen}ON ${NC}"
+else
+   status_xray="${BIRed}OFF${NC}"
+fi
+
+# STATUS SERVICE NGINX
+if [[ $nginx_service == "running" ]]; then 
+   status_nginx="${BIGreen}ON ${NC}"
+else
+   status_nginx="${BIRed}OFF${NC}"
+fi
+
+# STATUS SERVICE Dropbear
+if [[ $dropbear_service == "running" ]]; then 
+   status_dropbear="${BIGreen}ON ${NC}"
+else
+   status_dropbear="${BIRed}OFF${NC}"
+fi
+
+# BANDWIDTH
+dtoday="$(vnstat -i eth0 | grep "today" | awk '{print $2" "substr ($3, 1, 1)}')"
+utoday="$(vnstat -i eth0 | grep "today" | awk '{print $5" "substr ($6, 1, 1)}')"
+ttoday="$(vnstat -i eth0 | grep "today" | awk '{print $8" "substr ($9, 1, 1)}')"
+dyest="$(vnstat -i eth0 | grep "yesterday" | awk '{print $2" "substr ($3, 1, 1)}')"
+uyest="$(vnstat -i eth0 | grep "yesterday" | awk '{print $5" "substr ($6, 1, 1)}')"
+tyest="$(vnstat -i eth0 | grep "yesterday" | awk '{print $8" "substr ($9, 1, 1)}')"
+dmon="$(vnstat -i eth0 -m | grep "`date +"%b '%y"`" | awk '{print $3" "substr ($4, 1, 1)}')"
+umon="$(vnstat -i eth0 -m | grep "`date +"%b '%y"`" | awk '{print $6" "substr ($7, 1, 1)}')"
+tmon="$(vnstat -i eth0 -m | grep "`date +"%b '%y"`" | awk '{print $9" "substr ($10, 1, 1)}')"
+
+# ACCOUNT INFO
+vlx=$(cat /etc/xray/config.json | grep "#&" | wc -l)
+let vla=$vlx/2
+vmc=$(cat /etc/xray/config.json | grep "###" | wc -l)
+let vma=$vmc/2
+ssh1="$(awk -F: '$3 >= 1000 && $1 != "nobody" {print $1}' /etc/passwd | wc -l)"
+trx=$(cat /etc/xray/config.json | grep "#!" | wc -l)
+let trb=$trx/2
+ssx=$(cat /etc/xray/config.json | grep "#!!" | wc -l)
+let ssa=$ssx/2
+
+
+# ACTIVATED & EXPIRED
+Info="${BIGreen}Active${NC}"
+Eror="${BIRed}Expired${NC}"
+today=`date -d "0 days" +"%Y-%m-%d"`
+Exp1=$(curl -sS ${regist} | grep $MYIP | awk '{print $3}')
+if [[ $today < $Exp1 ]]; then
+    sts="${Info}"
+else
+    sts="${Eror}"
+    vpsoff
+fi
+
+# MAIN MENU
+echo -e " "
+#figlet -f slant "$FIGLET_TEXT" | lolcat
+echo -e "${BICyan} ╭──────────────────────────────────────────────────────────────────╮${NC}"
+echo -e "${BICyan} │${BIWhite}             SABAR ADALAH SENJATA UTAMA DALAM KEHIDUPAN                      ${BICyan} ${NC}"
+echo -e "${BICyan} ├──────────────────────────────────────────────────────────────────┤${NC}"
+echo -e "${BICyan} │${BIWhite} OS       : ${BICyan}$MODEL${NC}"
+echo -e "${BICyan} │${BIWhite} RAM      : ${BICyan}$uram / $RAM MB ($MEMOFREE Free)${NC}"
+echo -e "${BICyan} │${BIWhite} CPU      : ${BICyan}$CORE Cores ($cpu_usage Usage)${NC}"
+echo -e "${BICyan} │${BIWhite} Uptime   : ${BICyan}$uptime${NC}"
+echo -e "${BICyan} │${BIWhite} IP VPS   : ${BICyan}$IPVPS${NC}"
+echo -e "${BICyan} │${BIWhite} Domain   : ${BICyan}$domain${NC}"
+echo -e "${BICyan} │${BIWhite} Location : ${BICyan}$CITY, $TIMEZONE${NC}"
+echo -e "${BICyan} ├──────────────────────────────────────────────────────────────────┤${NC}"
+echo -e "${BICyan} │${BIWhite} User     : ${BIYellow}$username${NC}"
+echo -e "${BICyan} │${BIWhite} Status   : $sts${NC}"
+echo -e "${BICyan} │${BIWhite} Expired  : ${BIYellow}$exp${NC} (${BIRed}$certifacate Days${NC})"
+echo -e "${BICyan} ├──────────────────────────────────────────────────────────────────┤${NC}"
+echo -e "${BICyan} │${BIWhite} API URL   : ${BICyan}https://$domain:8443/api/${NC}"
+echo -e "${BICyan} │${BIWhite} API Token : ${BIYellow}$api_token${NC}"
+echo -e "${BICyan} ├──────────────────────────────────────────────────────────────────┤${NC}"
+echo -e "${BICyan} │${BIWhite} SSH      : $status_ssh   ${BIWhite} NGINX    : $status_nginx   ${BIWhite} XRAY     : $status_xray   ${BICyan} ${NC}" 
+echo -e "${BICyan} │${BIWhite} WS-ePRO  : $status_ws_epro   ${BIWhite} DROPBEAR : $status_dropbear   ${BIWhite} HAPROXY  : $status_haproxy   ${BICyan} ${NC}"
+echo -e "${BICyan} ├──────────────────────────────────────────────────────────────────┤${NC}"
+echo -e "${BICyan} │${BIWhite} Traffic  : ${BIGreen}↓ $dtoday ${BIYellow}↑ $utoday ${BICyan}TOT: $ttoday${NC}"
+echo -e "${BICyan} ╰──────────────────────────────────────────────────────────────────╯${NC}"
+echo -e " ${WHITE}         SSH: $ssh1 TROJAN : $trx SS-R : $ssx VLESS : $vlx VMESS : $vmc ${NC}"
+echo -e "${BICyan} ╭── ${BIWhite}Menu Options${BICyan} ──────────────────────────────────────────────────╮${NC}"
+echo -e "${BICyan} │${NC}  [${BIYellow}01${NC}] SSH & OpenVPN       [${BIYellow}06${NC}] Trial Account       [${BIYellow}11${NC}] Bac/Res  ${BICyan} ${NC}"
+echo -e "${BICyan} │${NC}  [${BIYellow}02${NC}] Vmess WS/GRPC       [${BIYellow}07${NC}] Reboot Server       [${BIYellow}12${NC}] Bot Panel       ${BICyan} ${NC}"
+echo -e "${BICyan} │${NC}  [${BIYellow}03${NC}] Vless WS/GRPC       [${BIYellow}08${NC}] Install UDP         [${BIYellow}13${NC}] SlowDNS         ${BICyan} ${NC}"
+echo -e "${BICyan} │${NC}  [${BIYellow}04${NC}] Trojan WS/GRPC      [${BIYellow}09${NC}] Update Script       [${BIYellow}14${NC}] Settings        ${BICyan} ${NC}"
+echo -e "${BICyan} │${NC}  [${BIYellow}05${NC}] Shadowsocks         [${BIYellow}10${NC}] Zivpn Menu          [${BIYellow}15${NC}] Banner     ${BICyan} ${NC}"
+echo -e "${BICyan} │${NC}  [${BIYellow}16${NC}] Update Core Config                         ${BICyan} ${NC}"
+echo -e "${BICyan} ╰──────────────────────────────────────────────────────────────────╯${NC}"
+echo -e " "
+read -p " Select Option (0-16) or x to refresh: " opt
+echo -e ""
+case $opt in
+1 | 01)
+    clear
+    m-sshws
+    ;;
+2 | 02)
+    clear
+    m-vmess
+    ;;
+3 | 03)
+    clear
+    m-vless
+    ;;
+4 | 04)
+    clear
+    m-trojan
+    ;;
+5 | 05)
+    clear
+    m-ssws
+    ;;
+6 | 06)
+    clear
+    m-trial
+    ;;
+7 | 07)
+    clear
+    reboot
+    ;;
+8 | 08)
+    clear
+    UDEPE
+    ;;
+9 | 09)
+    clear
+    upp
+    ;;
+10)
+    clear
+    zi.sh
+    ;;
+11)
+    clear
+    menu-bckp
+    ;;
+12)
+    clear
+    m-bot
+    ;;
+13)
+    clear
+    sd
+    ;;
+14)
+    clear
+    features
+    ;;
+15)
+    clear
+    edit_figlet_text
+    ;;
+16)
+    clear
+    update_core
+    ;;
+0) 
+    figlet -f slant "$FIGLET_TEXT" | lolcat
+    exit
+    ;;
+x | X)
+    clear
+    menu
+    ;;
+*)
+    echo -e "${BIRed}Invalid Option!${NC}"
+    sleep 1
+    menu
+    ;;
+esac

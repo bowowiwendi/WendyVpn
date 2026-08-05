@@ -1,0 +1,166 @@
+#!/bin/bash
+red() { echo -e "\\033[32;1m${*}\\033[0m"; }
+clear
+#IZIN SCRIPT
+MYIP=$(curl -sS ipv4.icanhazip.com)
+echo -e "\e[32mloading...\e[0m"
+clear
+# Valid Script
+Green="\e[92;1m"
+RED="\033[31m"
+YELLOW="\033[33m"
+BLUE="\033[36m"
+FONT="\033[0m"
+GREENBG="\033[42;37m"
+REDBG="\033[41;37m"
+OK="${Green}--->${FONT}"
+ERROR="${RED}[ERROR]${FONT}"
+GRAY="\e[1;30m"
+NC='\e[0m'
+red='\e[1;31m'
+green='\e[0;32m'
+DF='\e[39m'
+Bold='\e[1m'
+Blink='\e[5m'
+yell='\e[33m'
+red='\e[31m'
+green='\e[32m'
+blue='\e[34m'
+PURPLE='\e[35m'
+cyan='\e[36m'
+Lred='\e[91m'
+Lgreen='\e[92m'
+Lyellow='\e[93m'
+NC='\e[0m'
+GREEN='\033[0;32m'
+ORANGE='\033[0;33m'
+LIGHT='\033[0;37m'
+grenbo="\e[92;1m"
+red() { echo -e "\\033[32;1m${*}\\033[0m"; }
+# Getting
+CHATID=$(grep -E "^#bot# " "/etc/bot/.bot.db" | cut -d ' ' -f 3)
+KEY=$(grep -E "^#bot# " "/etc/bot/.bot.db" | cut -d ' ' -f 2)
+export TIME="10"
+export URL="https://api.telegram.org/bot$KEY/sendMessage"
+clear
+#IZIN SCRIPT
+MYIP=$(curl -sS ipv4.icanhazip.com)
+echo -e "\e[32mloading...\e[0m"
+clear
+# Valid Script
+ipsaya=$(wget -qO- ipinfo.io/ip)
+NS=`cat /etc/xray/dns`
+PUB=$(cat /etc/slowdns/server.pub)
+echo -e "\e[32mloading...\e[0m"
+clear
+IP=$(curl -sS ipv4.icanhazip.com)
+ISP=$(curl -s ipinfo.io/org | cut -d " " -f 2-10 )
+CITY=$(cat /etc/xray/city)
+domain=$(cat /etc/xray/domain)
+clear
+echo -e "\033[1;93m◇━━━━━━━━━━━━━━━━━◇\033[0m"
+echo -e " SSH Ovpn Account           "
+echo -e "\033[1;93m◇━━━━━━━━━━━━━━━━━◇\033[0m"
+read -p " Username : " user
+read -p " Password : " pw
+read -p " Limit Ip : " limit_ip
+clear
+echo -e "\033[1;93m◇━━━━━━━━━━━━━━━━━◇\033[0m"
+echo -e " Set Expired In Minutes           "
+echo -e "\033[1;93m◇━━━━━━━━━━━━━━━━━◇\033[0m"
+read -p " Menit : " pup
+masaaktif=1
+clear
+#limitip
+if [[ $limit_ip -gt 0 ]]; then
+mkdir -p /etc/kyt/limit/ssh/ip
+echo -e "$limit_ip" > /etc/kyt/limit/ssh/ip/$user
+else
+echo > /dev/null
+fi
+clear
+tgl=$(date -d "$masaaktif days" +"%d")
+bln=$(date -d "$masaaktif days" +"%b")
+thn=$(date -d "$masaaktif days" +"%Y")
+expe="$tgl $bln, $thn"
+tgl2=$(date +"%d")
+bln2=$(date +"%b")
+thn2=$(date +"%Y")
+tnggl="$tgl2 $bln2, $thn2"
+useradd -e `date -d "$masaaktif days" +"%Y-%m-%d"` -s /bin/false -M $user
+expi="$(chage -l $user | grep "Account expires" | awk -F": " '{print $2}')"
+echo -e "$pw\n$pw\n"|passwd $user &> /dev/null
+hariini=`date -d "0 days" +"%Y-%m-%d"`
+expi=`date -d "$masaaktif days" +"%Y-%m-%d"`
+
+if [ ! -e /etc/ssh ]; then
+  mkdir -p /etc/ssh
+fi
+
+if [ -z ${quota} ]; then
+  quota="0"
+fi
+
+c=$(echo "${quota}" | sed 's/[^0-9]*//g')
+d=$((${c} * 1024 * 1024 * 1024))
+
+if [[ ${c} != "0" ]]; then
+  echo "${d}" >/etc/ssh/${user}
+fi
+DATADB=$(cat /etc/ssh/.ssh.db | grep "^###" | grep -w "${user}" | awk '{print $2}')
+if [[ "${DATADB}" != '' ]]; then
+  sed -i "/\b${user}\b/d" /etc/ssh/.ssh.db
+fi
+echo userdel -f "$user" | at now + $pup minutes
+clear
+
+cat > /var/www/html/ssh-$user.txt <<-END
+# 🔐 SSH OVPN ACCOUNT
+# 👤 Username : $user
+# 🔑 Password : $pw
+# 🌐 Host : $domain
+# 📱 Limit IP : $limit_ip
+# OpenSSH  → $domain:80@$user:$pw
+# SSH WS   → $domain:443@$user:$pw
+# UDP      → $domain:1-65535@$user:$pw
+# OVPN     : https://$domain:81/
+END
+
+CHATID="$CHATID"
+KEY="$KEY"
+TIME="$TIME"
+URL="$URL"
+TEXT="
+<b>🔐 SSH OVPN ACCOUNT</b>
+━━━━━━━━━━━━━━━━━━━━
+👤 Username : <code>$user</code>
+🔑 Password : <code>$pw</code>
+🌐 Host : <code>$domain</code>
+📱 Limit IP : <code>$limit_ip</code>
+━━━━━━━━━━━━━━━━━━━━
+OpenSSH → <code>$domain:80@$user:$pw</code>
+SSH WS  → <code>$domain:443@$user:$pw</code>
+UDP     → <code>$domain:1-65535@$user:$pw</code>
+━━━━━━━━━━━━━━━━━━━━
+💾 <a href='https://$domain:81/ssh-$user.txt'>Save Link Account</a>
+━━━━━━━━━━━━━━━━━━━━
+Berakhir Pada : $pup Menit
+"
+
+[ -z "$NO_NOTIF" ] && curl -s --max-time $TIME -d "chat_id=$CHATID&disable_web_page_preview=1&text=$TEXT&parse_mode=html" $URL >/dev/null
+echo ""
+echo -e "🔐 SSH OVPN ACCOUNT"
+echo -e "━━━━━━━━━━━━━━━━━━━━"
+echo -e "👤 Username : $user"
+echo -e "🔑 Password : $pw"
+echo -e "🌐 Host : $domain"
+echo -e "📱 Limit IP : ${limit_ip}"
+echo -e "━━━━━━━━━━━━━━━━━━━━"
+echo -e "OpenSSH  → $domain:80@$user:$pw"
+echo -e "SSH WS   → $domain:443@$user:$pw"
+echo -e "UDP      → $domain:1-65535@$user:$pw"
+echo -e "━━━━━━━━━━━━━━━━━━━━"
+echo -e "💾 Save Link : https://$domain:81/ssh-\$user.txt"
+echo -e "OVPN Download : https://$domain:81/"
+echo -e "━━━━━━━━━━━━━━━━━━━━"
+echo -e "Berakhir Pada : $pup"

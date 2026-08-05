@@ -1,0 +1,168 @@
+#!/bin/bash
+
+function send_log() {
+    CHATID=$(grep -E "^#bot# " "/etc/bot/.bot.db" | cut -d ' ' -f 3)
+    KEY=$(grep -E "^#bot# " "/etc/bot/.bot.db" | cut -d ' ' -f 2)
+    TIME="10"
+    URL="https://api.telegram.org/bot$KEY/sendMessage"
+    TEXT="
+    <code>────────────────────</code>
+    <b>⚠️ MULTI LOGIN USER LOCK 15 Minuts ⚠️</b>
+    <code>────────────────────</code>
+    <code>Username    : </code><code>$user</code>
+    <code>Limit Ip    : </code><code>${iplimit}</code>
+    <code>Login Ip    : </code><code>${cekcek}</code>
+    <code>────────────────────</code>
+    "
+    curl -s --max-time $TIME -d "chat_id=$CHATID&disable_web_page_preview=1&text=$TEXT&parse_mode=html" $URL >/dev/null
+}
+function notif_unlock(){ 
+    CHATID=$(grep -E "^#bot# " "/etc/bot/.bot.db" | cut -d ' ' -f 3)
+    KEY=$(grep -E "^#bot# " "/etc/bot/.bot.db" | cut -d ' ' -f 2)
+    TIME="10"
+    URL="https://api.telegram.org/bot$KEY/sendMessage"
+    TEXT="
+    <code>────────────────────</code>
+    <b>🔓 NOTIFIKASI PEMBUKAAN KUNCI 🔓</b>
+    <code>────────────────────</code>
+    <code>Username  : </code><code>$user</code>
+    <code>Protokol  : </code><code>$protocol</code>
+    <code>────────────────────</code>
+    "
+    curl -s --max-time $TIME -d "chat_id=$CHATID&disable_web_page_preview=1&text=$TEXT&parse_mode=html" $URL >/dev/null
+    }
+function cek_ban() {
+cekcek=$(cat /etc/xray/.ban.db)
+if [[ $cekcek == "" ]]; then
+cat >/etc/xray/.ban.db <<EOF
+#vmess
+#vless
+#trojan
+EOF
+else
+echo -ne
+fi
+}
+cek_ban
+function vmip() {
+    echo -n > /var/log/xray/access.log
+    sleep 900 # Diubah dari 700 (sekitar 11,6 menit) menjadi 900 (15 menit)
+    data=( $(ls /etc/kyt/limit/vmess/ip) )
+
+    for user in "${data[@]}"; do
+        iplimit=$(cat /etc/kyt/limit/vmess/ip/$user)
+        ehh=$(cat /var/log/xray/access.log | grep "$user" | cut -d " " -f 3 | sed 's/tcp://g' | cut -d ":" -f 1 | sort | uniq)
+        cekcek=$(echo -e "$ehh" | wc -l)
+        
+        if [[ $cekcek -gt $iplimit ]]; then
+        sed -i '/#vmess$/a\### '"$user $exp $uuid"'' /etc/xray/.ban.db
+        sed -i "/^### $user $exp/,/^},{/d" /etc/xray/config.json
+        systemctl restart xray > /dev/null 2>&1
+            send_log
+        else
+            echo ""
+        fi
+        sleep 0.1
+    done
+}
+
+function vlip() {
+    echo -n > /var/log/xray/access.log
+    sleep 900 # Diubah dari 700 menjadi 900
+    data=( $(ls /etc/kyt/limit/vless/ip) )
+
+    for user in "${data[@]}"; do
+        iplimit=$(cat /etc/kyt/limit/vless/ip/$user)
+        ehh=$(cat /var/log/xray/access.log | grep "$user" | cut -d " " -f 3 | sed 's/tcp://g' | cut -d ":" -f 1 | sort | uniq)
+        cekcek=$(echo -e "$ehh" | wc -l)
+       
+        if [[ $cekcek -gt $iplimit ]]; then
+        sed -i '/#vless$/a\#& '"$user $exp $uuid"'' /etc/xray/.ban.db
+        sed -i "/^#& $user $exp/,/^},{/d" /etc/xray/config.json
+        systemctl restart xray > /dev/null 2>&1
+            send_log
+        else
+            echo ""
+        fi
+        sleep 0.1
+    done
+}
+
+function trip() {
+    echo -n > /var/log/xray/access.log
+    sleep 900 # Diubah dari 700 menjadi 900
+    data=( $(ls /etc/kyt/limit/trojan/ip) )
+
+    for user in "${data[@]}"; do
+        iplimit=$(cat /etc/kyt/limit/trojan/ip/$user)
+        ehh=$(cat /var/log/xray/access.log | grep "$user" | cut -d " " -f 3 | sed 's/tcp://g' | cut -d ":" -f 1 | sort | uniq)
+        cekcek=$(echo -e "$ehh" | wc -l)
+
+        if [[ $cekcek -gt $iplimit ]]; then
+        sed -i '/#trojan$/a\#! '"$user $exp $uuid"'' /etc/xray/.ban.db
+        sed -i "/^#! $user $exp/,/^},{/d" /etc/xray/config.json
+        systemctl restart xray > /dev/null 2>&1
+            send_log
+        else
+            echo ""
+        fi
+        sleep 0.1
+    done
+}
+
+function unlock_user() {
+    user=$1
+    protocol=$2
+    
+    case $protocol in
+        vmess)
+            sed -i "/^### $user/d" /etc/xray/.ban.db
+            uuid=$(grep -E "^### $user" /etc/xray/config.json | awk '{print $4}')
+            exp=$(grep -E "^### $user" /etc/xray/config.json | awk '{print $3}')
+            sed -i '/#vmess$/a\### '"$user $exp $uuid"'' /etc/xray/config.json
+            ;;
+        vless)
+            sed -i "/^#& $user/d" /etc/xray/.ban.db
+            uuid=$(grep -E "^#& $user" /etc/xray/config.json | awk '{print $4}')
+            exp=$(grep -E "^#& $user" /etc/xray/config.json | awk '{print $3}')
+            sed -i '/#vless$/a\#& '"$user $exp $uuid"'' /etc/xray/config.json
+            ;;
+        trojan)
+            sed -i "/^#! $user/d" /etc/xray/.ban.db
+            uuid=$(grep -E "^#! $user" /etc/xray/config.json | awk '{print $4}')
+            exp=$(grep -E "^#! $user" /etc/xray/config.json | awk '{print $3}')
+            sed -i '/#trojan$/a\#! '"$user $exp $uuid"'' /etc/xray/config.json
+            ;;
+    esac
+    
+    systemctl restart xray > /dev/null 2>&1
+notif_unlock
+}
+
+function auto_unlock() {
+    echo -n > /var/log/xray/access.log
+    sleep 900 # Diubah dari 700 menjadi 900
+    
+    for protocol in vmess vless trojan; do
+        data=( $(grep -E "^#.*$protocol$" /etc/xray/.ban.db | cut -d ' ' -f 2) )
+        
+        for user in "${data[@]}"; do
+            ehh=$(cat /var/log/xray/access.log | grep "$user" | cut -d " " -f 3 | sed 's/tcp://g' | cut -d ":" -f 1 | sort | uniq)
+            cekcek=$(echo -e "$ehh" | wc -l)
+            
+            if [[ $cekcek -eq 0 ]]; then
+                unlock_user $user $protocol
+            fi
+        done
+    done
+}
+
+if [[ ${1} == "vmip" ]]; then
+    vmip
+elif [[ ${1} == "vlip" ]]; then
+    vlip
+elif [[ ${1} == "trip" ]]; then
+    trip
+elif [[ ${1} == "auto_unlock" ]]; then
+    auto_unlock
+fi

@@ -1,0 +1,102 @@
+#!/bin/bash
+
+function send_log() {
+    CHATID=$(grep -E "^#bot# " "/etc/bot/.bot.db" | cut -d ' ' -f 3)
+    KEY=$(grep -E "^#bot# " "/etc/bot/.bot.db" | cut -d ' ' -f 2)
+    TIME="10"
+    URL="https://api.telegram.org/bot$KEY/sendMessage"
+    TEXT="
+<code>────────────────────</code>
+<b>⚠️NOTIF MULTI LOGIN SSH⚠️</b>
+<code>────────────────────</code>
+<code>Username          : </code><code>$user</code>
+<code>Limit IP          : </code><code>${iplimit}</code>
+<code>User Login        : </code><code>${cekcek}</code>
+<code>Akun Locked       : </code><code>1 hari</code>
+<code>────────────────────</code>
+"
+    curl -s --max-time $TIME -d "chat_id=$CHATID&disable_web_page_preview=1&text=$TEXT&parse_mode=html" $URL >/dev/null
+}
+function notif_unlock(){ 
+    CHATID=$(grep -E "^#bot# " "/etc/bot/.bot.db" | cut -d ' ' -f 3)
+    KEY=$(grep -E "^#bot# " "/etc/bot/.bot.db" | cut -d ' ' -f 2)
+    TIME="10"
+    URL="https://api.telegram.org/bot$KEY/sendMessage"
+    TEXT="
+    <code>────────────────────</code>
+    <b>🔓 NOTIF PEMBUKAAN KUNCI 🔓</b>
+    <code>────────────────────</code>
+    <code>Username  : </code><code>$user</code>
+    <code>Protokol  : </code><code>SSH</code>
+    <code>────────────────────</code>
+    "
+    curl -s --max-time $TIME -d "chat_id=$CHATID&disable_web_page_preview=1&text=$TEXT&parse_mode=html" $URL >/dev/null
+    }
+clear
+function cekssh(){
+if [ -e "/var/log/auth.log" ]; then
+        LOG="/var/log/auth.log";
+fi
+if [ -e "/var/log/secure" ]; then
+        LOG="/var/log/secure";
+fi
+                
+data=( `ps aux | grep -i dropbear | awk '{print $2}'`);
+cat $LOG | grep -i dropbear | grep -i "Password auth succeeded" > /tmp/login-db.txt;
+for PID in "${data[@]}"
+do
+            cat /tmp/login-db.txt | grep "dropbear\[$PID\]" > /tmp/login-db-pid.txt;
+            NUM=`cat /tmp/login-db-pid.txt | wc -l`;
+            USER=`cat /tmp/login-db-pid.txt | awk '{print $10}'`;
+            IP=`cat /tmp/login-db-pid.txt | awk '{print $12}'`;
+            if [ $NUM -eq 1 ]; then
+                    echo "$PID - $USER - $IP";
+                    fi
+done
+cat $LOG | grep -i sshd | grep -i "Accepted password for" > /tmp/login-db.txt
+data=( `ps aux | grep "\[priv\]" | sort -k 72 | awk '{print $2}'`);
+
+for PID in "${data[@]}"
+do
+            cat /tmp/login-db.txt | grep "sshd\[$PID\]" > /tmp/login-db-pid.txt;
+            NUM=`cat /tmp/login-db-pid.txt | wc -l`;
+            USER=`cat /tmp/login-db-pid.txt | awk '{print $9}'`;
+            IP=`cat /tmp/login-db-pid.txt | awk '{print $11}'`;
+            if [ $NUM -eq 1 ]; then
+                    echo "$PID - $USER - $IP";
+        fi
+done
+if [ -f "/etc/openvpn/server/openvpn-tcp.log" ]; then
+            cat /etc/openvpn/server/openvpn-tcp.log | grep -w "^CLIENT_LIST" | cut -d ',' -f 2,3,8 | sed -e 's/,/      /g' > /tmp/vpn-login-tcp.txt
+            cat /tmp/vpn-login-tcp.txt
+fi
+if [ -f "/etc/openvpn/server/openvpn-udp.log" ]; then
+            cat /etc/openvpn/server/openvpn-udp.log | grep -w "^CLIENT_LIST" | cut -d ',' -f 2,3,8 | sed -e 's/,/      /g' > /tmp/vpn-login-udp.txt
+            cat /tmp/vpn-login-udp.txt
+fi
+}
+mulog=$(cekssh)
+date=$(date)
+data=( `ls /etc/kyt/limit/ssh/ip`)
+
+for user in "${data[@]}"
+do
+    iplimit=$(cat /etc/kyt/limit/ssh/ip/$user)
+    cekcek=$(echo -e "$mulog" | grep $user | wc -l)
+
+    if [[ $cekcek -gt $iplimit ]]; then
+        nais=3
+        passwd -l "$user" > /dev/null
+        send_log
+
+        # Jadwalkan untuk membuka kembali akun setelah 15 menit
+        echo "passwd -u $user" | at now + 15 minutes > /dev/null
+    notif_unlock
+    else
+        echo > /dev/null
+    fi
+
+    sleep 0.1
+done
+
+echo > /dev/null

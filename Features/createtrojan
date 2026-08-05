@@ -1,0 +1,159 @@
+#!/bin/bash
+# Generate Password
+password=$(cat /proc/sys/kernel/random/uuid)
+# Ambil domain
+domain=$(cat /etc/xray/domain)
+user=$1
+Quota=$2
+iplimit=$3
+masaaktif=$4
+tgl=$(date -d "$masaaktif days" +"%d")
+bln=$(date -d "$masaaktif days" +"%b")
+thn=$(date -d "$masaaktif days" +"%Y")
+expe="$tgl $bln, $thn"
+tgl2=$(date +"%d")
+bln2=$(date +"%b")
+thn2=$(date +"%Y")
+tnggl="$tgl2 $bln2, $thn2"
+exp=`date -d "$masaaktif days" +"%Y-%m-%d"`
+
+# Tambahkan konfigurasi Trojan ke file Xray
+sed -i '/#trojan$/a\#! '"$user $exp"'\
+},{"password": "'""$password""'","email": "'""$user""'"' /etc/xray/config.json
+sed -i '/#trojangrpc$/a\#!# '"$user $exp"'\
+},{"password": "'""$password""'","email": "'""$user""'"' /etc/xray/config.json
+
+# Generate JSON output
+json_output=$(cat <<EOF
+{
+  "username": "$user",
+  "domain": "$domain",
+  "password": "$password",
+  "quota": "$Quota GB",
+  "ip_limit": "$iplimit IP",
+  "expired": "$expe",
+  "trojan_tls_link": "trojan://$password@$domain:443?path=%2Ftrojan-ws&security=tls&host=$domain&type=ws&sni=$domain#$user",
+  "trojan_nontls_link": "trojan://$password@$domain:80?path=%2Ftrojan-ws&security=none&host=$domain&type=ws#$user",
+  "trojan_grpc_link": "trojan://$password@$domain:443?security=tls&type=grpc&serviceName=trojan-grpc&sni=$domain#$user"
+}
+EOF
+)
+
+# Buat direktori jika belum ada
+if [ ! -e /etc/trojan ]; then
+  mkdir -p /etc/trojan
+fi
+
+# Atur batasan IP jika ada
+if [[ $iplimit -gt 0 ]]; then
+  mkdir -p /etc/kyt/limit/trojan/ip
+  echo -e "$iplimit" > /etc/kyt/limit/trojan/ip/$user
+else
+  echo > /dev/null
+fi
+
+# Atur kuota jika ada
+if [ -z ${Quota} ]; then
+  Quota="0"
+fi
+
+c=$(echo "${Quota}" | sed 's/[^0-9]*//g')
+d=$((${c} * 1024 * 1024 * 1024))
+
+if [[ ${c} != "0" ]]; then
+  echo "${d}" >/etc/trojan/${user}
+fi
+
+# Simpan data ke database
+DATADB=$(cat /etc/trojan/.trojan.db | grep "^###" | grep -w "${user}" | awk '{print $2}')
+if [[ "${DATADB}" != '' ]]; then
+  sed -i "/\b${user}\b/d" /etc/trojan/.trojan.db
+fi
+echo "### ${user} ${exp} ${password} ${Quota} ${iplimit}" >>/etc/trojan/.trojan.db
+
+# Buat file teks untuk pengguna
+cat >/var/www/html/trojan-$user.txt <<-END
+=====================
+   Trojan Account 
+=====================
+Remarks : ${user}
+Domain : ${domain}
+User Quota : ${Quota} GB
+User Ip : ${iplimit} IP
+Port TLS : 443
+Port none TLS : 80
+Password : ${password}
+Encryption : none
+Security : tls/none
+Network : ws
+Path : /trojan-ws
+ServiceName : trojan-grpc
+=====================
+ Link Akun Trojan                   
+=====================
+Link WS TLS: 
+trojan://$password@$domain:443?path=%2Ftrojan-ws&security=tls&host=$domain&type=ws&sni=$domain#$user
+=====================
+Link WS none TLS: 
+trojan://$password@$domain:80?path=%2Ftrojan-ws&security=none&host=$domain&type=ws#$user
+=====================
+Link GRPC: 
+trojan://$password@$domain:443?security=tls&type=grpc&serviceName=trojan-grpc&sni=$domain#$user
+=====================
+# Format Trojan WS TLS
+=====================
+proxies:
+  - name: Trojan-$user-WS TLS
+    server: ${domain}
+    port: 443
+    type: trojan
+    password: ${password}
+    skip-cert-verify: true
+    sni: ${domain}
+    network: ws
+    ws-opts:
+      path: /trojan-ws
+      headers:
+        Host: ${domain}
+    udp: true
+=====================
+# Format Trojan WS Non TLS
+=====================
+proxies:
+  - name: Trojan-$user-WS Non TLS
+    server: ${domain}
+    port: 80
+    type: trojan
+    password: ${password}
+    skip-cert-verify: true
+    sni: ${domain}
+    network: ws
+    ws-opts:
+      path: /trojan-ws
+      headers:
+        Host: ${domain}
+    udp: true
+=====================
+# Format Trojan gRPC
+=====================
+proxies:
+  - name: Trojan-$user-gRPC (SNI)
+    server: ${domain}
+    port: 443
+    type: trojan
+    password: ${password}
+    skip-cert-verify: true
+    sni: ${domain}
+    network: grpc
+    grpc-opts:
+      grpc-service-name: trojan-grpc
+    udp: true
+END
+
+# Cetak output JSON
+echo "$json_output"
+
+# Restart layanan
+systemctl restart xray > /dev/null 2>&1
+systemctl restart nginx > /dev/null 2>&1
+service cron restart > /dev/null 2>&1
