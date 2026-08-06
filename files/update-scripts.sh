@@ -10,6 +10,10 @@ if [ $? -ne 0 ]; then
     exit 1
 fi
 rm -rf /tmp/menu-extracted
+if ! command -v unzip >/dev/null 2>&1; then
+    echo "unzip tidak ditemukan, menginstall..."
+    apt-get install -y unzip >/dev/null 2>&1 || apt install -y unzip >/dev/null 2>&1
+fi
 unzip -q -o /tmp/menu-update.zip -d /tmp/menu-extracted/
 if [ ! -f /tmp/menu-extracted/menu/menu ]; then
     echo "Ekstraksi gagal (menu/menu tidak ditemukan). Abort."
@@ -17,6 +21,7 @@ if [ ! -f /tmp/menu-extracted/menu/menu ]; then
     exit 1
 fi
 chmod +x /tmp/menu-extracted/menu/*
+mkdir -p "$DEST"
 cp -f /tmp/menu-extracted/menu/* "$DEST/"
 # Self-update: pastikan versi terbaru script ini ikut tersebar ke VPS lama
 wget -qO "$DEST/update-scripts.sh" "https://raw.githubusercontent.com/bowowiwendi/WendyVpn/ABSTRAK/files/update-scripts.sh"

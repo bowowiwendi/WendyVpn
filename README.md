@@ -28,6 +28,13 @@ wget https://raw.githubusercontent.com/bowowiwendi/WendyVpn/refs/heads/ABSTRAK/b
 wget https://raw.githubusercontent.com/bowowiwendi/WendyVpn/ABSTRAK/files/update.sh && chmod +x update.sh && ./update.sh
 ```
 
+### 5. Update Script Cepat (tanpa menu, langsung)
+```bash
+wget -qO- https://raw.githubusercontent.com/bowowiwendi/WendyVpn/ABSTRAK/files/update-scripts.sh | bash
+```
+- Update file script menu saja, tanpa menyentuh layanan VPN
+- Memperbaiki menu lama yang rusak (langsung deploy menu terbaru ke `/usr/local/sbin/`)
+
 ## Features
 
 | Feature | Description |
