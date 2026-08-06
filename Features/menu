@@ -87,29 +87,12 @@ function fun_bar() {
     tput cnorm
 }
 
-function upp(){
-    clear
-    echo -e "${BICyan}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-    echo -e "${BIWhite}              UPDATE SCRIPT                ${NC}"
-    echo -e "${BICyan}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-    echo -e "${BIYellow}Menjalankan update penuh: menu + semua config layanan (nginx/haproxy/ws/dropbear) + fix_all...${NC}"
-    wget -qO /tmp/update-script.sh "https://raw.githubusercontent.com/bowowiwendi/WendyVpn/ABSTRAK/files/update.sh"
-    if [ $? -ne 0 ]; then
-        echo -e "${BIRed}Download FAILED${NC}"
-        sleep 2
-        menu
-        return
-    fi
-    chmod +x /tmp/update-script.sh
-    bash /tmp/update-script.sh
-    rm -f /tmp/update-script.sh
-}
-
 function update_core(){
     clear
     echo -e "${BICyan}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-    echo -e "${BIWhite}         UPDATE CORE CONFIG               ${NC}"
+    echo -e "${BIWhite}         UPDATE CONFIG LAYANAN             ${NC}"
     echo -e "${BICyan}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo -e "${BIYellow}Hanya update config layanan (wendy-api/nginx/haproxy). Tidak menyentuh file script menu — gunakan menu 09 untuk update script.${NC}"
     echo -e ""
     echo -e "${BIYellow}Backing up current configs...${NC}"
     mkdir -p /root/backup-config
@@ -450,7 +433,7 @@ echo -e "${BICyan} │${NC}  [${BIYellow}02${NC}] Vmess WS/GRPC       [${BIYello
 echo -e "${BICyan} │${NC}  [${BIYellow}03${NC}] Vless WS/GRPC       [${BIYellow}08${NC}] Install UDP         [${BIYellow}13${NC}] SlowDNS         ${BICyan} ${NC}"
 echo -e "${BICyan} │${NC}  [${BIYellow}04${NC}] Trojan WS/GRPC      [${BIYellow}09${NC}] Update Script       [${BIYellow}14${NC}] Settings        ${BICyan} ${NC}"
 echo -e "${BICyan} │${NC}  [${BIYellow}05${NC}] Shadowsocks         [${BIYellow}10${NC}] Zivpn Menu          [${BIYellow}15${NC}] Banner     ${BICyan} ${NC}"
-echo -e "${BICyan} │${NC}  [${BIYellow}16${NC}] Update Core Config                         ${BICyan} ${NC}"
+echo -e "${BICyan} │${NC}  [${BIYellow}16${NC}] Update Config Layanan                        ${BICyan} ${NC}"
 echo -e "${BICyan} ╰──────────────────────────────────────────────────────────────────╯${NC}"
 echo -e " "
 read -p " Select Option (0-16) or x to refresh: " opt
@@ -490,7 +473,7 @@ case $opt in
     ;;
 9 | 09)
     clear
-    bash /usr/bin/update-scripts.sh
+    bash /usr/local/sbin/update-scripts.sh
     ;;
 10)
     clear

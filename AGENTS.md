@@ -34,10 +34,10 @@
 
 ## After installation
 
-- Menu entrypoint: `menu` (symlinked to `/usr/bin/`)
+- Menu entrypoint: `menu` (deployed to `/usr/local/sbin/`, in root's PATH before `/usr/bin`)
 - Main control panel: `features`
 - All menu items must `return` or call `menu`, not `exit` — otherwise user is dropped from the menu system
-- Scripts are deployed to `/usr/bin/` on the VPS
+- Scripts are deployed to `/usr/local/sbin/` on the VPS (setup-main.sh and update.sh both use this path; `update-scripts.sh` must also target it)
 
 ## Telegram bots
 
@@ -55,6 +55,25 @@
 - `requirements.txt`: use `telethon>=1.28.0`, **do not add** `keyboard`
 - Python entrypoint: `python3 -m kyt` from `WorkingDirectory=/usr/bin`
 - Obfuscated `dist/` (PyArmor) is **never imported** — leave untouched
+
+### Editing menu.zip (source of truth)
+
+- `Features/menu.zip` is the artifact VPS actually downloads (setup-main.sh, update.sh, update-scripts.sh). `Features/` unpacked files are only staging copies.
+- **After ANY edit to `Features/menu` or a `Features/*` script, rebuild menu.zip** — entries must live under `menu/`, no root-level duplicates:
+  ```bash
+  python3 - <<'EOF'
+  import zipfile
+  src, dst, new_menu = '/home/user/Features/menu.zip', '/tmp/menu-new.zip', open('/home/user/Features/menu','rb').read()
+  zin, zout = zipfile.ZipFile(src), zipfile.ZipFile(dst,'w',zipfile.ZIP_DEFLATED)
+  for i in zin.infolist():
+      if not i.filename.endswith('/') and i.filename.startswith('menu/'):
+          d = zin.read(i.filename)
+          zout.writestr(i.filename, new_menu if i.filename=='menu/menu' else d, compress_type=zipfile.ZIP_DEFLATED)
+  zout.close(); zin.close()
+  EOF
+  cp /tmp/menu-new.zip /home/user/Features/menu.zip
+  ```
+- `files/update-scripts.sh` (menu 9) and `files/update.sh` (full update) must both install into `/usr/local/sbin/` — never `/usr/bin/`
 
 ### bot.zip
 

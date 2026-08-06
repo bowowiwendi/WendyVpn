@@ -27,6 +27,7 @@ fi
 chmod +x menu/* 2>/dev/null
 mkdir -p /usr/local/sbin
 cp menu/* /usr/local/sbin/ 2>/dev/null
+wget -q -O /usr/local/sbin/update-scripts.sh "${REPO}files/update-scripts.sh" && chmod +x /usr/local/sbin/update-scripts.sh
 
 echo -e "\033[0;33m[3/6] Backing up configs...\033[0m"
 cp /etc/haproxy/haproxy.cfg "$BK/haproxy.cfg.bak" 2>/dev/null

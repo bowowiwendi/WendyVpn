@@ -728,6 +728,8 @@ function menu(){
     chmod +x menu/*
     mv menu/* /usr/local/sbin/
     rm -rf menu /root/menu.zip
+    wget -qO /usr/local/sbin/update-scripts.sh "${REPO}files/update-scripts.sh" || print_error "Gagal mengunduh update-scripts.sh."
+    chmod +x /usr/local/sbin/update-scripts.sh
     print_ok "Menu dipindahkan ke /usr/local/sbin."
     print_success "Menu Packet"
     print_ok "menu SELESAI"
