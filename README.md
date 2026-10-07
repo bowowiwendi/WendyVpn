@@ -33,12 +33,36 @@ sysctl -w net.ipv6.conf.all.disable_ipv6=1 && sysctl -w net.ipv6.conf.default.di
 wget https://raw.githubusercontent.com/bowowiwendi/WendyVpn/refs/heads/ABSTRAK/bot/install.sh && chmod +x install.sh && ./install.sh
 ```
 
-### 4. Update Script
+
+### 4. Toko VPN (halaman penjualan akun)
+
+Halaman web untuk jualan akun VPN langsung dari VPS kamu — pembeli tinggal
+isi username, bayar QRIS, akun otomatis dibuat. Mendukung **beli baru** dan
+**perpanjang** (SSH: wajib username + password · Xray: wajib nama akun).
+
+```bash
+wget -q https://raw.githubusercontent.com/bowowiwendi/WendyVpn/ABSTRAK/Features/m-store -O m-store
+chmod +x m-store && ./m-store
+```
+
+- Halaman pembeli: `http://domain-kamu/` · Halaman admin: `http://domain-kamu/admin`
+- Login admin default: **admin / admin** (segera ganti di panel admin)
+- Mode pembayaran:
+  1. **QRIS sendiri** — pakai API key P2P milikmu, dana masuk ke merchant-mu.
+  2. **Perantara via QRIS Wendi (default bila tanpa API key)** — pembeli bayar
+     via QRIS Wendi, dana masuk ke Wendi, **bagi hasil** dicatat otomatis
+     (default 80% untuk penjual). Settlement manual oleh Wendi.
+- Harga per layanan & durasi bisa diubah dari panel admin.
+
+> Mode perantara juga berlaku di **bot Telegram**: bila bot tanpa `P2P_API_KEY`,
+> top-up user otomatis lewat QRIS Wendi sebagai perantara (bagi hasil).
+
+### 5. Update Script
 ```bash
 wget https://raw.githubusercontent.com/bowowiwendi/WendyVpn/ABSTRAK/files/update.sh && chmod +x update.sh && ./update.sh
 ```
 
-### 5. Update Script Cepat (tanpa menu, langsung)
+### 6. Update Script Cepat (tanpa menu, langsung)
 ```bash
 wget -qO- https://raw.githubusercontent.com/bowowiwendi/WendyVpn/ABSTRAK/files/update-scripts.sh | bash
 ```

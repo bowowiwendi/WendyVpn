@@ -1,0 +1,85 @@
+#!/bin/bash
+# m-store — installer halaman penjualan VPN (vpnstore) untuk script WendyVpn.
+# Berjalan di VPS pemilik script. Butuh: python3, pip3.
+set -e
+grenbo="\e[92;1m"; NC='\e[0m'
+echo -e "${grenbo}══════════════════════════════════════════${NC}"
+echo -e "${grenbo}  INSTALL TOKO VPN (WendyVpn Store)${NC}"
+echo -e "${grenbo}══════════════════════════════════════════${NC}"
+read -rp "[*] Domain toko (mis. vpn.contoh.com): " -e DOMAIN
+read -rp "[*] Nama toko [Toko VPN]: " -e STORE_NAME
+STORE_NAME=${STORE_NAME:-Toko VPN}
+read -rp "[*] Admin user [admin]: " -e ADMIN_USER
+ADMIN_USER=${ADMIN_USER:-admin}
+read -rp "[*] Admin password [admin]: " -e ADMIN_PASS
+ADMIN_PASS=${ADMIN_PASS:-admin}
+echo "    Mode pembayaran:"
+echo "    1) QRIS sendiri (punya API key P2P)"
+echo "    2) Perantara via QRIS Wendi (bagi hasil, tanpa QRIS sendiri)"
+read -rp "[*] Pilih [1/2]: " -e MODE
+P2P_KEY=""; SELLER=""
+if [[ "$MODE" == "2" ]]; then
+  MODE="wendi"
+  read -rp "[*] Nama penjual (untuk bagi hasil, mis. tokoku): " -e SELLER
+  SELLER=${SELLER:-toko}
+else
+  MODE="own"
+  read -rp "[*] P2P API Key (p2p_...): " -e P2P_KEY
+fi
+echo -e "${grenbo}[*] Install dependensi...${NC}"
+pip3 install -q flask requests 2>/dev/null || pip3 install --break-system-packages -q flask requests
+
+SRC_DIR="$(cd "$(dirname "$0")/../store" 2>/dev/null && pwd || echo /tmp/vpnstore-src/store)"
+if [[ ! -f "$SRC_DIR/app.py" ]]; then
+  echo "ERROR: folder store/ tidak ditemukan di $SRC_DIR"; exit 1
+fi
+mkdir -p /opt/vpnstore
+cp -r "$SRC_DIR"/. /opt/vpnstore/
+
+export VS_STORE_NAME="$STORE_NAME" VS_MODE="$MODE" VS_KEY="$P2P_KEY" VS_SELLER="$SELLER" VS_ADMIN="$ADMIN_USER" VS_PASS="$ADMIN_PASS"
+python3 - <<'PYEOF'
+import hashlib, json, os, secrets
+pw = os.environ["VS_PASS"]; s = secrets.token_hex(16)
+h = hashlib.scrypt(pw.encode(), salt=s.encode(), n=16384, r=8, p=1).hex()
+cfg = {
+    "store_name": os.environ.get("VS_STORE_NAME") or "Toko VPN",
+    "mode": os.environ.get("VS_MODE") or "own",
+    "p2p_api_key": os.environ.get("VS_KEY") or "",
+    "seller_name": os.environ.get("VS_SELLER") or "toko",
+    "admin_user": os.environ.get("VS_ADMIN") or "admin",
+    "admin_pass_hash": s + "$" + h,
+    "port": 8091,
+    "secret_key": secrets.token_hex(32),
+    "prices": {svc: {"30": 12000, "60": 22000, "90": 30000}
+               for svc in ["ssh", "vmess", "vless", "trojan", "shadowsocks"]},
+}
+with open("/opt/vpnstore/config.json", "w") as fh:
+    json.dump(cfg, fh, indent=1)
+os.chmod("/opt/vpnstore/config.json", 0o600)
+print("config.json ditulis")
+PYEOF
+
+cat > /etc/systemd/system/vpnstore.service <<'EOF'
+[Unit]
+Description=WendyVpn Store (penjualan akun VPN)
+After=network.target
+[Service]
+Type=simple
+WorkingDirectory=/opt/vpnstore
+ExecStart=/usr/bin/python3 /opt/vpnstore/app.py
+Restart=always
+RestartSec=5
+[Install]
+WantedBy=multi-user.target
+EOF
+systemctl daemon-reload
+systemctl enable --now vpnstore
+sleep 2
+systemctl is-active vpnstore
+echo -e "${grenbo}══════════════════════════════════════════${NC}"
+echo -e "${grenbo}  TOKO VPN AKTIF di 127.0.0.1:8091${NC}"
+echo -e "  Halaman pembeli : http://$DOMAIN/  (arahkan domain ke VPS ini)"
+echo -e "  Halaman admin   : http://$DOMAIN/admin"
+echo -e "  Login admin     : $ADMIN_USER / (password yang tadi diisi)"
+echo -e "  Tips expose: cloudflared tunnel --url http://127.0.0.1:8091"
+echo -e "${grenbo}══════════════════════════════════════════${NC}"

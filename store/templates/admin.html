@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Admin Toko VPN</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;font-family:Inter,system-ui,sans-serif}
+body{background:#0f172a;color:#e2e8f0;min-height:100vh;padding:20px}
+.card{max-width:720px;margin:20px auto;background:#1e293b;border-radius:16px;padding:24px}
+h2{color:#34d399;margin-bottom:14px}
+input,select{width:100%;padding:10px;border-radius:10px;border:1px solid #334155;background:#0f172a;color:#e2e8f0;margin:6px 0 12px}
+button{padding:10px 18px;border:none;border-radius:10px;background:#10b981;color:#fff;font-weight:700;cursor:pointer}
+button.ghost{background:#334155}
+table{width:100%;border-collapse:collapse;font-size:13px;margin-top:10px}
+th,td{padding:8px;border-bottom:1px solid #334155;text-align:left}
+.badge{padding:3px 10px;border-radius:12px;font-size:11px;font-weight:700}
+.paid,.fulfilled{background:#065f46;color:#a7f3d0}.pending{background:#78350f;color:#fde68a}
+.cancelled,.expired{background:#7f1d1d;color:#fecaca}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.sec{margin-top:22px;border-top:1px solid #334155;padding-top:18px}
+#loginBox{max-width:360px;margin:80px auto}
+.hidden{display:none}
+label{font-size:12px;color:#94a3b8}
+.row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+</style>
+</head>
+<body>
+<div class="card hidden" id="loginBox">
+  <h2>Login Admin</h2>
+  <div style="font-size:12px;color:#94a3b8;margin-bottom:10px">Default: <b>admin / admin</b> — segera ganti setelah login.</div>
+  <label>Username</label><input id="lu" value="admin">
+  <label>Password</label><input id="lp" type="password" onkeydown="if(event.key==='Enter')login()">
+  <button onclick="login()">Masuk</button>
+  <div id="lerr" style="color:#f87171;margin-top:8px;font-size:13px"></div>
+</div>
+<div class="card hidden" id="main">
+  <h2>Admin Toko VPN <button class="ghost" style="float:right" onclick="logout()">Keluar</button></h2>
+  <div class="sec">
+    <h3>Pesanan</h3>
+    <table><thead><tr><th>ID</th><th>Jenis</th><th>Akun</th><th>Durasi</th><th>Nominal</th><th>Status</th></tr></thead>
+    <tbody id="orders"></tbody></table>
+  </div>
+  <div class="sec">
+    <h3>Harga (Rp per layanan & durasi)</h3>
+    <div id="prices"></div>
+    <button onclick="saveCfg()">Simpan Harga & Pengaturan</button>
+  </div>
+  <div class="sec">
+    <h3>Pengaturan</h3>
+    <label>Nama toko</label><input id="c_name">
+    <label>Mode pembayaran</label>
+    <select id="c_mode"><option value="own">QRIS sendiri (API key P2P)</option><option value="wendi">Perantara via QRIS Wendi (bagi hasil)</option></select>
+    <label>Nama penjual (untuk mode perantara)</label><input id="c_seller" placeholder="mis. tokoku">
+    <label>API key P2P baru (kosongkan jika tidak diubah)</label><input id="c_key" placeholder="p2p_...">
+  </div>
+  <div class="sec">
+    <h3>Ganti password admin</h3>
+    <div class="grid">
+      <div><label>Password lama</label><input id="pw_old" type="password"></div>
+      <div><label>Password baru</label><input id="pw_new" type="password"></div>
+    </div>
+    <label>Username baru (opsional)</label><input id="pw_user" placeholder="kosongkan jika tetap">
+    <button onclick="chpass()">Ganti Password</button>
+  </div>
+</div>
+<script>
+let CFG=null;
+async function api(p,m,b){
+  const r=await fetch(p,{method:m||'GET',headers:{'Content-Type':'application/json'},body:b?JSON.stringify(b):undefined});
+  const d=await r.json();
+  if(!r.ok) throw new Error(d.error||'Gagal');
+  return d;
+}
+async function login(){
+  try{await api('/api/admin/login','POST',{user:lu.value,pass:lp.value});location.reload()}
+  catch(e){lerr.textContent=e.message}
+}
+async function logout(){await api('/api/admin/logout','POST');location.reload()}
+function rupiah(n){return 'Rp'+Number(n).toLocaleString('id-ID')}
+async function init(){
+  try{await api('/api/admin/orders')}
+  catch(e){loginBox.classList.remove('hidden');return}
+  loginBox.classList.add('hidden');main.classList.remove('hidden');
+  const o=await api('/api/admin/orders');
+  orders.innerHTML=o.orders.map(x=>`<tr><td>${x.id}</td><td>${x.kind==='buy'?'Beli':'Perpanjang'} ${x.service}</td><td>${x.username}</td><td>${x.days} hr</td><td>${rupiah(x.amount)}</td><td><span class="badge ${x.status}">${x.status}</span></td></tr>`).join('')||'<tr><td colspan=6>Belum ada pesanan.</td></tr>';
+  CFG=await api('/api/admin/config');const c=CFG.config;
+  c_name.value=c.store_name||'';c_mode.value=c.mode||'own';c_seller.value=c.seller_name||'';
+  const pr=document.getElementById('prices');pr.innerHTML='';
+  CFG.services.forEach(svc=>{
+    const vals=(c.prices||{})[svc]||{};
+    const d=document.createElement('div');d.innerHTML=`<label style="color:#34d399">${svc.toUpperCase()}</label><div class="row3">`+
+      [7,15,30,60,90].map(dd=>`<div><label>${dd} hari</label><input data-svc="${svc}" data-days="${dd}" type="number" value="${vals[dd]||''}" placeholder="Rp"></div>`).join('')+`</div>`;
+    pr.appendChild(d);
+  });
+}
+async function saveCfg(){
+  const prices={};
+  document.querySelectorAll('#prices input').forEach(i=>{
+    if(i.value){(prices[i.dataset.svc]=prices[i.dataset.svc]||{})[i.dataset.days]=parseInt(i.value)});
+  try{
+    await api('/api/admin/config','POST',{store_name:c_name.value,mode:c_mode.value,seller_name:c_seller.value,
+      p2p_api_key:c_key.value||undefined,prices});
+    alert('Tersimpan ✓');
+  }catch(e){alert(e.message)}
+}
+async function chpass(){
+  try{await api('/api/admin/password','POST',{old:pw_old.value,new:pw_new.value,user:pw_user.value||undefined});
+    alert('Password diganti ✓');pw_old.value=pw_new.value=pw_user.value=''}
+  catch(e){alert(e.message)}
+}
+init();
+</script>
+</body>
+</html>

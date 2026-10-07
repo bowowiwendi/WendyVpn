@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title id="t">Toko VPN</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;font-family:Inter,system-ui,-apple-system,sans-serif}
+body{background:linear-gradient(135deg,#064e3b,#0d9488 60%,#14b8a6);min-height:100vh;color:#1f2937;padding:20px}
+.card{max-width:520px;margin:24px auto;background:rgba(255,255,255,.96);border-radius:20px;padding:28px;box-shadow:0 20px 60px rgba(0,0,0,.25)}
+h1{font-size:24px;color:#065f46;margin-bottom:4px}
+.sub{color:#6b7280;font-size:14px;margin-bottom:18px}
+.tabs{display:flex;gap:8px;margin-bottom:18px}
+.tab{flex:1;padding:10px;border-radius:12px;border:2px solid #d1fae5;background:#f0fdf4;cursor:pointer;font-weight:600;color:#065f46;text-align:center}
+.tab.on{background:#10b981;color:#fff;border-color:#10b981}
+label{display:block;font-size:13px;font-weight:600;color:#374151;margin:12px 0 6px}
+select,input{width:100%;padding:12px;border:2px solid #d1fae5;border-radius:12px;font-size:15px}
+select:focus,input:focus{outline:none;border-color:#10b981}
+.pricebox{background:#ecfdf5;border:2px dashed #10b981;border-radius:12px;padding:14px;margin:16px 0;text-align:center}
+.pricebox b{font-size:26px;color:#065f46}
+button.pay{width:100%;padding:14px;border:none;border-radius:12px;background:linear-gradient(135deg,#10b981,#0d9488);color:#fff;font-size:16px;font-weight:700;cursor:pointer}
+button.pay:disabled{opacity:.5}
+#qrwrap{display:none;text-align:center;margin-top:18px}
+#qrwrap img{width:240px;height:240px;border:8px solid #fff;border-radius:12px;box-shadow:0 4px 20px rgba(0,0,0,.15)}
+.stat{font-weight:700;margin:10px 0}
+.stat.pending{color:#d97706}.stat.paid,.stat.fulfilled{color:#059669}.stat.cancelled,.stat.expired{color:#dc2626}
+#result{display:none;background:#f0fdf4;border-radius:12px;padding:16px;margin-top:14px;word-break:break-all;font-size:13px}
+#result pre{white-space:pre-wrap;background:#fff;border-radius:8px;padding:10px;margin-top:8px;max-height:260px;overflow:auto}
+.note{font-size:12px;color:#6b7280;margin-top:14px;text-align:center}
+.badge{display:inline-block;background:#fef3c7;color:#92400e;font-size:12px;padding:4px 10px;border-radius:20px;margin-bottom:10px}
+</style>
+</head>
+<body>
+<div class="card">
+  <h1 id="storeName">Toko VPN</h1>
+  <div class="sub" id="modeNote"></div>
+  <div class="tabs">
+    <div class="tab on" id="tabBuy" onclick="setKind('buy')">Beli Baru</div>
+    <div class="tab" id="tabRenew" onclick="setKind('renew')">Perpanjang</div>
+  </div>
+  <div id="warnRenew" class="badge" style="display:none">Perpanjang: SSH wajib username + password · Xray wajib nama akun</div>
+  <label>Layanan</label>
+  <select id="service"></select>
+  <label id="userLabel">Username</label>
+  <input id="username" placeholder="username akun" autocomplete="off">
+  <div id="pwWrap">
+    <label>Password</label>
+    <input id="password" type="text" placeholder="password akun SSH" autocomplete="off">
+  </div>
+  <label>Durasi</label>
+  <select id="days"></select>
+  <div class="pricebox">Total bayar<br><b id="price">-</b></div>
+  <button class="pay" id="btnPay" onclick="order()">Buat QRIS &amp; Bayar</button>
+  <div id="qrwrap">
+    <div class="stat pending" id="st">Menunggu pembayaran…</div>
+    <img id="qr" alt="QRIS">
+    <div style="margin-top:8px;font-size:14px">Nominal unik: <b id="uniq"></b></div>
+    <div id="result"><b>Akun VPN kamu:</b><pre id="acc"></pre></div>
+  </div>
+  <div class="note">Scan QRIS pakai GoPay / OVO / DANA / m-banking.<br>Akun dibuat otomatis setelah pembayaran lunas.</div>
+</div>
+<script>
+let S=null, kind='buy', poll=null;
+function setKind(k){kind=k;
+  document.getElementById('tabBuy').classList.toggle('on',k==='buy');
+  document.getElementById('tabRenew').classList.toggle('on',k==='renew');
+  document.getElementById('warnRenew').style.display=k==='renew'?'inline-block':'none';
+  document.getElementById('userLabel').textContent = 'Username' + (k==='renew' ? ' (akun lamamu)' : '');
+  updFields();
+}
+function updFields(){
+  const svc=document.getElementById('service').value;
+  document.getElementById('pwWrap').style.display = svc==='ssh'?'block':'none';
+  updDays();
+}
+function updDays(){
+  const svc=document.getElementById('service').value;
+  const pr=(S.prices[svc]||{});
+  const sel=document.getElementById('days'); sel.innerHTML='';
+  Object.keys(pr).sort((a,b)=>a-b).forEach(d=>{
+    const o=document.createElement('option');o.value=d;o.textContent=d+' hari — Rp'+pr[d].toLocaleString('id-ID');sel.appendChild(o);
+  });
+  updPrice();
+}
+function updPrice(){
+  const svc=document.getElementById('service').value, d=document.getElementById('days').value;
+  const p=(S.prices[svc]||{})[d];
+  document.getElementById('price').textContent = p?('Rp'+p.toLocaleString('id-ID')):'-';
+}
+async function init(){
+  S=await (await fetch('/api/services')).json();
+  document.getElementById('storeName').textContent=S.store_name;
+  document.title=S.store_name;
+  document.getElementById('modeNote').textContent = S.mode==='wendi'
+    ? 'Pembayaran via QRIS perantara (otomatis & aman).'
+    : 'Pembayaran QRIS langsung ke pemilik toko.';
+  const sel=document.getElementById('service');
+  S.services.forEach(s=>{const o=document.createElement('option');o.value=s.id;o.textContent=s.label;sel.appendChild(o);});
+  sel.onchange=updFields; document.getElementById('days').onchange=updPrice;
+  updFields();
+}
+function rupiah(n){return 'Rp'+Number(n).toLocaleString('id-ID');}
+async function order(){
+  const btn=document.getElementById('btnPay'); btn.disabled=true;
+  try{
+    const r=await (await fetch('/api/order',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({kind, service:document.getElementById('service').value,
+        username:document.getElementById('username').value, password:document.getElementById('password').value,
+        days:document.getElementById('days').value})})).json();
+    if(r.error) throw new Error(r.error);
+    document.getElementById('qrwrap').style.display='block';
+    document.getElementById('result').style.display='none';
+    const st=document.getElementById('st'); st.className='stat pending'; st.textContent='Menunggu pembayaran…';
+    const img=document.getElementById('qr');
+    if(r.qr_image) img.src=r.qr_image;
+    else img.src='https://api.qrserver.com/v1/create-qr-code/?size=300x300&data='+encodeURIComponent(r.qr_string);
+    document.getElementById('uniq').textContent=rupiah(r.unique_amount||r.amount);
+    window.scrollTo({top:document.body.scrollHeight,behavior:'smooth'});
+    clearInterval(poll);
+    poll=setInterval(async()=>{
+      const s=await (await fetch('/api/order/'+r.order_id)).json();
+      if(s.status==='paid'||s.status==='fulfilled'){
+        clearInterval(poll);
+        st.className='stat fulfilled'; st.textContent='PEMBAYARAN LUNAS ✓';
+        const box=document.getElementById('result'); box.style.display='block';
+        document.getElementById('acc').textContent =
+          (s.kind==='renew'?'PERPANJANG ':'AKUN BARU ')+s.service_label+'\n'+
+          'Username: '+s.username+'\nDurasi: '+s.days+' hari\n\n'+
+          JSON.stringify(s.account&&s.account.result||s.account||'(menunggu detail)',null,2);
+      } else if(s.status==='cancelled'||s.status==='expired'){
+        clearInterval(poll);
+        st.className='stat '+(s.status); st.textContent='Order '+s.status+'. Silakan buat order baru.';
+      }
+    },4000);
+  }catch(e){alert(e.message)}finally{btn.disabled=false}
+}
+init();
+</script>
+</body>
+</html>
