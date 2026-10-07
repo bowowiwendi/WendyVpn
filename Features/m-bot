@@ -130,7 +130,7 @@ clear
 	echo -e "\033[1;36m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m"
 	read -rp "[*] Input your Bot Token : " -e KEY 
 	read -rp "[*] Input Your Id Telegram : " -e CHATID
-	read -rp "[*] Bayar.gg API Key (enter to skip): " -e BAYARGG_API_KEY
+	read -rp "[*] P2P QRIS API Key (p2p_..., enter to skip): " -e P2P_API_KEY
 	read -rp "[*] Callback Host URL (enter to skip): " -e CALLBACK_HOST
 	echo -e "\033[1;36m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m"
 	echo -e BOT_TOKEN='"'$KEY'"' >> /usr/bin/kyt/var.txt 
@@ -138,7 +138,7 @@ clear
 	echo -e DOMAIN='"'$domain'"' >> /usr/bin/kyt/var.txt
 	echo -e PUB='"'$PUB'"' >> /usr/bin/kyt/var.txt
 	echo -e HOST='"'$NS'"' >> /usr/bin/kyt/var.txt
-	echo -e BAYARGG_API_KEY='"'$BAYARGG_API_KEY'"' >> /usr/bin/kyt/var.txt
+	echo -e P2P_API_KEY='"'$P2P_API_KEY'"' >> /usr/bin/kyt/var.txt
 	echo -e CALLBACK_HOST='"'$CALLBACK_HOST'"' >> /usr/bin/kyt/var.txt
 	if [[ ${c} != "0" ]]; then
   echo "${d}" >/etc/bot/${KEY}
@@ -462,7 +462,7 @@ echo -e "${grenbo}[*] Info Id Telegram : @MissRose_bot , perintah /info${NC}"
 echo -e "\033[1;36m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m"
 read -rp "[*] Input your Bot Token : " -e KEY 
 read -rp "[*] Input Your Id Telegram : " -e CHATID
-read -rp "[*] Bayar.gg API Key (enter to skip): " -e BAYARGG_API_KEY
+read -rp "[*] P2P QRIS API Key (p2p_..., enter to skip): " -e P2P_API_KEY
 read -rp "[*] Callback Host URL (enter to skip): " -e CALLBACK_HOST
 echo -e "\033[1;36m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m"
 echo -e BOT_TOKEN='"'$KEY'"' >> /usr/bin/kyt/var.txt 
@@ -470,7 +470,7 @@ echo -e ADMIN='"'$CHATID'"' >> /usr/bin/kyt/var.txt
 echo -e DOMAIN='"'$domain'"' >> /usr/bin/kyt/var.txt
 echo -e PUB='"'$PUB'"' >> /usr/bin/kyt/var.txt
 echo -e HOST='"'$NS'"' >> /usr/bin/kyt/var.txt
-echo -e BAYARGG_API_KEY='"'$BAYARGG_API_KEY'"' >> /usr/bin/kyt/var.txt
+echo -e P2P_API_KEY='"'$P2P_API_KEY'"' >> /usr/bin/kyt/var.txt
 echo -e CALLBACK_HOST='"'$CALLBACK_HOST'"' >> /usr/bin/kyt/var.txt
 if [[ ${c} != "0" ]]; then
   echo "${d}" >/etc/bot/${KEY}

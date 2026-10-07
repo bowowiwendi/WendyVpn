@@ -19,6 +19,16 @@ sysctl -w net.ipv6.conf.all.disable_ipv6=1 && sysctl -w net.ipv6.conf.default.di
 ```
 
 ### 3. Bot Telegram (kyt)
+
+#### API Key P2P (wajib untuk Top Up QRIS otomatis)
+
+1. Daftar di https://p2p.shifastore.my.id/register
+2. Hubungkan akun GoPay Merchant kamu (verifikasi OTP)
+3. Di dashboard, buat **API Key** (diawali `p2p_`)
+4. Masukkan API Key saat install bot, atau ubah kapan saja via menu Settings di Telegram
+
+> Dana top-up masuk langsung ke akun GoPay Merchant kamu sendiri.
+> Setiap transaksi lunas memotong Rp500 (kredit prabayar).
 ```bash
 wget https://raw.githubusercontent.com/bowowiwendi/WendyVpn/refs/heads/ABSTRAK/bot/install.sh && chmod +x install.sh && ./install.sh
 ```
@@ -40,10 +50,10 @@ wget -qO- https://raw.githubusercontent.com/bowowiwendi/WendyVpn/ABSTRAK/files/u
 | Feature | Description |
 |---|---|
 | Multi-protocol | SSH WS/TLS, VMess, VLess, Trojan, Shadowsocks, OpenVPN, SlowDNS |
-| Telegram Bot | User panel, top-up via QRIS (bayar.gg), admin management |
+| Telegram Bot | User panel, top-up via QRIS (P2P Gateway), admin management |
 | Auto Backup | Database bot dikirim ke admin 2x sehari via Telegram |
 | Restore DB | Restore database bot dari file Telegram |
-| Payment | QRIS otomatis via bayar.gg API |
+| Payment | QRIS otomatis via P2P Gateway API (api.shifastore.my.id) |
 | Trial System | 1-hour free trial per user per day |
 
 ## Supported OS & Arch
