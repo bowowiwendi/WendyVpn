@@ -118,7 +118,7 @@ step "Download kyt bot" wget -q "https://raw.githubusercontent.com/bowowiwendi/W
 step "Extract kyt bot" unzip -o kyt.zip
 step "Clear cache" find /usr/bin/kyt -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
 apt install -y python3-telethon python3-requests python3-qrcode python3-pil python3-paramiko qrencode >/dev/null 2>&1 || true
-step "Python deps" pip3 install -r kyt/requirements.txt 2>/dev/null || true
+step "Python deps" pip3 install -r kyt/requirements.txt 2>/dev/null || pip3 install --break-system-packages -r kyt/requirements.txt 2>/dev/null || true
 rm -rf kyt.zip
 clear
 	echo -e "\033[1;36m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m"
@@ -443,7 +443,7 @@ cd /usr/bin
  step "Extract kyt bot" unzip -o kyt.zip
  step "Clear cache" find /usr/bin/kyt -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
  apt install -y python3-telethon python3-requests python3-qrcode python3-pil python3-paramiko qrencode >/dev/null 2>&1 || true
- step "Python deps" pip3 install -r kyt/requirements.txt 2>/dev/null || true
+ step "Python deps" pip3 install -r kyt/requirements.txt 2>/dev/null || pip3 install --break-system-packages -r kyt/requirements.txt 2>/dev/null || true
  rm -rf kyt.zip
  step "Restart service" systemctl daemon-reload && systemctl start kyt && systemctl enable kyt && systemctl restart kyt
  echo -e "  \033[1;32mSukses Update Bot\033[0m"

@@ -135,6 +135,15 @@ clear
 
 # --- Definisi Variabel ---
 REPO="https://raw.githubusercontent.com/bowowiwendi/WendyVpn/ABSTRAK/"
+# --- Compat layer: dukung semua versi Debian & Ubuntu ---
+# Diambil dari repo bila belum ada lokal (setup-main.sh diunduh standalone).
+if [ -f "$(dirname "$0")/universal_compat.sh" ]; then
+    . "$(dirname "$0")/universal_compat.sh"
+elif [ -f ./universal_compat.sh ]; then
+    . ./universal_compat.sh
+else
+    wget -q -O /tmp/universal_compat.sh "${REPO}universal_compat.sh" 2>/dev/null && . /tmp/universal_compat.sh || true
+fi
 start=$(date +%s)
 secs_to_human() {
 echo "Installation time : $((${1} / 3600)) hours $(((${1} / 60) % 60)) minute's $((${1} % 60)) seconds"
@@ -416,6 +425,16 @@ function install_xray() {
     wget -O /etc/nginx/conf.d/xray.conf "${REPO}cfg_conf_js/xray.conf" || print_error "Gagal mengunduh xray.conf."
     sed -i "s/xxx/${domain}/g" /etc/haproxy/haproxy.cfg
     sed -i "s/xxx/${domain}/g" /etc/nginx/conf.d/xray.conf
+    # HAProxy 1.8 (Ubuntu 18.04/Debian 10) tidak mengenal keyword 1.9+
+    # (tune.h2.*, ssl-default-bind-ciphersuites) -> config gagal total.
+    # Validasi & buang baris yang tidak didukung otomatis.
+    if command -v haproxy >/dev/null 2>&1; then
+        if ! haproxy -c -f /etc/haproxy/haproxy.cfg >/dev/null 2>&1; then
+            print_ok "HAProxy lama terdeteksi, menyesuaikan konfigurasi..."
+            sed -i '/tune\.h2\./d; /ssl-default-bind-ciphersuites/d' /etc/haproxy/haproxy.cfg
+            haproxy -c -f /etc/haproxy/haproxy.cfg >/dev/null 2>&1 || print_error "Config HAProxy tetap tidak valid."
+        fi
+    fi
     curl -fsS "${REPO}cfg_conf_js/nginx.conf" > /etc/nginx/nginx.conf || print_error "Gagal mengunduh nginx.conf (default package tetap terpakai!)."
     # Hapus default site nginx agar tidak berebut port 80/443 dengan haproxy
     rm -f /etc/nginx/sites-enabled/* /etc/nginx/sites-available/default 2>/dev/null
@@ -689,8 +708,11 @@ function ins_epro(){
     print_ok "Menyimpan dan memuat ulang aturan iptables..."
     iptables-save > /etc/iptables.up.rules || print_error "Gagal menyimpan aturan iptables."
     iptables-restore -t < /etc/iptables.up.rules || print_error "Gagal memuat ulang aturan iptables."
-    netfilter-persistent save || print_error "Gagal menyimpan konfigurasi netfilter."
-    netfilter-persistent reload || print_error "Gagal memuat ulang konfigurasi netfilter."
+    if command -v compat_firewall_save >/dev/null 2>&1; then
+        compat_firewall_save || print_error "Gagal menyimpan konfigurasi firewall."
+    else
+        netfilter-persistent save 2>/dev/null || iptables-persistent save 2>/dev/null || print_error "Gagal menyimpan konfigurasi firewall."
+    fi
     cd
     apt autoclean -y || print_error "Gagal menjalankan autoclean."
     apt autoremove -y || print_error "Gagal menjalankan autoremove."
@@ -1038,21 +1060,27 @@ function install_openvpn() {
         print_error "Gagal mengunduh skrip konfigurasi kustom (openvpn). Konfigurasi dasar mungkin tidak lengkap."
     fi
     print_ok "Mengaktifkan dan merestart layanan OpenVPN (server-tcp & server-udp)..."
-    if ! systemctl enable openvpn-server@server-tcp; then
-        print_error "Gagal mengaktifkan layanan openvpn-server@server-tcp."
+    # Nama unit berbeda antar versi: openvpn-server@ (Debian 11+/Ubuntu 20.04+) vs openvpn@ (Debian <=10)
+    OVPN_TCP="openvpn-server@server-tcp"; OVPN_UDP="openvpn-server@server-udp"
+    if command -v compat_openvpn_unit >/dev/null 2>&1; then
+        OVPN_TCP=$(compat_openvpn_unit server-tcp); OVPN_UDP=$(compat_openvpn_unit server-udp)
     fi
-    if ! systemctl enable openvpn-server@server-udp; then
-        print_error "Gagal mengaktifkan layanan openvpn-server@server-udp."
+    print_ok "Unit OpenVPN: $OVPN_TCP / $OVPN_UDP"
+    if ! systemctl enable "$OVPN_TCP"; then
+        print_error "Gagal mengaktifkan layanan $OVPN_TCP."
     fi
-    if systemctl restart openvpn-server@server-tcp; then
-        print_ok "Layanan openvpn-server@server-tcp berhasil direstart."
+    if ! systemctl enable "$OVPN_UDP"; then
+        print_error "Gagal mengaktifkan layanan $OVPN_UDP."
+    fi
+    if systemctl restart "$OVPN_TCP"; then
+        print_ok "Layanan $OVPN_TCP berhasil direstart."
     else
-        print_error "Gagal merestart layanan openvpn-server@server-tcp. Pastikan konfigurasi sudah dibuat dengan benar."
+        print_error "Gagal merestart layanan $OVPN_TCP. Pastikan konfigurasi sudah dibuat dengan benar."
     fi
-    if systemctl restart openvpn-server@server-udp; then
-        print_ok "Layanan openvpn-server@server-udp berhasil direstart."
+    if systemctl restart "$OVPN_UDP"; then
+        print_ok "Layanan $OVPN_UDP berhasil direstart."
     else
-        print_error "Gagal merestart layanan openvpn-server@server-udp. Pastikan konfigurasi sudah dibuat dengan benar."
+        print_error "Gagal merestart layanan $OVPN_UDP. Pastikan konfigurasi sudah dibuat dengan benar."
     fi
     print_success "OpenVPN"
     print_ok "install_openvpn SELESAI"

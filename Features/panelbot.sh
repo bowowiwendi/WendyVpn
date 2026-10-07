@@ -84,10 +84,9 @@ cp /tmp/var.txt.backup /media/cybervpn/var.txt
 cp /tmp/database.db /media/cybervpn/database.db 
 
 # Update dependencies
-pip3 install -r requirements.txt
-pip install pillow
-pip3 install aiohttp
-pip3 install paramiko
+for _p in "-r requirements.txt" pillow aiohttp paramiko; do
+  pip3 install $_p 2>/dev/null || pip3 install --break-system-packages $_p 2>/dev/null || true
+done
 
 # Restart service
 systemctl daemon-reload

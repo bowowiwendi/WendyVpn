@@ -84,8 +84,11 @@ wget -qO- https://raw.githubusercontent.com/bowowiwendi/WendyVpn/ABSTRAK/files/u
 
 | OS | Versions |
 |---|---|
-| Ubuntu | 20.04, 22.04, 24.04+ |
-| Debian | 10, 11, 12+ |
+| Ubuntu | 18.04, 20.04, 22.04, 24.04+ |
+| Debian | 9, 10, 11, 12, 13+ |
+
+> Kompatibilitas lintas versi ditangani otomatis oleh `universal_compat.sh`
+> (nama paket, unit OpenVPN, config HAProxy, dan pip disesuaikan dengan versi OS).
 
 | Architecture | Support |
 |---|---|

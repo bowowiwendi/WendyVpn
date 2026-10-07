@@ -37,7 +37,7 @@ unzip cybervpn.zip
 cd cybervpn
 rm var.txt
 rm database.db
-pip3 install -r requirements.txt
+(pip3 install -r requirements.txt 2>/dev/null || pip3 install --break-system-packages -r requirements.txt 2>/dev/null || true)
 pip install pillow
 pip3 install aiohttp
 pip3 install paramiko

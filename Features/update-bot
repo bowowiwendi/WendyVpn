@@ -23,7 +23,7 @@ step "Extract helpers" unzip -o bot.zip
 step "Install helpers" mv bot/* /usr/bin && chmod +x /usr/bin/* && rm -rf bot.zip
 step "Download kyt bot" wget -q https://raw.githubusercontent.com/bowowiwendi/WendyVpn/ABSTRAK/bot/kyt.zip
 step "Extract kyt bot" unzip -o kyt.zip
-step "Python deps" pip3 install -r kyt/requirements.txt
+step "Python deps" pip3 install -r kyt/requirements.txt 2>/dev/null || pip3 install --break-system-packages -r kyt/requirements.txt 2>/dev/null || true
 
 echo -e "  \033[1;36m━━━━ Install Wendy API ────\033[0m"
 mkdir -p /etc/wendy-api
