@@ -136,8 +136,12 @@ def check_upstream(cfg, upstream):
 
 # ---------------- provisioning akun ----------------
 
-def provision(order):
+def provision(order, cfg):
     """Buat/perpanjang akun via WENDY_API lokal. Return dict detail akun."""
+    headers = {}
+    tok = (cfg.get("wendy_api_token") or "").strip()
+    if tok:
+        headers["X-Token"] = tok
     data = {"service": order["service"], "username": order["username"],
             "days": str(order["days"])}
     if order["kind"] == "buy":
@@ -153,7 +157,7 @@ def provision(order):
         if order["service"] in ("vmess", "vless", "trojan"):
             data["quota"] = "100"
             data["limit_ip"] = "2"
-    r = requests.post(url, json=data, timeout=60)
+    r = requests.post(url, json=data, headers=headers, timeout=60)
     try:
         d = r.json()
     except Exception:
@@ -242,7 +246,7 @@ def api_order_status(oid):
         if status == "paid":
             o["status"] = "paid"
             try:
-                o["account"] = provision(o)
+                o["account"] = provision(o, cfg)
                 o["status"] = "fulfilled"
             except Exception as e:
                 o["provision_error"] = str(e)
