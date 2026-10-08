@@ -97,7 +97,7 @@ async function init(){
 async function saveCfg(){
   const prices={};
   document.querySelectorAll('#prices input').forEach(i=>{
-    if(i.value){(prices[i.dataset.svc]=prices[i.dataset.svc]||{})[i.dataset.days]=parseInt(i.value)});
+    if(i.value){(prices[i.dataset.svc]=prices[i.dataset.svc]||{})[i.dataset.days]=parseInt(i.value);}});
   try{
     await api('/api/admin/config','POST',{store_name:c_name.value,mode:c_mode.value,seller_name:c_seller.value,
       p2p_api_key:c_key.value||undefined,prices});
