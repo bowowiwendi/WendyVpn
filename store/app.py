@@ -355,6 +355,85 @@ def admin_password():
     return jsonify({"ok": True})
 
 
+# ---------------- manajemen layanan VPN (via WENDY_API lokal) ----------------
+
+def wendy_request(method, path, data=None):
+    cfg = load_config()
+    tok = (cfg.get("wendy_api_token") or "").strip()
+    headers = {"X-Token": tok} if tok else {}
+    url = f"{WENDY_API}{path}"
+    if method == "GET":
+        r = requests.get(url, headers=headers, timeout=20)
+    else:
+        r = requests.post(url, json=data or {}, headers=headers, timeout=90)
+    try:
+        return r.status_code, r.json()
+    except Exception:
+        return r.status_code, {"raw": r.text[:2000]}
+
+
+@app.get("/api/admin/wendy/stats")
+@login_required
+def admin_wendy_stats():
+    code, d = wendy_request("GET", "/api/stats")
+    if code != 200:
+        return jsonify({"error": "WENDY_API tidak terjangkau."}), 502
+    return jsonify({"data": d})
+
+
+@app.post("/api/admin/wendy/maintenance")
+@login_required
+def admin_wendy_maintenance():
+    b = request.get_json(force=True, silent=True) or {}
+    action = b.get("action")
+    if action not in ("restart", "enable", "xp", "clean-lock", "backup"):
+        return jsonify({"error": "Aksi tidak dikenal."}), 400
+    service = str(b.get("service", "")).strip()
+    if action in ("restart", "enable") and not service:
+        return jsonify({"error": "Nama service wajib diisi."}), 400
+    code, d = wendy_request("POST", f"/api/maintenance/{action}",
+                            {"service": service} if service else {})
+    return jsonify({"result": d})
+
+
+@app.post("/api/admin/wendy/account")
+@login_required
+def admin_wendy_account():
+    b = request.get_json(force=True, silent=True) or {}
+    action = b.get("action")
+    if action not in ("create", "renew", "delete"):
+        return jsonify({"error": "Aksi tidak dikenal."}), 400
+    service = str(b.get("service", "")).lower()
+    username = str(b.get("username", "")).strip()
+    if service not in SVC:
+        return jsonify({"error": "Layanan tidak dikenal."}), 400
+    if not VALID_USER.match(username):
+        return jsonify({"error": "Username 3-20 karakter (huruf, angka, underscore)."}), 400
+    data = {"service": service, "username": username}
+    if action in ("create", "renew"):
+        try:
+            days = int(b.get("days") or 0)
+        except ValueError:
+            return jsonify({"error": "Durasi tidak valid."}), 400
+        if not 0 < days <= 365:
+            return jsonify({"error": "Durasi 1-365 hari."}), 400
+        data["days"] = str(days)
+    if action == "create":
+        if service == "ssh":
+            pw = str(b.get("password") or "")
+            if len(pw) < 3:
+                return jsonify({"error": "Password SSH minimal 3 karakter."}), 400
+            data["password"] = pw
+        data["limit_ip"] = "2"
+        if service != "ssh":
+            data["quota"] = "100"
+    if action == "renew" and service in ("vmess", "vless", "trojan"):
+        data["quota"] = "100"
+        data["limit_ip"] = "2"
+    code, d = wendy_request("POST", f"/api/accounts/{action}", data)
+    return jsonify({"result": d})
+
+
 if __name__ == "__main__":
     cfg = load_config()
     app.run(host="127.0.0.1", port=int(cfg.get("port", 8091)))

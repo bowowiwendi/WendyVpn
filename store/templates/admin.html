@@ -6,66 +6,146 @@
 <title>Admin Toko VPN</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0;font-family:Inter,system-ui,sans-serif}
-body{background:#0f172a;color:#e2e8f0;min-height:100vh;padding:20px}
+body{background:#0f172a;color:#e2e8f0;min-height:100vh}
+.topbar{position:sticky;top:0;z-index:40;display:flex;align-items:center;gap:12px;background:#1e293b;padding:12px 16px;border-bottom:1px solid #334155}
+.topbar h2{color:#34d399;font-size:17px;flex:1}
+.burger{background:none;border:none;cursor:pointer;padding:6px}
+.burger svg{width:26px;height:26px;stroke:#34d399}
+.drawer{position:fixed;top:0;left:-280px;width:270px;height:100%;background:#1e293b;z-index:60;transition:left .25s ease;padding:70px 0 20px;box-shadow:4px 0 24px rgba(0,0,0,.4)}
+.drawer.open{left:0}
+.drawer button{display:flex;align-items:center;gap:12px;width:100%;background:none;border:none;color:#e2e8f0;padding:14px 20px;font-size:15px;cursor:pointer;text-align:left}
+.drawer button svg{width:22px;height:22px;stroke:#34d399;flex-shrink:0}
+.drawer button.on{background:#0f172a;color:#34d399;font-weight:700}
+.drawer button:hover{background:#0f172a}
+.scrim{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:50;display:none}
+.scrim.on{display:block}
 .card{max-width:720px;margin:20px auto;background:#1e293b;border-radius:16px;padding:24px}
-h2{color:#34d399;margin-bottom:14px}
 input,select{width:100%;padding:10px;border-radius:10px;border:1px solid #334155;background:#0f172a;color:#e2e8f0;margin:6px 0 12px}
-button{padding:10px 18px;border:none;border-radius:10px;background:#10b981;color:#fff;font-weight:700;cursor:pointer}
+button.act{padding:10px 18px;border:none;border-radius:10px;background:#10b981;color:#fff;font-weight:700;cursor:pointer}
 button.ghost{background:#334155}
+button.danger{background:#7f1d1d}
+button.sm{padding:6px 12px;font-size:12px}
 table{width:100%;border-collapse:collapse;font-size:13px;margin-top:10px}
 th,td{padding:8px;border-bottom:1px solid #334155;text-align:left}
-.badge{padding:3px 10px;border-radius:12px;font-size:11px;font-weight:700}
-.paid,.fulfilled{background:#065f46;color:#a7f3d0}.pending{background:#78350f;color:#fde68a}
-.cancelled,.expired{background:#7f1d1d;color:#fecaca}
+.badge{padding:3px 10px;border-radius:12px;font-size:11px;font-weight:700;white-space:nowrap}
+.paid,.fulfilled,.active{background:#065f46;color:#a7f3d0}.pending{background:#78350f;color:#fde68a}
+.cancelled,.expired,.inactive{background:#7f1d1d;color:#fecaca}
 .grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
 .sec{margin-top:22px;border-top:1px solid #334155;padding-top:18px}
-#loginBox{max-width:360px;margin:80px auto}
+.sec h3{color:#34d399;margin-bottom:10px}
 .hidden{display:none}
 label{font-size:12px;color:#94a3b8}
-.row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+#loginBox{max-width:360px;margin:80px auto}
+.svc{display:flex;align-items:center;gap:10px;padding:10px;border:1px solid #334155;border-radius:10px;margin:8px 0}
+.svc b{flex:1}
+pre.res{background:#0f172a;border-radius:10px;padding:12px;margin-top:10px;font-size:12px;white-space:pre-wrap;max-height:300px;overflow:auto;word-break:break-all}
+.note{font-size:12px;color:#94a3b8;margin-top:8px}
 </style>
 </head>
 <body>
+
+<div class="topbar hidden" id="topbar">
+  <button class="burger" onclick="toggleDrawer(true)" aria-label="Menu">
+    <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+  </button>
+  <h2 id="pageTitle">Pesanan</h2>
+  <button class="act ghost sm" onclick="logout()">Keluar</button>
+</div>
+
+<div class="scrim" id="scrim" onclick="toggleDrawer(false)"></div>
+<nav class="drawer" id="drawer">
+  <button data-sec="orders" class="on" onclick="go('orders')">
+    <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><path d="M3 6h18"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
+    Pesanan</button>
+  <button data-sec="vpn" onclick="go('vpn')">
+    <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="7" rx="2"/><rect x="2" y="14" width="20" height="7" rx="2"/><path d="M6 6.5h.01M6 17.5h.01"/></svg>
+    Layanan VPN</button>
+  <button data-sec="prices" onclick="go('prices')">
+    <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41 11 3.83A2 2 0 0 0 9.59 3.24H4a1 1 0 0 0-1 1v5.59a2 2 0 0 0 .59 1.41l9.58 9.59a2 2 0 0 0 2.83 0l4.59-4.59a2 2 0 0 0 0-2.83z"/><circle cx="7.5" cy="7.5" r=".8"/></svg>
+    Harga</button>
+  <button data-sec="settings" onclick="go('settings')">
+    <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+    Pengaturan</button>
+</nav>
+
 <div class="card hidden" id="loginBox">
-  <h2>Login Admin</h2>
-  <div style="font-size:12px;color:#94a3b8;margin-bottom:10px">Default: <b>admin / admin</b> — segera ganti setelah login.</div>
-  <label>Username</label><input id="lu" value="admin">
-  <label>Password</label><input id="lp" type="password" onkeydown="if(event.key==='Enter')login()">
-  <button onclick="login()">Masuk</button>
+  <h2 style="color:#34d399;margin-bottom:14px">Login Admin</h2>
+  <div class="note" style="margin-bottom:10px">Default: <b>admin / admin</b> — segera ganti setelah login.</div>
+  <label>Username</label><input id="lu" value="admin" autocomplete="username">
+  <label>Password</label><input id="lp" type="password" autocomplete="current-password" onkeydown="if(event.key==='Enter')login()">
+  <button class="act" onclick="login()">Masuk</button>
   <div id="lerr" style="color:#f87171;margin-top:8px;font-size:13px"></div>
 </div>
-<div class="card hidden" id="main">
-  <h2>Admin Toko VPN <button class="ghost" style="float:right" onclick="logout()">Keluar</button></h2>
-  <div class="sec">
-    <h3>Pesanan</h3>
+
+<div id="main" class="hidden">
+  <!-- PESANAN -->
+  <div class="card" id="sec-orders">
+    <h3 style="color:#34d399;margin-bottom:10px">Pesanan</h3>
     <table><thead><tr><th>ID</th><th>Jenis</th><th>Akun</th><th>Durasi</th><th>Nominal</th><th>Status</th></tr></thead>
     <tbody id="orders"></tbody></table>
   </div>
-  <div class="sec">
-    <h3>Harga (Rp per layanan & durasi)</h3>
-    <div id="prices"></div>
-    <button onclick="saveCfg()">Simpan Harga & Pengaturan</button>
+
+  <!-- LAYANAN VPN -->
+  <div class="card hidden" id="sec-vpn">
+    <h3 style="color:#34d399;margin-bottom:10px">Status Layanan VPN</h3>
+    <div id="svcList"><span class="note">Memuat...</span></div>
+    <div class="sec">
+      <h3>Kelola Akun VPN</h3>
+      <div class="grid">
+        <div><label>Aksi</label>
+          <select id="va-act"><option value="create">Buat akun</option><option value="renew">Perpanjang</option><option value="delete">Hapus akun</option></select></div>
+        <div><label>Layanan</label><select id="va-svc"></select></div>
+      </div>
+      <label>Username</label><input id="va-user" placeholder="username" autocomplete="off">
+      <div id="va-pw-wrap"><label>Password (SSH)</label><input id="va-pw" placeholder="password SSH" autocomplete="off"></div>
+      <div id="va-days-wrap"><label>Durasi (hari)</label><input id="va-days" type="number" value="30"></div>
+      <button class="act" onclick="vaDo()">Jalankan</button>
+      <pre class="res hidden" id="va-res"></pre>
+      <div class="note">Perpanjang SSH wajib tahu username + password · Xray wajib nama akun.</div>
+    </div>
   </div>
-  <div class="sec">
-    <h3>Pengaturan</h3>
+
+  <!-- HARGA -->
+  <div class="card hidden" id="sec-prices">
+    <h3 style="color:#34d399;margin-bottom:10px">Harga (Rp per layanan &amp; durasi)</h3>
+    <div id="prices"></div>
+    <button class="act" onclick="saveCfg()">Simpan Harga</button>
+  </div>
+
+  <!-- PENGATURAN -->
+  <div class="card hidden" id="sec-settings">
+    <h3 style="color:#34d399;margin-bottom:10px">Pengaturan</h3>
     <label>Nama toko</label><input id="c_name">
     <label>Mode pembayaran</label>
     <select id="c_mode"><option value="own">QRIS sendiri (API key P2P)</option><option value="wendi">Perantara via QRIS Wendi (bagi hasil)</option></select>
     <label>Nama penjual (untuk mode perantara)</label><input id="c_seller" placeholder="mis. tokoku">
     <label>API key P2P baru (kosongkan jika tidak diubah)</label><input id="c_key" placeholder="p2p_...">
-  </div>
-  <div class="sec">
-    <h3>Ganti password admin</h3>
-    <div class="grid">
-      <div><label>Password lama</label><input id="pw_old" type="password"></div>
-      <div><label>Password baru</label><input id="pw_new" type="password"></div>
+    <button class="act" onclick="saveCfg2()">Simpan Pengaturan</button>
+    <div class="sec">
+      <h3>Ganti password admin</h3>
+      <div class="grid">
+        <div><label>Password lama</label><input id="pw_old" type="password"></div>
+        <div><label>Password baru</label><input id="pw_new" type="password"></div>
+      </div>
+      <label>Username baru (opsional)</label><input id="pw_user" placeholder="kosongkan jika tetap">
+      <button class="act" onclick="chpass()">Ganti Password</button>
     </div>
-    <label>Username baru (opsional)</label><input id="pw_user" placeholder="kosongkan jika tetap">
-    <button onclick="chpass()">Ganti Password</button>
   </div>
 </div>
+
 <script>
+const TITLES={orders:'Pesanan',vpn:'Layanan VPN',prices:'Harga',settings:'Pengaturan'};
 let CFG=null;
+function $(id){return document.getElementById(id)}
+function toggleDrawer(open){$('drawer').classList.toggle('open',open);$('scrim').classList.toggle('on',open)}
+function go(sec){
+  toggleDrawer(false);
+  document.querySelectorAll('#drawer button').forEach(b=>b.classList.toggle('on',b.dataset.sec===sec));
+  ['orders','vpn','prices','settings'].forEach(s=>$('sec-'+s).classList.toggle('hidden',s!==sec));
+  $('pageTitle').textContent=TITLES[sec];
+  if(sec==='vpn') loadVpn();
+}
 async function api(p,m,b){
   const r=await fetch(p,{method:m||'GET',headers:{'Content-Type':'application/json'},body:b?JSON.stringify(b):undefined});
   const d=await r.json();
@@ -73,41 +153,88 @@ async function api(p,m,b){
   return d;
 }
 async function login(){
-  try{await api('/api/admin/login','POST',{user:lu.value,pass:lp.value});location.reload()}
-  catch(e){lerr.textContent=e.message}
+  try{await api('/api/admin/login','POST',{user:$('lu').value,pass:$('lp').value});location.reload()}
+  catch(e){$('lerr').textContent=e.message}
 }
 async function logout(){await api('/api/admin/logout','POST');location.reload()}
 function rupiah(n){return 'Rp'+Number(n).toLocaleString('id-ID')}
-async function init(){
-  try{await api('/api/admin/orders')}
-  catch(e){loginBox.classList.remove('hidden');return}
-  loginBox.classList.add('hidden');main.classList.remove('hidden');
+
+/* ---- pesanan ---- */
+async function loadOrders(){
   const o=await api('/api/admin/orders');
-  orders.innerHTML=o.orders.map(x=>`<tr><td>${x.id}</td><td>${x.kind==='buy'?'Beli':'Perpanjang'} ${x.service}</td><td>${x.username}</td><td>${x.days} hr</td><td>${rupiah(x.amount)}</td><td><span class="badge ${x.status}">${x.status}</span></td></tr>`).join('')||'<tr><td colspan=6>Belum ada pesanan.</td></tr>';
-  CFG=await api('/api/admin/config');const c=CFG.config;
-  c_name.value=c.store_name||'';c_mode.value=c.mode||'own';c_seller.value=c.seller_name||'';
-  const pr=document.getElementById('prices');pr.innerHTML='';
+  $('orders').innerHTML=o.orders.map(x=>`<tr><td>${x.id}</td><td>${x.kind==='buy'?'Beli':'Perpanjang'} ${x.service}</td><td>${x.username}</td><td>${x.days} hr</td><td>${rupiah(x.amount)}</td><td><span class="badge ${x.status}">${x.status}</span></td></tr>`).join('')||'<tr><td colspan=6>Belum ada pesanan.</td></tr>';
+}
+
+/* ---- layanan VPN ---- */
+async function loadVpn(){
+  try{
+    const d=await api('/api/admin/wendy/stats');
+    const svcs=(d.data.services||[]);
+    $('svcList').innerHTML=svcs.map(s=>`<div class="svc"><b>${s.name}</b><span class="badge ${s.active}">${s.active}</span><button class="act ghost sm" onclick="svcRestart('${s.name}')">Restart</button></div>`).join('')||'<span class="note">Tidak ada data.</span>';
+  }catch(e){$('svcList').innerHTML='<span class="note">WENDY_API tidak terjangkau.</span>'}
+}
+async function svcRestart(name){
+  if(!confirm('Restart '+name+'?'))return;
+  try{const d=await api('/api/admin/wendy/maintenance','POST',{action:'restart',service:name});alert(d.result&&d.result.ok?'Berhasil':'Gagal');loadVpn()}
+  catch(e){alert(e.message)}
+}
+function vaSync(){
+  const a=$('va-act').value,s=$('va-svc').value;
+  $('va-pw-wrap').style.display=(a==='create'&&s==='ssh')?'block':'none';
+  $('va-days-wrap').style.display=a==='delete'?'none':'block';
+}
+async function vaDo(){
+  const b={action:$('va-act').value,service:$('va-svc').value,username:$('va-user').value,password:$('va-pw').value,days:$('va-days').value};
+  if(b.action==='delete'&&!confirm('Hapus akun '+b.username+' ('+b.service+')?'))return;
+  const box=$('va-res');box.classList.remove('hidden');box.textContent='Memproses...';
+  try{const d=await api('/api/admin/wendy/account','POST',b);box.textContent=JSON.stringify(d.result,null,2)}
+  catch(e){box.textContent='Error: '+e.message}
+}
+
+/* ---- harga & pengaturan ---- */
+function buildPrices(){
+  const c=CFG.config,pr=$('prices');pr.innerHTML='';
   CFG.services.forEach(svc=>{
     const vals=(c.prices||{})[svc]||{};
-    const d=document.createElement('div');d.innerHTML=`<label style="color:#34d399">${svc.toUpperCase()}</label><div class="row3">`+
+    const d=document.createElement('div');
+    d.innerHTML=`<label style="color:#34d399">${svc.toUpperCase()}</label><div class="row3">`+
       [7,15,30,60,90].map(dd=>`<div><label>${dd} hari</label><input data-svc="${svc}" data-days="${dd}" type="number" value="${vals[dd]||''}" placeholder="Rp"></div>`).join('')+`</div>`;
     pr.appendChild(d);
   });
 }
-async function saveCfg(){
+function collectPrices(){
   const prices={};
   document.querySelectorAll('#prices input').forEach(i=>{
-    if(i.value){(prices[i.dataset.svc]=prices[i.dataset.svc]||{})[i.dataset.days]=parseInt(i.value);}});
-  try{
-    await api('/api/admin/config','POST',{store_name:c_name.value,mode:c_mode.value,seller_name:c_seller.value,
-      p2p_api_key:c_key.value||undefined,prices});
-    alert('Tersimpan ✓');
-  }catch(e){alert(e.message)}
+    if(i.value){(prices[i.dataset.svc]=prices[i.dataset.svc]||{})[i.dataset.days]=parseInt(i.value,10)}
+  });
+  return prices;
+}
+async function saveCfg(){
+  try{await api('/api/admin/config','POST',{prices:collectPrices()});alert('Harga tersimpan')}
+  catch(e){alert(e.message)}
+}
+async function saveCfg2(){
+  try{await api('/api/admin/config','POST',{store_name:$('c_name').value,mode:$('c_mode').value,seller_name:$('c_seller').value,p2p_api_key:$('c_key').value||undefined});alert('Pengaturan tersimpan');$('c_key').value=''}
+  catch(e){alert(e.message)}
 }
 async function chpass(){
-  try{await api('/api/admin/password','POST',{old:pw_old.value,new:pw_new.value,user:pw_user.value||undefined});
-    alert('Password diganti ✓');pw_old.value=pw_new.value=pw_user.value=''}
+  try{await api('/api/admin/password','POST',{old:$('pw_old').value,new:$('pw_new').value,user:$('pw_user').value||undefined});
+    alert('Password diganti');$('pw_old').value=$('pw_new').value=$('pw_user').value=''}
   catch(e){alert(e.message)}
+}
+
+async function init(){
+  try{await api('/api/admin/orders')}
+  catch(e){$('loginBox').classList.remove('hidden');return}
+  $('loginBox').classList.add('hidden');
+  $('main').classList.remove('hidden');$('topbar').classList.remove('hidden');
+  await loadOrders();
+  CFG=await api('/api/admin/config');const c=CFG.config;
+  $('c_name').value=c.store_name||'';$('c_mode').value=c.mode||'own';$('c_seller').value=c.seller_name||'';
+  buildPrices();
+  const vs=$('va-svc');
+  CFG.services.forEach(s=>{const o=document.createElement('option');o.value=s;o.textContent=s.toUpperCase();vs.appendChild(o)});
+  $('va-act').onchange=vaSync;$('va-svc').onchange=vaSync;vaSync();
 }
 init();
 </script>
