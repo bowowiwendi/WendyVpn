@@ -144,24 +144,33 @@ def provision(order, cfg):
         headers["X-Token"] = tok
     data = {"service": order["service"], "username": order["username"],
             "days": str(order["days"])}
+    lip = str(order.get("limit_ip", 2))
     if order["kind"] == "buy":
         url = f"{WENDY_API}/api/accounts/create"
         if order["service"] == "ssh":
             data["password"] = order["password"]
-            data["limit_ip"] = "2"
+            data["limit_ip"] = lip
         else:
-            data["limit_ip"] = "2"
+            data["limit_ip"] = lip
             data["quota"] = "100"
     else:
         url = f"{WENDY_API}/api/accounts/renew"
         if order["service"] in ("vmess", "vless", "trojan"):
             data["quota"] = "100"
-            data["limit_ip"] = "2"
+            data["limit_ip"] = lip
     r = requests.post(url, json=data, headers=headers, timeout=60)
     try:
         d = r.json()
     except Exception:
         d = {"raw": r.text[:2000]}
+    # renew SSH tidak meneruskan limit_ip ke script -> update file limit langsung
+    if order["kind"] == "renew" and order["service"] == "ssh" and r.status_code == 200:
+        try:
+            os.makedirs("/etc/kyt/limit/ssh/ip", exist_ok=True)
+            with open(f"/etc/kyt/limit/ssh/ip/{order['username']}", "w") as fh:
+                fh.write(lip + "\n")
+        except OSError:
+            pass
     return {"http": r.status_code, "result": d}
 
 
@@ -205,6 +214,11 @@ def api_order():
     price = prices.get(str(days))
     if not (price and price > 0):
         return jsonify({"error": "Paket durasi tidak tersedia."}), 400
+    try:
+        limit_ip = int(b.get("limit_ip") or 2)
+    except (ValueError, TypeError):
+        limit_ip = 2
+    limit_ip = max(1, min(10, limit_ip))
 
     oid = "V" + secrets.token_hex(5).upper()
     ref = f"STORE-{oid}"
@@ -222,7 +236,7 @@ def api_order():
     orders = load_orders()
     orders.append({"id": oid, "kind": kind, "service": service, "username": username,
                    "password": password if service == "ssh" else "",
-                   "days": days, "amount": price,
+                   "days": days, "limit_ip": limit_ip, "amount": price,
                    "upstream": pay["upstream"], "status": "pending",
                    "created_at": int(time.time())})
     save_orders(orders[-500:])
@@ -432,6 +446,41 @@ def admin_wendy_account():
         data["limit_ip"] = "2"
     code, d = wendy_request("POST", f"/api/accounts/{action}", data)
     return jsonify({"result": d})
+
+
+# ---------------- tracking & banned batas IP ----------------
+try:
+    import iplimit
+except ImportError:
+    iplimit = None
+
+
+@app.get("/api/admin/wendy/iplimit")
+@login_required
+def admin_wendy_iplimit():
+    if iplimit is None:
+        return jsonify({"error": "Modul iplimit tidak tersedia."}), 500
+    try:
+        with open("/opt/vpnstore/bans.json") as fh:
+            bans = json.load(fh)
+    except (OSError, ValueError):
+        bans = []
+    bans = sorted(bans, key=lambda x: x.get("ts", 0), reverse=True)[:50]
+    return jsonify({"accounts": iplimit.tracking(), "bans": bans})
+
+
+@app.post("/api/admin/wendy/unban")
+@login_required
+def admin_wendy_unban():
+    if iplimit is None:
+        return jsonify({"error": "Modul iplimit tidak tersedia."}), 500
+    b = request.get_json(force=True, silent=True) or {}
+    service = str(b.get("service", "")).lower()
+    username = str(b.get("username", "")).strip()
+    if service != "ssh" or not VALID_USER.match(username):
+        return jsonify({"error": "Unban hanya untuk akun SSH."}), 400
+    ok = iplimit.unban_ssh(username)
+    return jsonify({"ok": ok})
 
 
 if __name__ == "__main__":

@@ -78,6 +78,13 @@ button.pay:disabled{opacity:.5}
   </div>
   <label>Durasi</label>
   <select id="days"></select>
+  <label>Batas IP <span style="font-weight:400;color:#6b7280">(maksimal perangkat bersamaan)</span></label>
+  <select id="limitIp">
+    <option value="1">1 IP — 1 perangkat</option>
+    <option value="2" selected>2 IP — 2 perangkat</option>
+    <option value="3">3 IP — 3 perangkat</option>
+    <option value="4">4 IP — 4 perangkat</option>
+  </select>
   <div class="pricebox">Total bayar<br><b id="price">-</b></div>
   <button class="pay" id="btnPay" onclick="order()">Buat QRIS &amp; Bayar</button>
   <div id="qrwrap">
@@ -136,7 +143,8 @@ async function order(){
     const r=await (await fetch('/api/order',{method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({kind, service:document.getElementById('service').value,
         username:document.getElementById('username').value, password:document.getElementById('password').value,
-        days:document.getElementById('days').value})})).json();
+        days:document.getElementById('days').value,
+        limit_ip:document.getElementById('limitIp').value})})).json();
     if(r.error) throw new Error(r.error);
     document.getElementById('qrwrap').style.display='block';
     document.getElementById('result').style.display='none';

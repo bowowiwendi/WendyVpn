@@ -82,7 +82,7 @@ pre.res{background:#0f172a;border-radius:10px;padding:12px;margin-top:10px;font-
   <!-- PESANAN -->
   <div class="card" id="sec-orders">
     <h3 style="color:#34d399;margin-bottom:10px">Pesanan</h3>
-    <table><thead><tr><th>ID</th><th>Jenis</th><th>Akun</th><th>Durasi</th><th>Nominal</th><th>Status</th></tr></thead>
+    <table><thead><tr><th>ID</th><th>Jenis</th><th>Akun</th><th>Durasi</th><th>IP</th><th>Nominal</th><th>Status</th></tr></thead>
     <tbody id="orders"></tbody></table>
   </div>
 
@@ -103,6 +103,15 @@ pre.res{background:#0f172a;border-radius:10px;padding:12px;margin-top:10px;font-
       <button class="act" onclick="vaDo()">Jalankan</button>
       <pre class="res hidden" id="va-res"></pre>
       <div class="note">Perpanjang SSH wajib tahu username + password · Xray wajib nama akun.</div>
+    </div>
+    <div class="sec">
+      <h3>Batas &amp; Penggunaan IP</h3>
+      <div class="note" style="margin-bottom:10px">Auto-banned aktif tiap 5 menit: akun yang IP-nya melebihi batas di 2x cek beruntun otomatis di-banned.</div>
+      <table><thead><tr><th>User</th><th>Layanan</th><th>Batas</th><th>Terpakai</th><th>Status</th><th></th></tr></thead>
+      <tbody id="ipTable"><tr><td colspan="6">Memuat...</td></tr></tbody></table>
+      <h3 style="margin-top:18px">Riwayat Banned</h3>
+      <table><thead><tr><th>Waktu</th><th>User</th><th>Layanan</th><th>Batas</th><th>IP</th></tr></thead>
+      <tbody id="banTable"><tr><td colspan="5">Belum ada.</td></tr></tbody></table>
     </div>
   </div>
 
@@ -162,7 +171,7 @@ function rupiah(n){return 'Rp'+Number(n).toLocaleString('id-ID')}
 /* ---- pesanan ---- */
 async function loadOrders(){
   const o=await api('/api/admin/orders');
-  $('orders').innerHTML=o.orders.map(x=>`<tr><td>${x.id}</td><td>${x.kind==='buy'?'Beli':'Perpanjang'} ${x.service}</td><td>${x.username}</td><td>${x.days} hr</td><td>${rupiah(x.amount)}</td><td><span class="badge ${x.status}">${x.status}</span></td></tr>`).join('')||'<tr><td colspan=6>Belum ada pesanan.</td></tr>';
+  $('orders').innerHTML=o.orders.map(x=>`<tr><td>${x.id}</td><td>${x.kind==='buy'?'Beli':'Perpanjang'} ${x.service}</td><td>${x.username}</td><td>${x.days} hr</td><td>${x.limit_ip||2} IP</td><td>${rupiah(x.amount)}</td><td><span class="badge ${x.status}">${x.status}</span></td></tr>`).join('')||'<tr><td colspan=7>Belum ada pesanan.</td></tr>';
 }
 
 /* ---- layanan VPN ---- */
@@ -172,6 +181,26 @@ async function loadVpn(){
     const svcs=(d.data.services||[]);
     $('svcList').innerHTML=svcs.map(s=>`<div class="svc"><b>${s.name}</b><span class="badge ${s.active}">${s.active}</span><button class="act ghost sm" onclick="svcRestart('${s.name}')">Restart</button></div>`).join('')||'<span class="note">Tidak ada data.</span>';
   }catch(e){$('svcList').innerHTML='<span class="note">WENDY_API tidak terjangkau.</span>'}
+  loadIpLimit();
+}
+async function loadIpLimit(){
+  try{
+    const d=await api('/api/admin/wendy/iplimit');
+    $('ipTable').innerHTML=d.accounts.map(a=>{
+      const st=a.banned?'<span class="badge inactive">BANNED</span>':(a.over?'<span class="badge pending">MELAMPAUI</span>':'<span class="badge active">AMAN</span>');
+      const unban=(a.banned&&a.service==='ssh')?`<button class="act ghost sm" onclick="unban('${a.user}')">Buka</button>`:'';
+      return `<tr><td>${a.user}</td><td>${a.service}</td><td>${a.limit} IP</td><td>${a.count} IP<br><span style="font-size:11px;color:#94a3b8">${a.ips.join(', ')||'-'}</span></td><td>${st}</td><td>${unban}</td></tr>`;
+    }).join('')||'<tr><td colspan="6">Belum ada akun berlimit.</td></tr>';
+    $('banTable').innerHTML=d.bans.map(b=>{
+      const t=new Date(b.ts*1000).toLocaleString('id-ID');
+      return `<tr><td>${t}</td><td>${b.user}</td><td>${b.service}</td><td>${b.limit} IP</td><td style="font-size:11px">${(b.ips||[]).join(', ')}</td></tr>`;
+    }).join('')||'<tr><td colspan="5">Belum ada.</td></tr>';
+  }catch(e){$('ipTable').innerHTML='<tr><td colspan="6">Gagal memuat.</td></tr>'}
+}
+async function unban(user){
+  if(!confirm('Buka blokir '+user+'?'))return;
+  try{await api('/api/admin/wendy/unban','POST',{service:'ssh',username:user});loadIpLimit()}
+  catch(e){alert(e.message)}
 }
 async function svcRestart(name){
   if(!confirm('Restart '+name+'?'))return;
