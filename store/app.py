@@ -181,6 +181,12 @@ def index():
     return send_from_directory(os.path.join(BASE, "templates"), "store.html")
 
 
+@app.get("/favicon.svg")
+def favicon():
+    return send_from_directory(os.path.join(BASE, "templates"), "favicon.svg",
+                               mimetype="image/svg+xml")
+
+
 @app.get("/api/services")
 def api_services():
     cfg = load_config()
