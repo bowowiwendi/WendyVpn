@@ -8,6 +8,7 @@ Berjalan di VPS pemilik script (host sendiri). Pembayaran QRIS:
 Setelah bayar lunas -> akun otomatis dibuat/di perpanjang via WENDY_API lokal (127.0.0.1:9000).
 Admin: default admin/admin (wajib diganti), kelola harga & pesanan.
 """
+import base64
 import hashlib
 import json
 import os
@@ -17,7 +18,7 @@ import time
 from functools import wraps
 
 import requests
-from flask import Flask, jsonify, request, send_from_directory, session
+from flask import Flask, jsonify, request, send_file, send_from_directory, session
 
 BASE = os.path.dirname(os.path.abspath(__file__))
 CONFIG_FILE = os.environ.get("VPNSTORE_CONFIG", os.path.join(BASE, "config.json"))
@@ -34,6 +35,78 @@ SERVICES = [
 ]
 SVC = dict(SERVICES)
 VALID_USER = re.compile(r"^[a-zA-Z0-9_]{3,20}$")
+
+# ---------------- file .hc via ePro API ----------------
+EPRO_API = "https://api.eprodev.org/v1/configs/hc"
+EPRO_KEY_FILE = os.path.join(BASE, ".epro_key")  # mode 600, diisi manual, tidak masuk repo
+HC_DIR = os.path.join(BASE, "hc_files")
+DEFAULT_HC_PAYLOAD = ("GET / HTTP/1.1[crlf]Host: edu.ruangguru.com[crlf][crlf]"
+                      "PATCH / HTTP/1.1[crlf]Host: biznet.shifastore.my.id[crlf]"
+                      "Upgrade: websocket[crlf][crlf]")
+
+
+def epro_key():
+    try:
+        with open(EPRO_KEY_FILE) as fh:
+            return fh.read().strip()
+    except OSError:
+        return ""
+
+
+def generate_hc(order, cfg):
+    """Generate file .hc via API resmi ePro setelah akun ter-provision.
+    Return nama file di HC_DIR, atau None bila gagal / layanan belum didukung.
+    Tidak pernah melempar exception (kegagalan .hc tidak boleh menggagalkan order)."""
+    if order.get("service") != "ssh":
+        return None  # tahap 1: SSH dulu (sudah terverifikasi import di aplikasi)
+    key = epro_key()
+    if not key or not order.get("password"):
+        return None
+    domain = (cfg.get("hc_domain") or "biznet.shifastore.my.id").strip()
+    payload_tpl = (cfg.get("hc_payload") or DEFAULT_HC_PAYLOAD).strip()
+    sni = (cfg.get("hc_sni") or "edu.ruangguru.com").strip()
+    req = {
+        "file_name": re.sub(r"[^a-z0-9_-]", "", f"wendyvpn-{order['username']}".lower()),
+        "powered_by": "WENDYVPN",
+        "main_connections": {
+            "ssh": {
+                "payload": {
+                    "enabled_methods": ["payload", "tls"],
+                    "custom_payload": payload_tpl,
+                    "tls": {"sni": sni, "version": "tls_1_3"},
+                },
+                "account": {
+                    "server_host": domain,
+                    "server_port": 443,
+                    "username": order["username"],
+                    "password": order["password"],
+                },
+            }
+        },
+        "profiles": [],
+        "protection": {"content_access": "lock_all"},
+        "password": "",
+    }
+    try:
+        r = requests.post(
+            EPRO_API,
+            headers={"Authorization": "Bearer " + key,
+                     "Content-Type": "application/json",
+                     "Idempotency-Key": f"wendyvpn-{order['id']}"},
+            json=req, timeout=60)
+        d = r.json()
+        if r.status_code != 201 or not d.get("content_base64"):
+            return None
+        data = base64.b64decode(d["content_base64"])
+        if hashlib.sha256(data).hexdigest() != d.get("sha256"):
+            return None  # checksum tidak cocok -> tolak file
+        os.makedirs(HC_DIR, exist_ok=True)
+        fn = f"{order['id']}.hc"
+        with open(os.path.join(HC_DIR, fn), "wb") as fh:
+            fh.write(data)
+        return fn
+    except Exception:
+        return None
 
 app = Flask(__name__, template_folder=os.path.join(BASE, "templates"), static_folder=None)
 
@@ -268,6 +341,9 @@ def api_order_status(oid):
             try:
                 o["account"] = provision(o, cfg)
                 o["status"] = "fulfilled"
+                hc = generate_hc(o, cfg)
+                if hc:
+                    o["hc_file"] = hc
             except Exception as e:
                 o["provision_error"] = str(e)
             save_orders(orders)
@@ -281,7 +357,24 @@ def api_order_status(oid):
         out["account"] = o["account"]
     if o.get("provision_error"):
         out["provision_error"] = o["provision_error"]
+    if o.get("hc_file") and os.path.isfile(os.path.join(HC_DIR, o["hc_file"])):
+        out["hc_ready"] = True
     return jsonify(out)
+
+
+@app.get("/api/order/<oid>/hc")
+def api_order_hc(oid):
+    """Download file .hc untuk order yang sudah fulfilled (SSH)."""
+    orders = load_orders()
+    o = next((x for x in orders if x["id"] == oid), None)
+    if not o or not o.get("hc_file"):
+        return jsonify({"error": "File .hc tidak tersedia untuk order ini."}), 404
+    path = os.path.join(HC_DIR, o["hc_file"])
+    if not os.path.isfile(path):
+        return jsonify({"error": "File .hc tidak ditemukan."}), 404
+    return send_file(path, as_attachment=True,
+                     download_name=f"{o['username']}.hc",
+                     mimetype="application/octet-stream")
 
 
 # ---------------- admin ----------------
