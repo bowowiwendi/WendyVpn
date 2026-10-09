@@ -43,6 +43,38 @@ HC_DIR = os.path.join(BASE, "hc_files")
 DEFAULT_HC_PAYLOAD = ("GET / HTTP/1.1[crlf]Host: edu.ruangguru.com[crlf][crlf]"
                       "PATCH / HTTP/1.1[crlf]Host: biznet.shifastore.my.id[crlf]"
                       "Upgrade: websocket[crlf][crlf]")
+# Preset paket ISP: id -> {label, payload, remote_proxy, methods, sni, ssh_port}.
+# Diisi via config.json (hc_presets); bawaan di bawah ini sebagai fallback.
+DEFAULT_HC_PRESETS = {
+    "default": {
+        "label": "Default",
+        "payload": DEFAULT_HC_PAYLOAD,
+        "remote_proxy": "",
+        "methods": ["payload", "tls"],
+        "sni": "edu.ruangguru.com",
+        "ssh_port": 443,
+    },
+    "xl_edukasi": {
+        "label": "XL EDUKASI",
+        "payload": ("GET / HTTP/1.1[crlf]Host: bimbel.ruangguru.com[crlf][crlf]"
+                    "PATCH / HTTP/1.1[crlf]Host: [host][crlf]Upgrade: websocket[crlf][crlf]"
+                    "[split]HTTP/ 69[crlf][crlf]"),
+        "remote_proxy": "104.17.3.81:80",
+        "methods": ["payload"],
+        "sni": "",
+        "ssh_port": 443,
+    },
+}
+
+
+def hc_presets(cfg):
+    presets = dict(DEFAULT_HC_PRESETS)
+    for pid, p in (cfg.get("hc_presets") or {}).items():
+        if isinstance(p, dict):
+            merged = dict(presets.get(pid, {}))
+            merged.update(p)
+            presets[pid] = merged
+    return presets
 
 
 def epro_key():
@@ -130,18 +162,23 @@ def generate_hc(order, cfg):
     if service == "ssh":
         if not order.get("password"):
             return None
-        payload_tpl = (cfg.get("hc_payload") or DEFAULT_HC_PAYLOAD).strip()
-        sni = (cfg.get("hc_sni") or "edu.ruangguru.com").strip()
+        presets = hc_presets(cfg)
+        preset = presets.get(order.get("hc_preset") or "default", presets["default"])
+        payload_obj = {
+            "enabled_methods": preset.get("methods") or ["payload", "tls"],
+            "custom_payload": preset.get("payload") or DEFAULT_HC_PAYLOAD,
+        }
+        if preset.get("remote_proxy"):
+            payload_obj["remote_proxy"] = preset["remote_proxy"]
+        sni = (preset.get("sni") or "").strip()
+        if "tls" in payload_obj["enabled_methods"] and sni:
+            payload_obj["tls"] = {"sni": sni, "version": "tls_1_3"}
         main_conn = {
             "ssh": {
-                "payload": {
-                    "enabled_methods": ["payload", "tls"],
-                    "custom_payload": payload_tpl,
-                    "tls": {"sni": sni, "version": "tls_1_3"},
-                },
+                "payload": payload_obj,
                 "account": {
                     "server_host": domain,
-                    "server_port": 443,
+                    "server_port": int(preset.get("ssh_port") or 443),
                     "username": order["username"],
                     "password": order["password"],
                 },
@@ -339,10 +376,13 @@ def favicon():
 @app.get("/api/services")
 def api_services():
     cfg = load_config()
+    presets = hc_presets(cfg)
     return jsonify({"store_name": cfg.get("store_name", "Toko VPN"),
                     "mode": cfg.get("mode", "own"),
                     "services": [{"id": s, "label": l} for s, l in SERVICES],
-                    "prices": cfg.get("prices", {})})
+                    "prices": cfg.get("prices", {}),
+                    "hc_presets": [{"id": pid, "label": p.get("label", pid)}
+                                   for pid, p in presets.items()]})
 
 
 @app.post("/api/order")
@@ -374,6 +414,10 @@ def api_order():
     except (ValueError, TypeError):
         limit_ip = 2
     limit_ip = max(1, min(10, limit_ip))
+    presets = hc_presets(cfg)
+    hc_preset = str(b.get("hc_preset") or "default")
+    if hc_preset not in presets:
+        hc_preset = "default"
 
     oid = "V" + secrets.token_hex(5).upper()
     ref = f"STORE-{oid}"
@@ -392,6 +436,7 @@ def api_order():
     orders.append({"id": oid, "kind": kind, "service": service, "username": username,
                    "password": password if service == "ssh" else "",
                    "days": days, "limit_ip": limit_ip, "amount": price,
+                   "hc_preset": hc_preset,
                    "upstream": pay["upstream"], "status": "pending",
                    "created_at": int(time.time())})
     save_orders(orders[-500:])
