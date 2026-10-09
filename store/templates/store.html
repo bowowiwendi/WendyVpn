@@ -86,6 +86,8 @@ button.pay:disabled{opacity:.5}
     <option value="3">3 IP — 3 perangkat</option>
     <option value="4">4 IP — 4 perangkat</option>
   </select>
+  <label>Paket Config <span style="font-weight:400;color:#6b7280">(setting .hc HTTP Custom)</span></label>
+  <select id="hcPreset"></select>
   <div class="pricebox">Total bayar<br><b id="price">-</b></div>
   <button class="pay" id="btnPay" onclick="order()">Buat QRIS &amp; Bayar</button>
   <div id="qrwrap">
@@ -133,6 +135,8 @@ async function init(){
     : 'Pembayaran QRIS langsung ke pemilik toko.';
   const sel=document.getElementById('service');
   S.services.forEach(s=>{const o=document.createElement('option');o.value=s.id;o.textContent=s.label;sel.appendChild(o);});
+  const psel=document.getElementById('hcPreset');
+  (S.hc_presets||[{id:'default',label:'Default'}]).forEach(p=>{const o=document.createElement('option');o.value=p.id;o.textContent=p.label;psel.appendChild(o);});
   document.getElementById('svcPills').innerHTML=S.services.map(s=>`<span>${s.label}</span>`).join('');
   sel.onchange=updFields; document.getElementById('days').onchange=updPrice;
   updFields();
@@ -145,7 +149,8 @@ async function order(){
       body:JSON.stringify({kind, service:document.getElementById('service').value,
         username:document.getElementById('username').value, password:document.getElementById('password').value,
         days:document.getElementById('days').value,
-        limit_ip:document.getElementById('limitIp').value})})).json();
+        limit_ip:document.getElementById('limitIp').value,
+        hc_preset:document.getElementById('hcPreset').value})})).json();
     if(r.error) throw new Error(r.error);
     document.getElementById('qrwrap').style.display='block';
     document.getElementById('result').style.display='none';
