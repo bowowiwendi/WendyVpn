@@ -53,22 +53,86 @@ def epro_key():
         return ""
 
 
+XRAY_DB = {
+    "vmess": "/etc/vmess/.vmess.db",
+    "vless": "/etc/vless/.vless.db",
+    "trojan": "/etc/trojan/.trojan.db",
+    "shadowsocks": "/etc/shadowsocks/.shadowsocks.db",
+}
+# Parameter koneksi utama (link TLS) per layanan, dipetakan dari script add*.
+# address "bug.com" = default script bila buyer tidak pakai bug custom.
+XRAY_HC = {
+    "vmess": {"path": "/vmess", "addr_src": "bug"},
+    "vless": {"path": "/vless", "addr_src": "bug"},
+    "trojan": {"path": "/trojan-ws", "addr_src": "domain"},
+    "shadowsocks": {"path": "/ss-ws", "addr_src": "domain", "method": "aes-128-gcm"},
+}
+
+
+def xray_uuid(service, username):
+    """Ambil uuid/password akun dari database Xray. Return None bila tidak ketemu."""
+    db = XRAY_DB.get(service)
+    if not db:
+        return None
+    try:
+        with open(db) as fh:
+            for line in fh:
+                parts = line.split()
+                # format: ### username expiry uuid ...
+                if len(parts) >= 4 and parts[0] == "###" and parts[1] == username:
+                    return parts[3]
+    except OSError:
+        pass
+    return None
+
+
+def v2ray_profile(service, username, domain, bug):
+    """Bangun 1 profil v2ray (model manual API ePro) untuk order. Return dict atau None."""
+    uuid = xray_uuid(service, username)
+    if not uuid:
+        return None
+    spec = XRAY_HC[service]
+    addr = bug if spec["addr_src"] == "bug" else domain
+    sni = bug if service == "trojan" else domain
+    manual = {
+        "server_type": service,
+        "server_host": addr,
+        "server_port": 443,
+        "transport": "websocket",
+        "transport_path": spec["path"],
+        "transport_host": domain,
+        "tls_mode": "tls",
+        "sni": sni,
+        "allow_insecure": False,
+    }
+    if service in ("vmess", "vless"):
+        manual["uuid"] = uuid
+    else:  # trojan, shadowsocks
+        manual["password"] = uuid
+        if service == "shadowsocks":
+            manual["method"] = spec["method"]
+    return {"profile_name": f"WENDYVPN {service.upper()} {username}",
+            "v2ray": {"account": {"manual": manual}}}
+
+
 def generate_hc(order, cfg):
     """Generate file .hc via API resmi ePro setelah akun ter-provision.
-    Return nama file di HC_DIR, atau None bila gagal / layanan belum didukung.
+    Return nama file di HC_DIR, atau None bila gagal.
     Tidak pernah melempar exception (kegagalan .hc tidak boleh menggagalkan order)."""
-    if order.get("service") != "ssh":
-        return None  # tahap 1: SSH dulu (sudah terverifikasi import di aplikasi)
     key = epro_key()
-    if not key or not order.get("password"):
+    if not key:
         return None
+    service = order.get("service")
     domain = (cfg.get("hc_domain") or "biznet.shifastore.my.id").strip()
-    payload_tpl = (cfg.get("hc_payload") or DEFAULT_HC_PAYLOAD).strip()
-    sni = (cfg.get("hc_sni") or "edu.ruangguru.com").strip()
-    req = {
-        "file_name": re.sub(r"[^a-z0-9_-]", "", f"wendyvpn-{order['username']}".lower()),
-        "powered_by": "WENDYVPN",
-        "main_connections": {
+    file_base = re.sub(r"[^a-z0-9_-]", "", f"wendyvpn-{order['username']}".lower())
+    main_conn = {}
+    profiles = []
+    if service == "ssh":
+        if not order.get("password"):
+            return None
+        payload_tpl = (cfg.get("hc_payload") or DEFAULT_HC_PAYLOAD).strip()
+        sni = (cfg.get("hc_sni") or "edu.ruangguru.com").strip()
+        main_conn = {
             "ssh": {
                 "payload": {
                     "enabled_methods": ["payload", "tls"],
@@ -82,8 +146,20 @@ def generate_hc(order, cfg):
                     "password": order["password"],
                 },
             }
-        },
-        "profiles": [],
+        }
+    elif service in XRAY_HC:
+        prof = v2ray_profile(service, order["username"], domain,
+                             (cfg.get("hc_bug") or "bug.com").strip())
+        if not prof:
+            return None
+        profiles = [prof]
+    else:
+        return None
+    req = {
+        "file_name": file_base,
+        "powered_by": "WENDYVPN",
+        "main_connections": main_conn,
+        "profiles": profiles,
         "protection": {"content_access": "lock_all"},
         "password": "",
     }
