@@ -92,7 +92,7 @@ button.pay:disabled{opacity:.5}
     <div class="stat pending" id="st">Menunggu pembayaran…</div>
     <img id="qr" alt="QRIS">
     <div style="margin-top:8px;font-size:14px">Nominal unik: <b id="uniq"></b></div>
-    <div id="result"><b>Akun VPN kamu:</b><pre id="acc"></pre></div>
+    <div id="result"><b>Akun VPN kamu:</b><pre id="acc"></pre><div id="hcwrap" style="display:none;margin-top:10px"><a id="hcdl" href="#" style="display:inline-block;background:#0d9488;color:#fff;padding:10px 18px;border-radius:10px;text-decoration:none;font-weight:700">Download Config .hc (HTTP Custom)</a><div style="font-size:12px;color:#065f46;margin-top:6px">Import file ini di aplikasi HTTP Custom — langsung connect tanpa setting manual.</div></div></div>
   </div>
   <div class="note">Scan QRIS pakai GoPay / OVO / DANA / m-banking.<br>Akun dibuat otomatis setelah pembayaran lunas.</div>
 </div>
@@ -166,6 +166,10 @@ async function order(){
           (s.kind==='renew'?'PERPANJANG ':'AKUN BARU ')+s.service_label+'\n'+
           'Username: '+s.username+'\nDurasi: '+s.days+' hari\n\n'+
           JSON.stringify(s.account&&s.account.result||s.account||'(menunggu detail)',null,2);
+        if(s.hc_ready){
+          document.getElementById('hcwrap').style.display='block';
+          document.getElementById('hcdl').href='/api/order/'+r.order_id+'/hc';
+        }
       } else if(s.status==='cancelled'||s.status==='expired'){
         clearInterval(poll);
         st.className='stat '+(s.status); st.textContent='Order '+s.status+'. Silakan buat order baru.';
