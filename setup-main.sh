@@ -470,6 +470,19 @@ EOF
     print_ok "install_xray SELESAI"
 }
 
+# --- CloudFront WebSocket support (otomatis, idempotent, non-fatal) ---
+function setup_cloudfront_ws(){
+    print_install "MENJALANKAN setup_cloudfront_ws"
+    local url="${REPO}Features/setup-cloudfront-ws.sh"
+    if wget -q -O /tmp/setup-cloudfront-ws.sh "$url"; then
+        bash /tmp/setup-cloudfront-ws.sh || print_error "setup-cloudfront-ws selesai dengan catatan (non-fatal)."
+        rm -f /tmp/setup-cloudfront-ws.sh
+    else
+        print_error "Gagal mengunduh setup-cloudfront-ws.sh, dilewati (non-fatal)."
+    fi
+    print_ok "setup_cloudfront_ws SELESAI"
+}
+
 function setup_ssh(){
     print_install "MENJALANKAN ssh"
     print_ok "Mengunduh konfigurasi common-password..."
@@ -1100,6 +1113,7 @@ function install(){
     nginx_install
     install_openvpn
     install_xray
+    setup_cloudfront_ws
     setup_ssh
     udp_mini
     ssh_slow
