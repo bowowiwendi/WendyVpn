@@ -1,0 +1,45 @@
+# PATCH untuk kyt/modules/menu.py
+# Tambahkan baris-baris berikut ke dalam list 'inline' di fungsi menu()
+# Letakkan SETELAH baris Shadowsocks dan SEBELUM baris VPS Info/Setting
+#
+# CONTOH — ganti blok ini:
+#     inline = [
+#         [Button.inline("🔐 SSH OVPN","ssh")],
+#         [Button.inline("📡 VMess","vmess"),
+#          Button.inline("🔷 VLess","vless")],
+#         [Button.inline("🔰 Trojan","trojan"),
+#          Button.inline("🌑 Shadowsocks","shadowsocks")],
+#         [Button.inline("ℹ️ VPS Info","info"),
+#          Button.inline("⚙️ Setting","setting")]]
+#
+# MENJADI:
+#     inline = [
+#         [Button.inline("🔐 SSH OVPN","ssh")],
+#         [Button.inline("📡 VMess","vmess"),
+#          Button.inline("🔷 VLess","vless")],
+#         [Button.inline("🔰 Trojan","trojan"),
+#          Button.inline("🌑 Shadowsocks","shadowsocks")],
+#         [Button.inline("🌐 SSH CloudFront","cf-ssh")],
+#         [Button.inline("👤 Akun Saya","akun-saya"),
+#          Button.inline("📊 Statistik","statistik")],
+#         [Button.inline("📡 Cek Kuota","cek-kuota"),
+#          Button.inline("🧹 Cleanup","cleanup")],
+#         [Button.inline("ℹ️ VPS Info","info"),
+#          Button.inline("⚙️ Setting","setting")]]
+#
+# Callback data yang dipakai modul baru:
+#   cf-ssh      -> modul cf_ssh.py (menu utama SSH CloudFront)
+#   akun-saya   -> modul akun_saya.py (daftar akun + paginasi)
+#   statistik   -> modul statistik.py (dashboard statistik)
+#   cek-kuota   -> modul cek_kuota.py (cek kuota Sidompul)
+#   cleanup     -> modul auto_cleanup.py (hapus trial/expired, anti-spam notif)
+#
+# Command baru (tanpa tombol):
+#   /akunsaya    -> modul akun_saya.py
+#   /statistik   -> modul statistik.py
+#   /cekkuota    -> modul cek_kuota.py
+#   /cleanup     -> modul auto_cleanup.py (jalankan cleanup)
+#   /cleanup_dry -> modul auto_cleanup.py (dry-run, tidak hapus)
+#
+# Modul-modul baru otomatis ter-load via ALL_MODULES di kyt/modules/__init__.py
+# (glob semua *.py), jadi cukup taruh file .py di direktori modules/.
