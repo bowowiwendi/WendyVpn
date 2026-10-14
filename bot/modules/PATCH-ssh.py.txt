@@ -1,0 +1,34 @@
+# PATCH untuk kyt/modules/ssh.py
+# Tambahkan tombol CloudFront ke menu SSH.
+#
+# Cari blok ini di fungsi ssh():
+#         inline = [
+# [Button.inline("☣️ Trial","trial-ssh"),
+# Button.inline("➕ Create","create-ssh")],
+# [Button.inline("❌ Delete","delete-ssh"),
+# Button.inline("✅ Check","login-ssh")],
+# [Button.inline("👤 Member","show-ssh"),
+# Button.inline("♻️ Renew","renew-ssh")],
+# [Button.inline("🔒 Lock","user-lock"),
+# Button.inline("🔐 Unlock","user-unlock")],
+# [Button.inline("📝 Detail","d-ssh")],
+# [Button.inline("‹ Kembali","menu")]]
+#
+# TAMBAHKAN baris ini sebelum "‹ Kembali":
+# [Button.inline("🌐 CloudFront Mode","cf-ssh")],
+#
+# Sehingga menjadi:
+#         inline = [
+# [Button.inline("☣️ Trial","trial-ssh"),
+# Button.inline("➕ Create","create-ssh")],
+# [Button.inline("❌ Delete","delete-ssh"),
+# Button.inline("✅ Check","login-ssh")],
+# [Button.inline("👤 Member","show-ssh"),
+# Button.inline("♻️ Renew","renew-ssh")],
+# [Button.inline("🔒 Lock","user-lock"),
+# Button.inline("🔐 Unlock","user-unlock")],
+# [Button.inline("📝 Detail","d-ssh")],
+# [Button.inline("🌐 CloudFront Mode","cf-ssh")],
+# [Button.inline("‹ Kembali","menu")]]
+#
+# Callback 'cf-ssh' ditangani oleh modul cf_ssh.py (baru).
