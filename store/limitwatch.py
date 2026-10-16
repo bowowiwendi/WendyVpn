@@ -56,8 +56,7 @@ def main():
                     ok = False
                     try:
                         if svc == "ssh":
-                            iplimit.ban_ssh(user)
-                            ok = True
+                            ok = iplimit.ban_ssh(user)
                         else:
                             ok = iplimit.ban_xray(svc, user)
                     except Exception:

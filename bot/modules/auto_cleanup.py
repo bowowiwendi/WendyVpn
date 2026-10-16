@@ -158,7 +158,38 @@ def run_cleanup(dry_run=False):
     state["notified"] = sorted(notified_set)
     if not dry_run:
         _save_state(state)
+
     return result
+
+
+async def send_expire_notifs(result):
+    """Kirim notif expire 1x per akun ke pemilik akun (via DB bot) & admin. Harus dipanggil dari context async."""
+    if not result.get("notified_once"):
+        return
+    import sqlite3 as _sq
+    try:
+        admin_id = int(ADMIN)
+    except Exception:
+        admin_id = None
+    for key in result["notified_once"]:
+        svc, user = key.split(":", 1)
+        msg = f"⚠️ Akun **{user}** ({svc}) sudah kadaluarsa dan dihapus otomatis."
+        targets = set()
+        try:
+            _db = _sq.connect("kyt/database.db")
+            for (tid,) in _db.execute(
+                    "SELECT DISTINCT telegram_id FROM user_services WHERE username=?", (user,)):
+                targets.add(int(tid))
+            _db.close()
+        except Exception:
+            pass
+        if admin_id:
+            targets.add(admin_id)
+        for tid in targets:
+            try:
+                await bot.send_message(int(tid), msg)
+            except Exception:
+                pass
 
 
 def format_cleanup_report(result):
@@ -225,6 +256,10 @@ async def cleanup_scheduler(interval_hours=1):
             total = len(result["trial_deleted"]) + len(result["expired_deleted"])
             if total > 0:
                 logging.info(f"[cleanup] deleted {total} accounts")
+            try:
+                await send_expire_notifs(result)
+            except Exception as _ne:
+                logging.error(f"[cleanup] notif error: {_ne}")
         except Exception as e:
             logging.error(f"[cleanup] error: {e}")
         await _aio.sleep(interval_hours * 3600)

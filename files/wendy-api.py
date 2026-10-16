@@ -587,6 +587,28 @@ class Handler(BaseHTTPRequestHandler):
                 payload, status = handle_notif_state("notif_backup")
             elif parts[2] == "notif-limit":
                 payload, status = handle_notif_state("notif_limit")
+            elif parts[2] == "add-bot-notif":
+                user_v = str(body.get("user", "")).strip()
+                chat_v = str(body.get("chat_id", "")).strip()
+                if not user_v or not chat_v:
+                    payload, status = {"ok": False, "error": "user and chat_id required"}, 400
+                else:
+                    cmd = "printf '%s\\n' '%s' '%s' | /usr/local/sbin/add-bot-notif" % (user_v, chat_v)
+                    _r = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=180)
+                    payload = {"ok": _r.returncode == 0, "stdout": _r.stdout, "stderr": _r.stderr}
+                    status = 200 if _r.returncode == 0 else 500
+            elif parts[2] == "del-bot-notif":
+                _r = subprocess.run(["/usr/local/sbin/del-bot-notif"], capture_output=True, text=True, timeout=180)
+                payload = {"ok": _r.returncode == 0, "stdout": _r.stdout, "stderr": _r.stderr}
+                status = 200 if _r.returncode == 0 else 500
+            elif parts[2] == "run-menu":
+                opt = str(body.get("option", "")).strip()
+                if not opt.isdigit():
+                    payload, status = {"ok": False, "error": "option must be numeric"}, 400
+                else:
+                    _r = subprocess.run("printf '%%s\\n' '%s' | menu" % opt, shell=True, capture_output=True, text=True, timeout=180)
+                    payload = {"ok": _r.returncode == 0, "stdout": _r.stdout, "stderr": _r.stderr}
+                    status = 200 if _r.returncode == 0 else 500
             elif parts[2] == "cek-login-ssh":
                 _r = subprocess.run(["/usr/local/sbin/bot-cek-login-ssh"], capture_output=True, text=True, timeout=180)
                 payload = {"ok": _r.returncode == 0, "stdout": _r.stdout, "stderr": _r.stderr, "returncode": _r.returncode}

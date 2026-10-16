@@ -46,10 +46,9 @@ Jangan sampai kelewatan! 🚀
 
 
 def _get_registered_users():
-    """Ambil daftar user ID terdaftar dari file validasi."""
+    """Ambil daftar user ID: /etc/bot/users.db dulu, fallback DB bot (user_services & user_balance)."""
     users = []
     try:
-        # Coba dari database atau file
         with open("/etc/bot/users.db", "r") as f:
             for line in f:
                 line = line.strip()
@@ -57,6 +56,24 @@ def _get_registered_users():
                     users.append(int(line))
     except Exception:
         pass
+    if not users:
+        try:
+            import sqlite3
+            for dbp in ("kyt/database.db", "/usr/bin/kyt/database.db", "database.db"):
+                try:
+                    db = sqlite3.connect(dbp)
+                    for (tid,) in db.execute("SELECT DISTINCT telegram_id FROM user_services"):
+                        users.append(int(tid))
+                    for (tid,) in db.execute("SELECT DISTINCT telegram_id FROM user_balance"):
+                        if int(tid) not in users:
+                            users.append(int(tid))
+                    db.close()
+                    if users:
+                        break
+                except Exception:
+                    continue
+        except Exception:
+            pass
     return users
 
 

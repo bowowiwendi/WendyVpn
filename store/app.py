@@ -11,6 +11,7 @@ Admin: default admin/admin (wajib diganti), kelola harga & pesanan.
 import base64
 import hashlib
 import json
+import threading
 import os
 import re
 import secrets
@@ -243,6 +244,9 @@ def save_config(cfg):
     os.replace(tmp, CONFIG_FILE)
 
 
+_ORDERS_LOCK = threading.Lock()
+
+
 def load_orders():
     try:
         with open(ORDERS_FILE) as fh:
@@ -436,45 +440,47 @@ def api_order():
     except Exception as e:
         return jsonify({"error": str(e)}), 502
 
-    orders = load_orders()
-    orders.append({"id": oid, "kind": kind, "service": service, "username": username,
-                   "password": password if service == "ssh" else "",
-                   "days": days, "limit_ip": limit_ip, "amount": price,
-                   "hc_preset": hc_preset,
-                   "upstream": pay["upstream"], "status": "pending",
-                   "created_at": int(time.time())})
-    save_orders(orders[-500:])
-    return jsonify({"order_id": oid, "qr_string": pay["qr_string"],
-                    "qr_image": pay["qr_image"], "unique_amount": pay["unique_amount"],
-                    "expires_at": pay["expires_at"], "amount": price})
+    with _ORDERS_LOCK:
+        orders = load_orders()
+        orders.append({"id": oid, "kind": kind, "service": service, "username": username,
+                       "password": password if service == "ssh" else "",
+                       "days": days, "limit_ip": limit_ip, "amount": price,
+                       "hc_preset": hc_preset,
+                       "upstream": pay["upstream"], "status": "pending",
+                       "created_at": int(time.time())})
+        save_orders(orders[-500:])
+        return jsonify({"order_id": oid, "qr_string": pay["qr_string"],
+                        "qr_image": pay["qr_image"], "unique_amount": pay["unique_amount"],
+                        "expires_at": pay["expires_at"], "amount": price})
 
 
 @app.get("/api/order/<oid>")
 def api_order_status(oid):
     cfg = load_config()
-    orders = load_orders()
-    o = next((x for x in orders if x["id"] == oid), None)
-    if not o:
-        return jsonify({"error": "Order tidak ditemukan."}), 404
-    if o["status"] == "pending":
-        try:
-            status, _ = check_upstream(cfg, o["upstream"])
-        except Exception as e:
-            return jsonify({"order_id": oid, "status": "pending", "note": str(e)})
-        if status == "paid":
-            o["status"] = "paid"
+    with _ORDERS_LOCK:
+        orders = load_orders()
+        o = next((x for x in orders if x["id"] == oid), None)
+        if not o:
+            return jsonify({"error": "Order tidak ditemukan."}), 404
+        if o["status"] == "pending":
             try:
-                o["account"] = provision(o, cfg)
-                o["status"] = "fulfilled"
-                hc = generate_hc(o, cfg)
-                if hc:
-                    o["hc_file"] = hc
+                status, _ = check_upstream(cfg, o["upstream"])
             except Exception as e:
-                o["provision_error"] = str(e)
-            save_orders(orders)
-        elif status in ("cancelled", "expired"):
-            o["status"] = status
-            save_orders(orders)
+                return jsonify({"order_id": oid, "status": "pending", "note": str(e)})
+            if status == "paid":
+                o["status"] = "paid"
+                try:
+                    o["account"] = provision(o, cfg)
+                    o["status"] = "fulfilled"
+                    hc = generate_hc(o, cfg)
+                    if hc:
+                        o["hc_file"] = hc
+                except Exception as e:
+                    o["provision_error"] = str(e)
+                save_orders(orders)
+            elif status in ("cancelled", "expired"):
+                o["status"] = status
+                save_orders(orders)
     out = {"order_id": oid, "status": o["status"], "kind": o["kind"],
            "service": o["service"], "service_label": SVC.get(o["service"]),
            "username": o["username"], "days": o["days"], "amount": o["amount"]}

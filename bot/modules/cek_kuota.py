@@ -60,6 +60,9 @@ async def cek_kuota_menu(event):
         except Exception:
             await event.reply("Akses Ditolak")
         return
+    if not SIDOMPUL_ENABLED:
+        await event.respond("⚠️ Fitur cek kuota belum dikonfigurasi (SIDOMPUL_AUTH & SIDOMPUL_API_KEY kosong).")
+        return
     chat = event.chat_id
     async with bot.conversation(chat) as conv:
         try:

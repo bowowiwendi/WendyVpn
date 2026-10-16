@@ -111,7 +111,8 @@ def banned_xray_users():
 
 
 def ban_ssh(user):
-    subprocess.run(["passwd", "-l", user], timeout=15)
+    r = subprocess.run(["passwd", "-l", user], capture_output=True, text=True, timeout=15)
+    return r.returncode == 0
 
 
 def ban_xray(svc, user):
@@ -138,14 +139,19 @@ def ban_xray(svc, user):
             if skip:
                 continue
         else:
-            if s == "},{":  # akhir blok inbound user
+            if s.strip().startswith("},{"):  # akhir blok inbound user (fleksibel whitespace)
                 skip = False
             continue
         out.append(line)
     if not removed:
         return False
-    with open(XRAY_CONFIG, "w") as fh:
+    tmp = XRAY_CONFIG + ".tmp"
+    with open(tmp, "w") as fh:
         fh.writelines(out)
+    import json as _json
+    _json.load(open(tmp))  # validasi sebelum replace; exception = config korup tidak jadi ditulis
+    import os as _os
+    _os.replace(tmp, XRAY_CONFIG)
     try:
         with open(LOCK_DB, "a") as fh:
             fh.write(f"{markers[0]}{user} {exp} banned-by-limitwatch\n")
