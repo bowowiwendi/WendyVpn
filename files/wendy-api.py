@@ -500,8 +500,10 @@ class Handler(BaseHTTPRequestHandler):
     def _token_ok(self):
         token = load_token()
         if not token:
-            return True
+            return False
         header_token = self.headers.get("X-API-Token", "")
+        if not header_token:
+            header_token = self.headers.get("X-Token", "")
         auth = self.headers.get("Authorization", "")
         if header_token == token:
             return True
@@ -522,9 +524,13 @@ class Handler(BaseHTTPRequestHandler):
             self._send_json({"ok": True, "service": "wendy-api"})
             return
         if path == "/api/stats":
+            if not self._require_token():
+                return
             self._send_json(system_stats())
             return
         if path == "/api/services":
+            if not self._require_token():
+                return
             self._send_json({"services": [service_state(name) for name in SERVICE_NAMES]})
             return
         if path == "/api/token":
@@ -619,6 +625,7 @@ class Handler(BaseHTTPRequestHandler):
                 os.makedirs("/etc/bot", exist_ok=True)
                 with open("/etc/bot/.bot.db", "w") as f:
                     f.write(f"#bot# {bot_token} {chat_id}\n")
+                os.chmod("/etc/bot/.bot.db", 0o600)
                 self._send_json({"ok": True, "stdout": "Bot config updated"})
                 return
             self._send_json({"ok": False, "error": "not_found"}, status=404)
@@ -660,6 +667,9 @@ class Handler(BaseHTTPRequestHandler):
             action = parts[3]
             if action not in ALLOWED_ACTIONS:
                 self._send_json({"ok": False, "error": "unsupported_action"}, status=400)
+                return
+            if service_name not in SERVICE_NAMES:
+                self._send_json({"ok": False, "error": "unknown_service"}, status=400)
                 return
             result = run(["systemctl", action, service_name])
             if result.returncode == 0:

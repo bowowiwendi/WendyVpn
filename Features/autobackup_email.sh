@@ -56,7 +56,7 @@ EOF
     sleep 1
     echo "Autobackup Has Been Started"
     echo "Data Will Be Backed Up Automatically at 00:05 GMT +7"
-    exit 0
+    return 0
 }
 
 # Stop autobackup
@@ -68,7 +68,7 @@ function stop() {
     if [[ -f /home/email ]]; then
         rm -f /home/email
     fi
-    exit 0
+    return 0
 }
 
 # Change recipient email

@@ -63,17 +63,17 @@ log() {
 
 if [[ $(uname -s) != Linux ]]; then
     log ERROR "This operating system is not supported."
-    exit 1
+    return 1
 fi
 
 if [[ $(id -u) != 0 ]]; then
     log ERROR "This script must be run as root."
-    exit 1
+    return 1
 fi
 
 if [[ -z $(command -v curl) ]]; then
     log ERROR "cURL is not installed."
-    exit 1
+    return 1
 fi
 
 WGCF_Profile='wgcf-profile.conf'
@@ -159,7 +159,7 @@ Install_WARP_Client_Debian() {
         bionic | focal | jammy) ;;
         *)
             log ERROR "This operating system is not supported."
-            exit 1
+            return 1
             ;;
         esac
     elif [[ ${SysInfo_OS_Name_lowercase} = debian ]]; then
@@ -167,7 +167,7 @@ Install_WARP_Client_Debian() {
         bookworm | buster | bullseye) ;;
         *)
             log ERROR "This operating system is not supported."
-            exit 1
+            return 1
             ;;
         esac
     fi
@@ -184,7 +184,7 @@ Install_WARP_Client_CentOS() {
         yum install cloudflare-warp -y
     else
         log ERROR "This operating system is not supported."
-        exit 1
+        return 1
     fi
 }
 
@@ -198,7 +198,7 @@ Install_WARP_Client() {
     log INFO "Installing Cloudflare WARP Client..."
     if [[ ${SysInfo_Arch} != x86_64 ]]; then
         log ERROR "This CPU architecture is not supported: ${SysInfo_Arch}"
-        exit 1
+        return 1
     fi
     case ${SysInfo_OS_Name_lowercase} in
     *debian* | *ubuntu*)
@@ -212,7 +212,7 @@ Install_WARP_Client() {
             Install_WARP_Client_CentOS
         else
             log ERROR "This operating system is not supported."
-            exit 1
+            return 1
         fi
         ;;
     esac
@@ -222,7 +222,7 @@ Install_WARP_Client() {
     else
         log ERROR "warp-svc failure to run!"
         journalctl -u warp-svc --no-pager
-        exit 1
+        return 1
     fi
 }
 
@@ -241,7 +241,7 @@ Uninstall_WARP_Client() {
             yum remove cloudflare-warp -y
         else
             log ERROR "This operating system is not supported."
-            exit 1
+            return 1
         fi
         ;;
     esac
@@ -256,7 +256,7 @@ Restart_WARP_Client() {
     else
         log ERROR "Cloudflare WARP Client failure to run!"
         journalctl -u warp-svc --no-pager
-        exit 1
+        return 1
     fi
 }
 
@@ -368,7 +368,7 @@ Install_WireGuardTools_Debian() {
     *)
         if [[ ${SysInfo_OS_Ver_major} -lt 10 ]]; then
             log ERROR "This operating system is not supported."
-            exit 1
+            return 1
         fi
         ;;
     esac
@@ -419,7 +419,7 @@ Install_WireGuardTools() {
             Install_WireGuardTools_CentOS
         else
             log ERROR "This operating system is not supported."
-            exit 1
+            return 1
         fi
         ;;
     esac
@@ -470,7 +470,7 @@ Start_WireGuard() {
     else
         log ERROR "WireGuard failure to run!"
         journalctl -u wg-quick@${WireGuard_Interface} --no-pager
-        exit 1
+        return 1
     fi
 }
 
@@ -490,7 +490,7 @@ Restart_WireGuard() {
     else
         log ERROR "WireGuard failure to run!"
         journalctl -u wg-quick@${WireGuard_Interface} --no-pager
-        exit 1
+        return 1
     fi
 }
 
@@ -843,7 +843,7 @@ Check_WARP_WireGuard_Status() {
     if [[ ${IPv4Status} = off && ${IPv6Status} = off ]]; then
         log ERROR "Cloudflare WARP network anomaly, WireGuard tunnel established failed."
         Disable_WireGuard
-        exit 1
+        return 1
     fi
 }
 
@@ -1236,7 +1236,7 @@ if [ $# -ge 1 ]; then
     *)
         log ERROR "Invalid Parameters: $*"
         Print_Usage
-        exit 1
+        return 1
         ;;
     esac
 else

@@ -51,7 +51,7 @@ fi
 
 if [ "$found_in_config" = false ] && [ "$found_in_lock" = false ]; then
     echo -e "${red}User $user tidak ditemukan di config atau database lock!${NC}"
-    exit 1
+    return 1
 fi
 
 echo $iplim > /etc/kyt/limit/vmess/ip/${user}

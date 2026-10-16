@@ -12,7 +12,7 @@ usage() {
   echo "  $0 list '*'"               # List semua records
   echo "  $0 add '*.example.com' 1.2.3.4"  # Tambahkan wildcard record
   echo "  $0 delete '*.example.com'" # Hapus wildcard record
-  exit 1
+  return 1
 }
 
 # Fungsi untuk list DNS records berdasarkan wildcard

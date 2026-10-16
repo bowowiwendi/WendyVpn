@@ -54,7 +54,7 @@ URL="https://api.telegram.org/bot$KEY/sendMessage"
     CLIENT_EXISTS=$(grep -w $ip /root/ipvps/ip | wc -l)
     if [[ ${CLIENT_EXISTS} == '1' ]]; then
     echo "IP Already Exist !"
-    exit 0
+    return 0
     fi
     echo -e ""
     read -p "  Input Username IP (Example : Wendy) : " name

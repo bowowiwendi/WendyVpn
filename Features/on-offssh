@@ -67,7 +67,7 @@ select opt in "${options[@]}"; do
             ;;
         4)
             echo "Keluar."
-            exit 0
+            return 0
             ;;
         *)
             echo -e "${RED}Pilihan tidak valid.${NC}"

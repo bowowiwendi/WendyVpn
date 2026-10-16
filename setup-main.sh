@@ -95,19 +95,25 @@ sleep 2
 clear
 
 # --- Pengambilan Data Pengguna ---
+MYIP="$ipsaya"
+IPDB=$(curl -fsSL --max-time 15 https://raw.githubusercontent.com/bowowiwendi/ipvps/main/ip || true)
 rm -f /usr/bin/user
-username=$(curl -s https://raw.githubusercontent.com/bowowiwendi/ipvps/main/ip | grep $MYIP | awk '{print $2}')
+username=$(echo "$IPDB" | grep -w "$MYIP" | awk '{print $2}')
 if [ -z "$username" ]; then
     print_error "Username tidak ditemukan untuk IP $MYIP."
 else
     echo "$username" >/usr/bin/user
     print_ok "Username ditemukan: $username"
 fi
-valid=$(curl -s https://raw.githubusercontent.com/bowowiwendi/ipvps/main/ip | grep $MYIP | awk '{print $3}')
+valid=$(echo "$IPDB" | grep -w "$MYIP" | awk '{print $3}')
 echo "$valid" >/usr/bin/e
-username=$(cat /usr/bin/user)
-oid=$(cat /usr/bin/ver)
-exp=$(cat /usr/bin/e)
+username=$(cat /usr/bin/user 2>/dev/null || echo "")
+exp=$(cat /usr/bin/e 2>/dev/null || echo "")
+if [ -f /usr/bin/ver ]; then
+    oid=$(cat /usr/bin/ver)
+else
+    oid=""
+fi
 clear
 
 # --- Perhitungan Tanggal ---
@@ -120,7 +126,7 @@ d1=$(date -d "$1" +%s)
 d2=$(date -d "$2" +%s)
 echo -e "$COLOR1 $NC Expiry In   : $(( (d1 - d2) / 86400 )) Days"
 }
-mai="datediff "$Exp" "$DATE""
+mai="datediff "$Exp1" "$DATE""
 Info="(${green}Active${NC})"
 Error="(${RED}ExpiRED${NC})"
 today=`date -d "0 days" +"%Y-%m-%d"`
@@ -341,7 +347,7 @@ function pasang_ssl() {
     print_ok "Menerbitkan sertifikat SSL..."
     /root/.acme.sh/acme.sh --issue -d $domain --standalone -k ec-256 || print_error "Gagal menerbitkan sertifikat SSL untuk $domain."
     ~/.acme.sh/acme.sh --installcert -d $domain --fullchainpath /etc/xray/xray.crt --keypath /etc/xray/xray.key --ecc || print_error "Gagal menginstal sertifikat SSL untuk $domain."
-    chmod 644 /etc/xray/xray.key
+    chmod 600 /etc/xray/xray.key
     print_ok "Permission key diatur ke 644."
     print_success "SSL Certificate"
     print_ok "pasang_ssl SELESAI"
@@ -446,6 +452,7 @@ After=haproxy.service
 Wants=haproxy.service
 SYSDFIX
     cat /etc/xray/xray.crt /etc/xray/xray.key | tee /etc/haproxy/hap.pem
+chmod 600 /etc/haproxy/hap.pem
     chmod +x /etc/systemd/system/runn.service
     rm -rf /etc/systemd/system/xray.service.d
     cat >/etc/systemd/system/xray.service <<EOF
@@ -958,8 +965,13 @@ function password_default() {
 
 function restart_system() {
     print_install "MENJALANKAN restart_system"
-CHATID="5162695441"
-TOKEN_BOT="7117869623:AAHBmgzOUsmHBjcm5TFir9JmaZ_X7ynMoF4"
+CHATID="${CHATID:-}"
+TOKEN_BOT="${TOKEN_BOT:-}"
+# Baca notif config dari /etc/bot/.bot.db bila ada (format: #bot# <token> <chatid>)
+if [ -z "$TOKEN_BOT" ] && [ -f /etc/bot/.bot.db ]; then
+    TOKEN_BOT=$(awk '{print $2}' /etc/bot/.bot.db | head -n1)
+    CHATID=$(awk '{print $3}' /etc/bot/.bot.db | head -n1)
+fi
 TIMES=30
     if [[ -z "$CHATID" || -z "$TOKEN_BOT" ]]; then
         print_error "Konfigurasi Telegram tidak lengkap (CHATID atau TOKEN_BOT kosong)."
@@ -980,8 +992,8 @@ TIMES=30
     fi
     local DATE_FORMAT=$(date '+%d-%m-%Y')
     local TIME_FORMAT=$(date '+%H:%M:%S')
-    local USRSC=$(wget -qO- https://raw.githubusercontent.com/bowowiwendi/ipvps/main/main/ip | grep "$ipsaya" | awk '{print $2}' | head -n 1)
-    local EXPSC=$(wget -qO- https://raw.githubusercontent.com/bowowiwendi/ipvps/main/main/ip | grep "$ipsaya" | awk '{print $3}' | head -n 1)
+    local USRSC=$(wget -qO- https://raw.githubusercontent.com/bowowiwendi/ipvps/main/ip | grep "$ipsaya" | awk '{print $2}' | head -n 1)
+    local EXPSC=$(wget -qO- https://raw.githubusercontent.com/bowowiwendi/ipvps/main/ip | grep "$ipsaya" | awk '{print $3}' | head -n 1)
     if [[ -z "$passwd" ]]; then
         local passwd_display="<i>(Tidak diubah/digunakan saat ini)</i>"
     else

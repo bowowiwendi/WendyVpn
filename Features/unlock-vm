@@ -123,7 +123,7 @@ if [[ ${NUMBER_OF_CLIENTS} == '0' ]]; then
     echo ""
     baris_panjang
     Sc_Credit
-    exit 0
+    return 0
 fi
 
 clear
@@ -150,7 +150,7 @@ if ! grep -q "^### $user " "/etc/xray/.lock.db"; then
     echo ""
     baris_panjang
     Sc_Credit
-    exit 0
+    return 0
 fi
 
 # Check if account is already unlocked in config
@@ -164,7 +164,7 @@ if grep -q "^### $user " "/etc/xray/config.json"; then
     echo ""
     baris_panjang
     Sc_Credit
-    exit 0
+    return 0
 fi
 
 Loading_Animasi

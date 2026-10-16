@@ -227,7 +227,11 @@ app = Flask(__name__, template_folder=os.path.join(BASE, "templates"), static_fo
 def load_config():
     with open(CONFIG_FILE) as fh:
         cfg = json.load(fh)
-    app.secret_key = cfg.get("secret_key") or "ganti-ini"
+    if not cfg.get("secret_key"):
+        import secrets as _secrets
+        cfg["secret_key"] = _secrets.token_hex(32)
+        save_config(cfg)
+    app.secret_key = cfg["secret_key"]
     return cfg
 
 
@@ -511,7 +515,7 @@ LOGIN_HITS = {}
 @app.post("/api/admin/login")
 def admin_login():
     cfg = load_config()
-    ip = request.headers.get("x-forwarded-for", request.remote_addr)
+    ip = request.remote_addr or "unknown"
     arr = [t for t in LOGIN_HITS.get(ip, []) if time.time() - t < 300]
     if len(arr) >= 10:
         return jsonify({"error": "Terlalu banyak percobaan, tunggu 5 menit."}), 429

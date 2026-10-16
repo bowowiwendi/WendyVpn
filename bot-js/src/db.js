@@ -4,6 +4,9 @@
 const sqlite3 = require('sqlite3').verbose();
 const config = require('./config');
 
+const fs = require('fs');
+const path = require('path');
+fs.mkdirSync(path.dirname(config.dbPath), { recursive: true });
 const db = new sqlite3.Database(config.dbPath);
 
 const run = (sql, params = []) =>

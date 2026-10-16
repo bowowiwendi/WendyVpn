@@ -21,11 +21,10 @@ async function post(endpoint, body) {
 
 // Daftar harga produk (filter opsional: category / brand / type)
 async function priceList(cmd, { category, brand, type } = {}) {
-  const refId = `pricelist-${Date.now()}`;
   const body = {
     cmd,
     username: USERNAME,
-    sign: sign(refId),
+    sign: sign('pricelist'),
   };
   if (category) body.category = category;
   if (brand) body.brand = brand;

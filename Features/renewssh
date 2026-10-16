@@ -21,7 +21,7 @@ read -p "Day Extend : " Days
 db_line=$(grep "^### $User " /etc/ssh/.ssh.db)
 if [ -z "$db_line" ]; then
     echo -e "${RED}User $User not found in database!${NC}"
-    exit 1
+    return 1
 fi
 
 # Extract password and old expiry from db

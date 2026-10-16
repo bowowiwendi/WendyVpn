@@ -34,7 +34,7 @@ cp /etc/haproxy/haproxy.cfg "$BK/haproxy.cfg.bak" 2>/dev/null
 cp /etc/nginx/conf.d/xray.conf "$BK/xray.conf.bak" 2>/dev/null
 cp /etc/nginx/nginx.conf "$BK/nginx.conf.bak" 2>/dev/null
 cp /usr/local/bin/wendy-api.py "$BK/wendy-api.py.bak" 2>/dev/null
-cp /usr/bin/tun.conf "$BK/tun.conf.bak" 2>/dev/null
+cp /usr/local/sbin/tun.conf "$BK/tun.conf.bak" 2>/dev/null
 echo -e "\033[1;32m ✓ Backup saved to $BK\033[0m"
 
 echo -e "\033[0;33m[4/6] Updating core config (nginx + haproxy + ws)...\033[0m"
@@ -91,8 +91,8 @@ else
 fi
 
 # ws tunnel + service
-wget -q -O /usr/bin/ws "${REPO}files/ws" 2>/dev/null && chmod +x /usr/bin/ws
-wget -q -O /usr/bin/tun.conf "${REPO}cfg_conf_js/tun.conf" 2>/dev/null || cp "$BK/tun.conf.bak" /usr/bin/tun.conf 2>/dev/null
+wget -q -O /usr/local/sbin/ws "${REPO}files/ws" 2>/dev/null && chmod +x /usr/local/sbin/ws
+wget -q -O /usr/local/sbin/tun.conf "${REPO}cfg_conf_js/tun.conf" 2>/dev/null || cp "$BK/tun.conf.bak" /usr/local/sbin/tun.conf 2>/dev/null
 wget -q -O /etc/systemd/system/ws.service "${REPO}files/ws.service" 2>/dev/null && chmod +x /etc/systemd/system/ws.service
 wget -q -O /etc/systemd/system/runn.service "${REPO}files/runn.service" 2>/dev/null && chmod +x /etc/systemd/system/runn.service
 systemctl daemon-reload 2>/dev/null
@@ -122,7 +122,7 @@ fi
 systemctl restart ws 2>/dev/null || true
 
 echo -e "\033[0;33m[5.5/6] Running auto-fix (dropbear + wendy-api)...\033[0m"
-wget -qO /usr/bin/fix_all.sh "${REPO}files/fix_all.sh" && chmod +x /usr/bin/fix_all.sh && /usr/bin/fix_all.sh || echo -e "\033[1;31m Auto-fix gagal, tetap lanjut\033[0m"
+wget -qO /usr/local/sbin/fix_all.sh "${REPO}files/fix_all.sh" && chmod +x /usr/local/sbin/fix_all.sh && /usr/local/sbin/fix_all.sh || echo -e "\033[1;31m Auto-fix gagal, tetap lanjut\033[0m"
 
 echo -e "\033[0;33m[6/6] Cleaning up...\033[0m"
 rm -rf menu menu.zip

@@ -29,7 +29,7 @@ ZONE=$(echo "$response" | jq -r '.result[0].id')
 
 if [[ -z "$ZONE" || "$ZONE" == "null" ]]; then
     echo "Gagal mengambil Zone ID. Pastikan domain $DOMAIN terdaftar di Cloudflare."
-    exit 1
+    return 1
 else
     echo "Zone ID ditemukan: $ZONE"
 fi
@@ -83,7 +83,7 @@ CF_ACCOUNT_ID=$(echo "$response" | jq -r '.result[0].id')
 
 if [[ -z "$CF_ACCOUNT_ID" || "$CF_ACCOUNT_ID" == "null" ]]; then
     echo "Gagal mengambil Account ID. Pastikan email dan API Token benar."
-    exit 1
+    return 1
 else
     echo "Account ID ditemukan: $CF_ACCOUNT_ID"
 fi
@@ -133,7 +133,7 @@ if [[ $(echo "$response" | jq -r '.success') == "true" ]]; then
 else
     echo "Failed to deploy worker. Error:"
     echo "$response" | jq
-    exit 1
+    return 1
 fi
 
 # Daftar custom domain yang ingin diikat

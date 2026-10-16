@@ -134,7 +134,7 @@ function change_vmess_quota() {
         user_data=$(grep -w "^### $user" "/etc/vless/.vless.db")
         if [[ -z "$user_data" ]]; then
             echo -e "${Red}Error: User tidak ditemukan di database${Xark}"
-            exit 1  # Gunakan exit untuk menghentikan skrip
+            return 1  # Gunakan exit untuk menghentikan skrip
         fi
 
         # Parse data user
