@@ -47,11 +47,12 @@ function start() {
         read -rp "Email: " -e email
         echo "$email" > /home/email
     fi
-    cat > /etc/crontab << EOF
+    cat > /etc/cron.d/wendy-backup << EOF
 # BEGIN_Backup
 5 0 * * * root backup
 # END_Backup
 EOF
+    chmod 644 /etc/cron.d/wendy-backup
     systemctl restart cron
     sleep 1
     echo "Autobackup Has Been Started"
@@ -61,7 +62,7 @@ EOF
 
 # Stop autobackup
 function stop() {
-    sed -i "/^# BEGIN_Backup/,/^# END_Backup/d" /etc/crontab
+    rm -f /etc/cron.d/wendy-backup
     systemctl restart cron
     sleep 1
     echo "Autobackup Has Been Stopped"

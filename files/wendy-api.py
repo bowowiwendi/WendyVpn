@@ -587,6 +587,10 @@ class Handler(BaseHTTPRequestHandler):
                 payload, status = handle_notif_state("notif_backup")
             elif parts[2] == "notif-limit":
                 payload, status = handle_notif_state("notif_limit")
+            elif parts[2] == "cek-login-ssh":
+                _r = subprocess.run(["/usr/local/sbin/bot-cek-login-ssh"], capture_output=True, text=True, timeout=180)
+                payload = {"ok": _r.returncode == 0, "stdout": _r.stdout, "stderr": _r.stderr, "returncode": _r.returncode}
+                status = 200 if _r.returncode == 0 else 500
             elif parts[2] == "reboot":
                 payload, status = handle_reboot()
             elif parts[2] == "speedtest":

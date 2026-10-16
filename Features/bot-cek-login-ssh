@@ -13,7 +13,6 @@ else
     NC=""
 fi
 
-# Function to check if curl is installed
 check_curl() {
     if ! command -v curl &> /dev/null; then
         echo "Warning: 'curl' not found. Install it with 'apt install curl' for ISP lookup."
@@ -22,83 +21,75 @@ check_curl() {
     return 0
 }
 
-# Function to get ISP (fallback to N/A if curl fails)
 get_isp() {
     if check_curl; then
-        curl -s ipinfo.io/org 2>/dev/null | cut -d " " -f 2-10 || echo "N/A"
+        curl -s --max-time 5 ipinfo.io/org 2>/dev/null | cut -d " " -f 2-10 || echo "N/A"
     else
         echo "N/A"
     fi
 }
 
-# Sample data (replace with actual log parsing logic)
-# This is a mock-up based on your screenshot; adjust the source (e.g., /var/log/auth.log)
-openvpn_log=(
-    "1234 wendil 157.230.253.167 $(get_isp) 2023-05-08 02:58:18"
-)
-dropbear_log=(
-    "5678 invalid yywang $(get_isp) 2023-05-08 02:58:35"
-)
-openssh_log=(
-    "9012 invalid ywx $(get_isp) 2023-05-08 02:58:53"
-)
+AUTH_LOG="/var/log/auth.log"
+[ -f "$AUTH_LOG" ] || AUTH_LOG="/var/log/secure"
 
-# Display Header
-clear
+# Parse login berhasil SSH (Accepted) — 10 terakhir
+openssh_log=()
+if [ -f "$AUTH_LOG" ]; then
+    while read -r line; do
+        user=$(echo "$line" | grep -oP 'for (invalid user )?\K\S+' | head -1)
+        ip=$(echo "$line" | grep -oP 'from \K[0-9a-fA-F.:]+')
+        ts=$(echo "$line" | cut -d' ' -f1-2)
+        [ -n "$user" ] && openssh_log+=("ssh $user $ip $(get_isp) $ts")
+    done < <(grep "Accepted" "$AUTH_LOG" 2>/dev/null | tail -10)
+fi
+
+# Parse login gagal (Failed password / Invalid user) — 10 terakhir
+failed_log=()
+if [ -f "$AUTH_LOG" ]; then
+    while read -r line; do
+        user=$(echo "$line" | grep -oP 'invalid user \K\S+|Failed password for \K\S+' | head -1)
+        ip=$(echo "$line" | grep -oP 'from \K[0-9a-fA-F.:]+')
+        ts=$(echo "$line" | cut -d' ' -f1-2)
+        [ -n "$user" ] && failed_log+=("fail $user $ip $(get_isp) $ts")
+    done < <(grep -E "Failed password|Invalid user" "$AUTH_LOG" 2>/dev/null | tail -10)
+fi
+
+# Sesi aktif saat ini (who)
+active_log=()
+while read -r user tty ip when _; do
+    active_log+=("who $user ${ip:-local} - $(get_isp) $when")
+done < <(who | awk '{print $1, $2, $(NF-2), $3, $4, $5, $6}' 2>/dev/null)
+
 echo -e "${GREEN}┌──────────────────────────────────────────┐${NC}"
-figlet -f small "Login Time" || echo "Login Time"
+figlet -f small "Login Time" 2>/dev/null || echo "Login Time"
 echo -e "${GREEN}└──────────────────────────────────────────┘${NC}"
 
-# OpenVPN User Login
-echo -e "${GREEN}┌── OPENVPN UDP USER LOGIN ───────────────┐${NC}"
-printf "${YELLOW}%-10s %-20s %-20s %-20s %-20s${NC}\n" "PID" "Username" "IP Address" "ISP" "Login Time"
-for log in "${openvpn_log[@]}"; do
-    IFS=' ' read -r pid user ip isp time <<< "$log"
-    printf "${GREEN}%-10s %-20s %-20s %-20s %-20s${NC}\n" "$pid" "$user" "$ip" "$isp" "$time"
+echo -e "${GREEN}┌── SESI AKTIF ───────────────────────────┐${NC}"
+printf "${YELLOW}%-8s %-16s %-18s %-10s${NC}\n" "TYPE" "User" "IP" "Time"
+for log in "${active_log[@]}"; do
+    IFS=' ' read -r t user ip isp time <<< "$log"
+    printf "${GREEN}%-8s %-16s %-18s %-10s${NC}\n" "$t" "$user" "$ip" "$time"
 done
 echo -e "${GREEN}└──────────────────────────────────────────┘${NC}"
 
-# Dropbear User Login
-echo -e "${GREEN}┌── DROPBEAR USER LOGIN ──────────────────┐${NC}"
-printf "${YELLOW}%-10s %-20s %-20s %-20s %-20s${NC}\n" "PID" "Username" "IP Address" "ISP" "Login Time"
-for log in "${dropbear_log[@]}"; do
-    IFS=' ' read -r pid user ip isp time <<< "$log"
-    printf "${GREEN}%-10s %-20s %-20s %-20s %-20s${NC}\n" "$pid" "$user" "$ip" "$isp" "$time"
-done
-echo -e "${GREEN}└──────────────────────────────────────────┘${NC}"
-
-# Failed Dropbear Login Attempts
-echo -e "${GREEN}┌── FAILED DROPBEAR LOGIN ATTEMPTS ───────┐${NC}"
-printf "${RED}%-10s %-20s %-20s %-20s %-20s${NC}\n" "PID" "Username" "IP Address" "ISP" "Login Time"
-for log in "${dropbear_log[@]}"; do
-    IFS=' ' read -r pid user ip isp time <<< "$log"
-    printf "${RED}%-10s %-20s %-20s %-20s %-20s${NC}\n" "$pid" "$user" "$ip" "$isp" "$time"
-done
-echo -e "${GREEN}└──────────────────────────────────────────┘${NC}"
-
-# OpenSSH User Login
-echo -e "${GREEN}┌── OPENSSH USER LOGIN ───────────────────┐${NC}"
-printf "${YELLOW}%-10s %-20s %-20s %-20s %-20s${NC}\n" "PID" "Username" "IP Address" "ISP" "Login Time"
+echo -e "${GREEN}┌── OPENSSH LOGIN BERHASIL (10 TERAKHIR) ─┐${NC}"
+printf "${YELLOW}%-8s %-16s %-18s %-10s %-16s${NC}\n" "TYPE" "User" "IP" "ISP" "Time"
 for log in "${openssh_log[@]}"; do
-    IFS=' ' read -r pid user ip isp time <<< "$log"
-    printf "${GREEN}%-10s %-20s %-20s %-20s %-20s${NC}\n" "$pid" "$user" "$ip" "$isp" "$time"
+    IFS=' ' read -r t user ip isp time <<< "$log"
+    printf "${GREEN}%-8s %-16s %-18s %-10s %-16s${NC}\n" "$t" "$user" "$ip" "$isp" "$time"
 done
 echo -e "${GREEN}└──────────────────────────────────────────┘${NC}"
 
-# Failed OpenSSH Login Attempts
-echo -e "${GREEN}┌── FAILED OPENSSH LOGIN ATTEMPTS ────────┐${NC}"
-printf "${RED}%-10s %-20s %-20s %-20s %-20s${NC}\n" "PID" "Username" "IP Address" "ISP" "Login Time"
-for log in "${openssh_log[@]}"; do
-    IFS=' ' read -r pid user ip isp time <<< "$log"
-    printf "${RED}%-10s %-20s %-20s %-20s %-20s${NC}\n" "$pid" "$user" "$ip" "$isp" "$time"
+echo -e "${RED}┌── LOGIN GAGAL (10 TERAKHIR) ────────────┐${NC}"
+printf "${YELLOW}%-8s %-16s %-18s %-10s %-16s${NC}\n" "TYPE" "User" "IP" "ISP" "Time"
+for log in "${failed_log[@]}"; do
+    IFS=' ' read -r t user ip isp time <<< "$log"
+    printf "${RED}%-8s %-16s %-18s %-10s %-16s${NC}\n" "$t" "$user" "$ip" "$isp" "$time"
 done
-echo -e "${GREEN}└──────────────────────────────────────────┘${NC}"
+echo -e "${RED}└──────────────────────────────────────────┘${NC}"
 
-# OpenVPN UDP User Login (Additional Section if needed)
-echo -e "${GREEN}┌── OPENVPN UDP USER LOGIN ───────────────┐${NC}"
-printf "${YELLOW}%-10s %-20s %-20s %-20s %-20s${NC}\n" "PID" "Username" "IP Address" "ISP" "Login Time"
-# Add actual data here if available
-echo -e "${GREEN}└──────────────────────────────────────────┘${NC}"
-
-echo -e ""  # Tambahkan baris kosong untuk pemisah
-read -p "${YELLOW}Press Enter to exit...${NC}"
+# Output non-interaktif (dipanggil API): tetap keluar tanpa read
+if [ -t 0 ]; then
+    read -p "${YELLOW}Press Enter to exit...${NC}" _
+fi
+exit 0
