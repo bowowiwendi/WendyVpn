@@ -78,6 +78,14 @@ async function init() {
     enabled INTEGER DEFAULT 0
   )`);
   await run(`INSERT OR IGNORE INTO bonus_config (id, min_topup, bonus_percent, enabled) VALUES (1, 0, 0, 0)`);
+
+  // Harga VPN per role (diatur admin via panel; product_key = ssh/vmess/vless/trojan/shadowsocks/zivpn)
+  await run(`CREATE TABLE IF NOT EXISTS vpn_prices (
+    product_key TEXT NOT NULL,
+    role TEXT NOT NULL,
+    price INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (product_key, role)
+  )`);
 }
 
 // ---------- File-based cache (produk Digiflazz) ----------

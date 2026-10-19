@@ -37,13 +37,21 @@ async function addSaldo(telegramId, amount) {
   return { saldo: await getSaldo(telegramId), bonus };
 }
 
-// ---------- Role (member / reseller) ----------
+// ---------- Role (admin / reseller / member) ----------
+// Role valid: 'admin' (akses panel admin), 'reseller' (harga reseller),
+// 'member' (default, harga normal). Admin utama (owner) tetap config.adminId.
+const VALID_ROLES = ['admin', 'reseller', 'member'];
+
 async function getRole(telegramId) {
   const row = await get('SELECT role FROM users WHERE telegram_id = ?', [telegramId]);
-  return row?.role || 'member';
+  const r = row?.role || 'member';
+  return VALID_ROLES.includes(r) ? r : 'member';
 }
 
 async function setRole(telegramId, role) {
+  if (!VALID_ROLES.includes(role)) {
+    throw new Error(`Role tidak valid: ${role}. Pilih: ${VALID_ROLES.join(', ')}`);
+  }
   await run(
     `INSERT INTO users (telegram_id, role) VALUES (?, ?)
      ON CONFLICT(telegram_id) DO UPDATE SET role = ?`,
@@ -326,4 +334,4 @@ async function getHistory(telegramId, limit = 10) {
   };
 }
 
-module.exports = { getSaldo, addSaldo, deductSaldo, createDeposit, buyProduct, checkOrder, productList, productKeyboard, refId, getHistory, getRole, setRole, getBonusConfig, setBonusConfig, applyTopupBonus };
+module.exports = { getSaldo, addSaldo, deductSaldo, createDeposit, buyProduct, checkOrder, productList, productKeyboard, refId, getHistory, getRole, setRole, VALID_ROLES, getBonusConfig, setBonusConfig, applyTopupBonus };

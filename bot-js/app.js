@@ -107,6 +107,7 @@ const backBtn = () => Markup.inlineKeyboard([[sBtn('🔙 Kembali', 'menu_main', 
 const adminPanel = () => Markup.inlineKeyboard([
   [sBtn('➕ Tambah Server', 'adm_addserver', 'success'), sBtn('❌ Hapus Server', 'adm_delserver', 'danger')],
   [sBtn('💲 Edit Harga', 'adm_editharga', 'primary'), sBtn('📝 Edit Nama', 'adm_editnama', 'primary')],
+  [sBtn('💲 Harga VPN/Role', 'adm_vpnprices', 'primary'), sBtn('👥 Kelola Role', 'adm_roles', 'primary')],
   [sBtn('🌐 Edit Domain', 'adm_editdomain', 'primary'), sBtn('📋 List Server', 'adm_listserver', 'success')],
   [sBtn('💵 Tambah Saldo', 'adm_addsaldo', 'success'), sBtn('➖ Kurangi Saldo', 'adm_minsaldo', 'danger')],
   [sBtn('📊 Hasil Penjualan', 'adm_sales', 'primary'), sBtn('📑 Log Topup', 'adm_topuplog', 'primary')],
@@ -136,7 +137,7 @@ const vpnMenu = (cf = false) => {
 async function checkGroupMember(ctx) {
   try {
     // Admin bypass - tidak perlu join
-    if (await admin.isAdmin(ctx)) return true;
+    if (await admin.hasAdminAccess(ctx)) return true;
     const m = await ctx.telegram.getChatMember(GROUP_WAJIB, ctx.from.id);
     return ['member', 'administrator', 'creator'].includes(m.status);
   } catch (e) {
@@ -187,7 +188,7 @@ bot.start(async (ctx) => {
     );
   }
   await sendMenuPhoto(ctx, 'menu-utama.png',
-    WELCOME_CAPTION(ctx.from.first_name || 'kawan'), mainMenu(admin.isAdmin(ctx)));
+    WELCOME_CAPTION(ctx.from.first_name || 'kawan'), mainMenu(await admin.hasAdminAccess(ctx)));
 });
 
 bot.action('menu_main', async (ctx) => {
@@ -195,7 +196,7 @@ bot.action('menu_main', async (ctx) => {
   await sendMenuPhoto(ctx, 'menu-utama.png',
     `🏠 <b>MENU UTAMA</b>
 ━━━━━━━━━━━━━━━━━━
-Pilih layanan di bawah ini:`, mainMenu(admin.isAdmin(ctx)));
+Pilih layanan di bawah ini:`, mainMenu(await admin.hasAdminAccess(ctx)));
 });
 
 // ---------- Menu VPN ----------
@@ -285,8 +286,10 @@ bot.on('text', async (ctx) => {
     }
     sess.data = { username };
     sess.step = 'vpn_days';
+    const _r1 = await ppob.getRole(ctx.from.id).catch(() => 'member');
+    const _p1 = await vpn.getVpnPrice(sess.proto, _r1);
     return ctx.reply(
-      'Masukkan <b>durasi (hari)</b>\nHarga: <b>Rp500/hari</b>\nSaldo kamu: <b>Rp' + (await ppob.getSaldo(ctx.from.id)).toLocaleString('id-ID') + '</b>',
+      'Masukkan <b>durasi (hari)</b>\nHarga: <b>Rp' + _p1.toLocaleString('id-ID') + '/hari</b>\nSaldo kamu: <b>Rp' + (await ppob.getSaldo(ctx.from.id)).toLocaleString('id-ID') + '</b>',
       { parse_mode: 'HTML' }
     );
   }
@@ -296,8 +299,10 @@ bot.on('text', async (ctx) => {
     if (password.length < 4) return ctx.reply('❌ Password minimal 4 karakter. Coba lagi:');
     sess.data.password = password;
     sess.step = 'vpn_days';
+    const _r2 = await ppob.getRole(ctx.from.id).catch(() => 'member');
+    const _p2 = await vpn.getVpnPrice(sess.proto, _r2);
     return ctx.reply(
-      'Masukkan <b>durasi (hari)</b>\nHarga: <b>Rp500/hari</b>\nSaldo kamu: <b>Rp' + (await ppob.getSaldo(ctx.from.id)).toLocaleString('id-ID') + '</b>',
+      'Masukkan <b>durasi (hari)</b>\nHarga: <b>Rp' + _p2.toLocaleString('id-ID') + '/hari</b>\nSaldo kamu: <b>Rp' + (await ppob.getSaldo(ctx.from.id)).toLocaleString('id-ID') + '</b>',
       { parse_mode: 'HTML' }
     );
   }
@@ -307,7 +312,7 @@ bot.on('text', async (ctx) => {
     if (!doc || !doc.file_name.endsWith('.db')) {
       return ctx.reply('❌ Kirim file .db yang valid. Batalkan dengan /start');
     }
-    if (!(await admin.isAdmin(ctx))) {
+    if (!(await admin.hasAdminAccess(ctx))) {
       sessions.delete(ctx.chat.id);
       return ctx.reply('❌ Khusus admin.');
     }
@@ -434,7 +439,7 @@ bot.on('text', async (ctx) => {
   if (sess?.step === 'adm_addserver_nama') {
     const nama = ctx.message.text.trim();
     if (!nama || nama.length < 2) return ctx.reply('❌ Nama terlalu pendek. Coba lagi:');
-    if (!admin.isAdmin(ctx)) { sessions.delete(chatId); return ctx.reply('❌ Khusus admin.'); }
+    if (!await admin.hasAdminAccess(ctx)) { sessions.delete(chatId); return ctx.reply('❌ Khusus admin.'); }
     sess.data.nama = nama;
     sess.step = 'adm_addserver_domain';
     return ctx.reply(`➕ <b>Tambah Server</b>\n\nNama: <b>${esc(nama)}</b>\n\nKetik <b>domain server</b> (contoh: sg1.wendivpn.my.id):`, { parse_mode: 'HTML' });
@@ -444,7 +449,7 @@ bot.on('text', async (ctx) => {
   if (sess?.step === 'adm_addserver_domain') {
     const domain = ctx.message.text.trim();
     if (!domain || domain.length < 4) return ctx.reply('❌ Domain tidak valid. Coba lagi:');
-    if (!admin.isAdmin(ctx)) { sessions.delete(chatId); return ctx.reply('❌ Khusus admin.'); }
+    if (!await admin.hasAdminAccess(ctx)) { sessions.delete(chatId); return ctx.reply('❌ Khusus admin.'); }
     sess.data.domain = domain;
     sess.step = 'adm_addserver_harga';
     return ctx.reply(`➕ <b>Tambah Server</b>\n\nNama: <b>${esc(sess.data.nama)}</b>\nDomain: <code>${esc(domain)}</code>\n\nKetik <b>harga per hari</b> (angka saja, contoh: 500):`, { parse_mode: 'HTML' });
@@ -453,7 +458,7 @@ bot.on('text', async (ctx) => {
   // Tambah server: harga -> simpan
   if (sess?.step === 'adm_addserver_harga') {
     const harga = parseInt(ctx.message.text.replace(/\D/g, ''), 10);
-    if (!admin.isAdmin(ctx)) { sessions.delete(chatId); return ctx.reply('❌ Khusus admin.'); }
+    if (!await admin.hasAdminAccess(ctx)) { sessions.delete(chatId); return ctx.reply('❌ Khusus admin.'); }
     if (!harga || harga < 0) return ctx.reply('❌ Harga tidak valid. Ketik angka saja (contoh: 500):');
     const { run } = require('./src/db');
     const r = await run('INSERT INTO servers (nama, domain, harga) VALUES (?,?,?)',
@@ -468,7 +473,7 @@ bot.on('text', async (ctx) => {
   // Edit harga: ketik harga baru dari keyboard
   if (sess?.step === 'adm_editharga_input') {
     const harga = parseInt(ctx.message.text.replace(/\D/g, ''), 10);
-    if (!admin.isAdmin(ctx)) { sessions.delete(chatId); return ctx.reply('❌ Khusus admin.'); }
+    if (!await admin.hasAdminAccess(ctx)) { sessions.delete(chatId); return ctx.reply('❌ Khusus admin.'); }
     if (!harga || harga < 0) return ctx.reply('❌ Harga tidak valid. Ketik angka saja (contoh: 500):');
     const { run, get } = require('./src/db');
     await run('UPDATE servers SET harga = ? WHERE id = ?', [harga, sess.data.serverId]);
@@ -483,7 +488,7 @@ bot.on('text', async (ctx) => {
   // Edit nama: ketik nama baru
   if (sess?.step === 'adm_editnama_input') {
     const nama = ctx.message.text.trim();
-    if (!admin.isAdmin(ctx)) { sessions.delete(chatId); return ctx.reply('❌ Khusus admin.'); }
+    if (!await admin.hasAdminAccess(ctx)) { sessions.delete(chatId); return ctx.reply('❌ Khusus admin.'); }
     if (!nama || nama.length < 2) return ctx.reply('❌ Nama terlalu pendek. Coba lagi:');
     const { run } = require('./src/db');
     await run('UPDATE servers SET nama = ? WHERE id = ?', [nama, sess.data.serverId]);
@@ -496,7 +501,7 @@ bot.on('text', async (ctx) => {
   // Edit domain: ketik domain baru
   if (sess?.step === 'adm_editdomain_input') {
     const domain = ctx.message.text.trim();
-    if (!admin.isAdmin(ctx)) { sessions.delete(chatId); return ctx.reply('❌ Khusus admin.'); }
+    if (!await admin.hasAdminAccess(ctx)) { sessions.delete(chatId); return ctx.reply('❌ Khusus admin.'); }
     if (!domain || domain.length < 4) return ctx.reply('❌ Domain tidak valid. Coba lagi:');
     const { run } = require('./src/db');
     await run('UPDATE servers SET domain = ? WHERE id = ?', [domain, sess.data.serverId]);
@@ -506,9 +511,48 @@ bot.on('text', async (ctx) => {
     });
   }
 
+  // Ubah harga VPN per role: ketik angka (Rp/hari)
+  if (sess?.step === 'adm_price_input') {
+    if (!await admin.hasAdminAccess(ctx)) { sessions.delete(chatId); return ctx.reply('❌ Khusus admin.'); }
+    const harga = parseInt(ctx.message.text.replace(/\D/g, ''), 10);
+    if (!Number.isFinite(harga) || harga < 0) return ctx.reply('❌ Harga tidak valid. Ketik angka saja (contoh: 500):');
+    const { key, role } = sess.data;
+    sessions.delete(chatId);
+    try {
+      await vpn.setVpnPrice(key, role, harga);
+      return ctx.reply(
+        `✅ <b>Harga diperbarui!</b>\n\n📦 Produk: <b>${esc(key)}</b>\n👤 Role: <b>${role}</b>\n💲 Harga baru: <b>Rp${harga.toLocaleString('id-ID')}/hari</b>`,
+        { parse_mode: 'HTML' }
+      );
+    } catch (e) {
+      return ctx.reply(`❌ ${esc(e.message)}`);
+    }
+  }
+
+  // Ubah role user: ketik ID Telegram
+  if (sess?.step === 'adm_role_id') {
+    if (!await admin.hasAdminAccess(ctx)) { sessions.delete(chatId); return ctx.reply('❌ Khusus admin.'); }
+    const uid = parseInt(ctx.message.text.replace(/\D/g, ''), 10);
+    if (!uid) return ctx.reply('❌ ID tidak valid. Ketik angka saja:');
+    sessions.delete(chatId);
+    const cur = await ppob.getRole(uid).catch(() => 'member');
+    return ctx.reply(
+      `✏️ <b>Ubah Role User</b>\n\n🆔 ID: <code>${uid}</code>\n📌 Role saat ini: <b>${cur}</b>\n\nPilih role baru:`,
+      {
+        parse_mode: 'HTML',
+        reply_markup: {
+          inline_keyboard: [
+            [sBtn('🛡️ Admin', `adm_roleset_${uid}_admin`, 'danger'), sBtn('🤝 Reseller', `adm_roleset_${uid}_reseller`, 'success')],
+            [sBtn('👤 Member', `adm_roleset_${uid}_member`, 'primary')],
+          ],
+        },
+      }
+    );
+  }
+
   // Tambah saldo: format "userId jumlah"
   if (sess?.step === 'adm_addsaldo_input') {
-    if (!admin.isAdmin(ctx)) { sessions.delete(chatId); return ctx.reply('❌ Khusus admin.'); }
+    if (!await admin.hasAdminAccess(ctx)) { sessions.delete(chatId); return ctx.reply('❌ Khusus admin.'); }
     const parts = ctx.message.text.trim().split(/\s+/);
     const uid = Number(parts[0]);
     const amt = Number((parts[1] || '').replace(/\D/g, ''));
@@ -523,7 +567,7 @@ bot.on('text', async (ctx) => {
 
   // Kurangi saldo: format "userId jumlah"
   if (sess?.step === 'adm_minsaldo_input') {
-    if (!admin.isAdmin(ctx)) { sessions.delete(chatId); return ctx.reply('❌ Khusus admin.'); }
+    if (!await admin.hasAdminAccess(ctx)) { sessions.delete(chatId); return ctx.reply('❌ Khusus admin.'); }
     const parts = ctx.message.text.trim().split(/\s+/);
     const uid = Number(parts[0]);
     const amt = Number((parts[1] || '').replace(/\D/g, ''));
@@ -556,10 +600,10 @@ bot.on('text', async (ctx) => {
 async function finishCreateVpn(ctx, sess, username, password = '', days = 30) {
   sessions.delete(ctx.chat.id);
   const { proto, viaCF } = sess;
-  // Diskon reseller 10%
+  // Harga VPN per role (diatur admin di tabel vpn_prices; role admin = 0/modal)
   const role = await ppob.getRole(ctx.from.id).catch(() => 'member');
-  const isReseller = role === 'reseller';
-  const totalHarga = Math.round(500 * days * (isReseller ? 0.9 : 1));
+  const perDay = await vpn.getVpnPrice(proto, role);
+  const totalHarga = perDay * days;
   // Cek saldo
   const saldo = await ppob.getSaldo(ctx.from.id);
   if (saldo < totalHarga) {
@@ -750,7 +794,7 @@ bot.action(/^sewa_cek_(.+)$/, async (ctx) => {
 
 // ---------- Admin: daftar sewa ----------
 bot.command('sewalist', async (ctx) => {
-  if (!admin.isAdmin(ctx)) return;
+  if (!await admin.hasAdminAccess(ctx)) return;
   const { all } = require('./src/db');
   const rows = await all(`SELECT * FROM sewa_orders ORDER BY id DESC LIMIT 15`).catch(() => []);
   const orderRows = Array.isArray(rows) ? rows : [];
@@ -826,12 +870,12 @@ bot.action(/^renew_(\d+)$/, async (ctx) => {
   if (!acc) return ctx.reply('❌ Akun tidak ditemukan.');
   sessions.set(ctx.chat.id, { step: 'renew_days', accountId: acc.id });
   const role = await ppob.getRole(ctx.from.id).catch(() => 'member');
-  const disc = role === 'reseller' ? ' (diskon 10% reseller)' : '';
+  const _rpDay = await vpn.getVpnPrice(acc.proto, role);
   await ctx.reply(
     `♻️ <b>Renew Akun</b>\n\n` +
     `F464 Username: <code>${esc(acc.username)}</code>\n` +
     `📅 Exp saat ini: <code>${esc(acc.expiry)}</code>\n\n` +
-    `Harga: <b>Rp500/hari</b>${disc}\n` +
+    `Harga: <b>Rp${_rpDay.toLocaleString('id-ID')}/hari</b> (${role})\n` +
     `Kirim <b>durasi perpanjangan (hari)</b>:`,
     { parse_mode: 'HTML' }
   );
@@ -843,7 +887,7 @@ async function finishRenew(ctx, accountId, days) {
   const acc = await get('SELECT * FROM vpn_accounts WHERE id = ? AND telegram_id = ?', [accountId, ctx.from.id]);
   if (!acc) return ctx.reply('❌ Akun tidak ditemukan.');
   const role = await ppob.getRole(ctx.from.id).catch(() => 'member');
-  const totalHarga = Math.round(500 * days * (role === 'reseller' ? 0.9 : 1));
+  const totalHarga = (await vpn.getVpnPrice(acc.proto, role)) * days; // harga per role (admin = 0)
   const saldo = await ppob.getSaldo(ctx.from.id);
   if (saldo < totalHarga) {
     return ctx.reply(
@@ -1006,7 +1050,7 @@ bot.action('menu_kuota', async (ctx) => {
 // ---------- Statistik (admin lihat global, user lihat ringkas) ----------
 bot.action('menu_stat', async (ctx) => {
   await safeCb(ctx);
-  if (admin.isAdmin(ctx)) {
+  if (await admin.hasAdminAccess(ctx)) {
     const s = await admin.statistik();
     return sendMenuPhoto(ctx, 'menu-stat.png',
       `🟠 <b>STATISTIK SERVER</b>
@@ -1024,7 +1068,7 @@ ${s}`, backBtn());
 
 // ---------- Admin commands ----------
 bot.command('broadcast', async (ctx) => {
-  if (!admin.isAdmin(ctx)) return;
+  if (!await admin.hasAdminAccess(ctx)) return;
   const text = ctx.message.text.replace('/broadcast', '').trim();
   if (!text) return ctx.reply('Contoh: /broadcast Halo semua!');
   const ids = await admin.broadcastList();
@@ -1038,7 +1082,7 @@ bot.command('broadcast', async (ctx) => {
 });
 
 bot.command('addsaldo', async (ctx) => {
-  if (!admin.isAdmin(ctx)) return;
+  if (!await admin.hasAdminAccess(ctx)) return;
   const [, uid, amt] = ctx.message.text.split(' ');
   if (!uid || !amt) return ctx.reply('Contoh: <code>/addsaldo 123456 50000</code>', { parse_mode: 'HTML' });
   const r = await ppob.addSaldo(Number(uid), Number(amt));
@@ -1051,13 +1095,13 @@ bot.command('addsaldo', async (ctx) => {
 // PANEL ADMIN — /admin + semua handler tombol
 // ============================================================
 bot.action('adm_open', async (ctx) => {
-  if (!admin.isAdmin(ctx)) { await safeCb(ctx); return; }
+  if (!await admin.hasAdminAccess(ctx)) { await safeCb(ctx); return; }
   await safeCb(ctx);
   await sendMenuPhoto(ctx, 'menu-utama.png', '🛠️ <b>PANEL ADMIN</b>\n\nPilih menu:', adminPanel());
 });
 
 bot.command('admin', async (ctx) => {
-  if (!admin.isAdmin(ctx)) return ctx.reply('❌ Khusus admin.');
+  if (!await admin.hasAdminAccess(ctx)) return ctx.reply('❌ Khusus admin.');
   await safeCb(ctx).catch(() => {});
   await sendMenuPhoto(ctx, 'menu-utama.png',
     '🛠️ <b>PANEL ADMIN</b>\n\nPilih menu:',
@@ -1067,7 +1111,7 @@ bot.command('admin', async (ctx) => {
 // ---------- Kelola Server ----------
 // Tambah server: nama -> domain -> harga (ketik manual dari keyboard)
 bot.action('adm_addserver', async (ctx) => {
-  if (!admin.isAdmin(ctx)) { await safeCb(ctx); return; }
+  if (!await admin.hasAdminAccess(ctx)) { await safeCb(ctx); return; }
   await safeCb(ctx);
   sessions.set(ctx.chat.id, { step: 'adm_addserver_nama', data: {} });
   await ctx.reply('➕ <b>Tambah Server</b>\n\nKetik <b>nama server</b>:', { parse_mode: 'HTML' });
@@ -1075,7 +1119,7 @@ bot.action('adm_addserver', async (ctx) => {
 
 // Hapus server: tampilkan daftar dengan tombol hapus
 bot.action('adm_delserver', async (ctx) => {
-  if (!admin.isAdmin(ctx)) { await safeCb(ctx); return; }
+  if (!await admin.hasAdminAccess(ctx)) { await safeCb(ctx); return; }
   await safeCb(ctx);
   const rows = await getServers();
   if (!rows.length) return ctx.reply('❌ Belum ada server. Tambah dulu via ➕ Tambah Server.');
@@ -1087,7 +1131,7 @@ bot.action('adm_delserver', async (ctx) => {
 });
 
 bot.action(/^adm_delserver_(\d+)$/, async (ctx) => {
-  if (!admin.isAdmin(ctx)) { await safeCb(ctx); return; }
+  if (!await admin.hasAdminAccess(ctx)) { await safeCb(ctx); return; }
   await safeCb(ctx);
   const id = parseInt(ctx.match[1], 10);
   const { run } = require('./src/db');
@@ -1097,7 +1141,7 @@ bot.action(/^adm_delserver_(\d+)$/, async (ctx) => {
 
 // Edit harga: pilih server -> ketik harga baru dari keyboard
 bot.action('adm_editharga', async (ctx) => {
-  if (!admin.isAdmin(ctx)) { await safeCb(ctx); return; }
+  if (!await admin.hasAdminAccess(ctx)) { await safeCb(ctx); return; }
   await safeCb(ctx);
   const rows = await getServers();
   if (!rows.length) return ctx.reply('❌ Belum ada server. Tambah dulu via ➕ Tambah Server.');
@@ -1109,7 +1153,7 @@ bot.action('adm_editharga', async (ctx) => {
 });
 
 bot.action(/^adm_editharga_(\d+)$/, async (ctx) => {
-  if (!admin.isAdmin(ctx)) { await safeCb(ctx); return; }
+  if (!await admin.hasAdminAccess(ctx)) { await safeCb(ctx); return; }
   await safeCb(ctx);
   const id = parseInt(ctx.match[1], 10);
   const { get } = require('./src/db');
@@ -1124,7 +1168,7 @@ bot.action(/^adm_editharga_(\d+)$/, async (ctx) => {
 
 // Edit nama: pilih server -> ketik nama baru
 bot.action('adm_editnama', async (ctx) => {
-  if (!admin.isAdmin(ctx)) { await safeCb(ctx); return; }
+  if (!await admin.hasAdminAccess(ctx)) { await safeCb(ctx); return; }
   await safeCb(ctx);
   const rows = await getServers();
   if (!rows.length) return ctx.reply('❌ Belum ada server. Tambah dulu via ➕ Tambah Server.');
@@ -1136,7 +1180,7 @@ bot.action('adm_editnama', async (ctx) => {
 });
 
 bot.action(/^adm_editnama_(\d+)$/, async (ctx) => {
-  if (!admin.isAdmin(ctx)) { await safeCb(ctx); return; }
+  if (!await admin.hasAdminAccess(ctx)) { await safeCb(ctx); return; }
   await safeCb(ctx);
   const id = parseInt(ctx.match[1], 10);
   const { get } = require('./src/db');
@@ -1148,7 +1192,7 @@ bot.action(/^adm_editnama_(\d+)$/, async (ctx) => {
 
 // Edit domain: pilih server -> ketik domain baru
 bot.action('adm_editdomain', async (ctx) => {
-  if (!admin.isAdmin(ctx)) { await safeCb(ctx); return; }
+  if (!await admin.hasAdminAccess(ctx)) { await safeCb(ctx); return; }
   await safeCb(ctx);
   const rows = await getServers();
   if (!rows.length) return ctx.reply('❌ Belum ada server. Tambah dulu via ➕ Tambah Server.');
@@ -1160,7 +1204,7 @@ bot.action('adm_editdomain', async (ctx) => {
 });
 
 bot.action(/^adm_editdomain_(\d+)$/, async (ctx) => {
-  if (!admin.isAdmin(ctx)) { await safeCb(ctx); return; }
+  if (!await admin.hasAdminAccess(ctx)) { await safeCb(ctx); return; }
   await safeCb(ctx);
   const id = parseInt(ctx.match[1], 10);
   const { get } = require('./src/db');
@@ -1172,7 +1216,7 @@ bot.action(/^adm_editdomain_(\d+)$/, async (ctx) => {
 
 // List server
 bot.action('adm_listserver', async (ctx) => {
-  if (!admin.isAdmin(ctx)) { await safeCb(ctx); return; }
+  if (!await admin.hasAdminAccess(ctx)) { await safeCb(ctx); return; }
   await safeCb(ctx);
   const rows = await getServers();
   if (!rows.length) return ctx.reply('❌ Belum ada server. Tambah dulu via ➕ Tambah Server.');
@@ -1187,7 +1231,7 @@ bot.action('adm_listserver', async (ctx) => {
 
 // Kembali ke panel admin
 bot.action('adm_back', async (ctx) => {
-  if (!admin.isAdmin(ctx)) { await safeCb(ctx); return; }
+  if (!await admin.hasAdminAccess(ctx)) { await safeCb(ctx); return; }
   await safeCb(ctx);
   try {
     await ctx.editMessageText('🛠️ <b>PANEL ADMIN</b>\n\nPilih menu:', {
@@ -1198,10 +1242,143 @@ bot.action('adm_back', async (ctx) => {
   }
 });
 
+// ---------- Harga VPN per Role ----------
+// Admin mengatur harga Rp/hari per produk VPN untuk role member & reseller.
+// Semua role melihat produk yang sama; role 'admin' beli dengan harga 0 (modal).
+bot.action('adm_vpnprices', async (ctx) => {
+  if (!await admin.hasAdminAccess(ctx)) { await safeCb(ctx); return; }
+  await safeCb(ctx);
+  const rows = await vpn.listVpnPrices().catch(() => []);
+  const byKey = {};
+  for (const r of rows) {
+    byKey[r.product_key] = byKey[r.product_key] || {};
+    byKey[r.product_key][r.role] = r.price;
+  }
+  const rp = (n) => 'Rp' + Number(n).toLocaleString('id-ID');
+  const lines = vpn.VPN_PRODUCTS.map((p) => {
+    const m = byKey[p.key]?.member ?? vpn.DEFAULT_VPN_PRICE.member;
+    const r = byKey[p.key]?.reseller ?? vpn.DEFAULT_VPN_PRICE.reseller;
+    return `• <b>${p.label}</b> — member: <b>${rp(m)}/hari</b>, reseller: <b>${rp(r)}/hari</b>`;
+  });
+  const btns = vpn.VPN_PRODUCTS.map((p) => [sBtn(`✏️ ${p.label}`, `adm_price_${p.key}`, 'primary')]);
+  btns.push([sBtn('🔙 Kembali ke Panel', 'adm_back', 'danger')]);
+  await ctx.reply(
+    `💲 <b>Harga VPN per Role</b>\n\n${lines.join('\n')}\n\nPilih produk untuk ubah harga:`,
+    { parse_mode: 'HTML', reply_markup: { inline_keyboard: btns } }
+  );
+});
+
+bot.action(/^adm_price_([a-z]+)$/, async (ctx) => {
+  if (!await admin.hasAdminAccess(ctx)) { await safeCb(ctx); return; }
+  await safeCb(ctx);
+  const key = ctx.match[1];
+  const prod = vpn.VPN_PRODUCTS.find((p) => p.key === key);
+  if (!prod) return ctx.reply('❌ Produk tidak dikenal.');
+  await ctx.reply(
+    `💲 <b>Ubah Harga: ${prod.label}</b>\n\nPilih role yang harganya mau diubah:`,
+    {
+      parse_mode: 'HTML',
+      reply_markup: {
+        inline_keyboard: [
+          [sBtn('👤 Member', `adm_pricerole_${key}_member`, 'primary'), sBtn('🤝 Reseller', `adm_pricerole_${key}_reseller`, 'success')],
+          [sBtn('🔙 Kembali', 'adm_vpnprices', 'danger')],
+        ],
+      },
+    }
+  );
+});
+
+bot.action(/^adm_pricerole_([a-z]+)_(member|reseller)$/, async (ctx) => {
+  if (!await admin.hasAdminAccess(ctx)) { await safeCb(ctx); return; }
+  await safeCb(ctx);
+  const key = ctx.match[1];
+  const role = ctx.match[2];
+  const cur = await vpn.getVpnPrice(key, role);
+  sessions.set(ctx.chat.id, { step: 'adm_price_input', data: { key, role } });
+  await ctx.reply(
+    `💲 <b>Ubah Harga VPN</b>\n\n📦 Produk: <b>${esc(key)}</b>\n👤 Role: <b>${role}</b>\n📌 Harga saat ini: <b>Rp${Number(cur).toLocaleString('id-ID')}/hari</b>\n\nKetik <b>harga baru per hari</b> (angka saja, contoh: 500):`,
+    { parse_mode: 'HTML' }
+  );
+});
+
+// ---------- Kelola Role ----------
+bot.action('adm_roles', async (ctx) => {
+  if (!await admin.hasAdminAccess(ctx)) { await safeCb(ctx); return; }
+  await safeCb(ctx);
+  const counts = await admin.countUsersByRole().catch(() => []);
+  const c = {};
+  for (const r of counts) c[r.role] = r.c;
+  await ctx.reply(
+    `👥 <b>Kelola Role User</b>\n\n` +
+    `🛡️ Admin: <b>${c.admin || 0}</b>\n` +
+    `🤝 Reseller: <b>${c.reseller || 0}</b>\n` +
+    `👤 Member: <b>${c.member || 0}</b>\n\n` +
+    `Pilih aksi:`,
+    {
+      parse_mode: 'HTML',
+      reply_markup: {
+        inline_keyboard: [
+          [sBtn('📋 List Admin', 'adm_rolelist_admin', 'primary'), sBtn('📋 List Reseller', 'adm_rolelist_reseller', 'success')],
+          [sBtn('📋 List Member', 'adm_rolelist_member', 'primary'), sBtn('✏️ Ubah Role User', 'adm_roleset', 'danger')],
+          [sBtn('🔙 Kembali ke Panel', 'adm_back', 'danger')],
+        ],
+      },
+    }
+  );
+});
+
+bot.action(/^adm_rolelist_(admin|reseller|member)$/, async (ctx) => {
+  if (!await admin.hasAdminAccess(ctx)) { await safeCb(ctx); return; }
+  await safeCb(ctx);
+  const role = ctx.match[1];
+  const rows = await admin.listUsersByRole(role, 30);
+  if (!rows.length) {
+    return ctx.reply(`📭 Belum ada user dengan role <b>${role}</b>.`, {
+      parse_mode: 'HTML',
+      reply_markup: { inline_keyboard: [[sBtn('🔙 Kembali', 'adm_roles', 'danger')]] },
+    });
+  }
+  const lines = rows.map((u, i) =>
+    `${i + 1}. <code>${u.telegram_id}</code> ${esc(u.username || '-')}` +
+    (role !== 'admin' ? ` — Rp${Number(u.saldo || 0).toLocaleString('id-ID')}` : '')
+  );
+  await ctx.reply(`👥 <b>Daftar ${role} (${rows.length})</b>\n\n${lines.join('\n')}`, {
+    parse_mode: 'HTML',
+    reply_markup: { inline_keyboard: [[sBtn('🔙 Kembali', 'adm_roles', 'danger')]] },
+  });
+});
+
+bot.action('adm_roleset', async (ctx) => {
+  if (!await admin.hasAdminAccess(ctx)) { await safeCb(ctx); return; }
+  await safeCb(ctx);
+  sessions.set(ctx.chat.id, { step: 'adm_role_id', data: {} });
+  await ctx.reply(
+    `✏️ <b>Ubah Role User</b>\n\nKetik <b>ID Telegram</b> user yang mau diubah rolenya (angka saja):`,
+    { parse_mode: 'HTML' }
+  );
+});
+
+bot.action(/^adm_roleset_(\d+)_(admin|reseller|member)$/, async (ctx) => {
+  if (!await admin.hasAdminAccess(ctx)) { await safeCb(ctx); return; }
+  await safeCb(ctx);
+  const uid = Number(ctx.match[1]);
+  const role = ctx.match[2];
+  // Owner tidak bisa diturunkan rolenya — akses owner selalu via config.adminId
+  if (uid === config.adminId && role !== 'admin') {
+    return ctx.reply('❌ Tidak bisa mengubah role owner.');
+  }
+  try {
+    await ppob.setRole(uid, role);
+    await ctx.reply(`✅ Role user <code>${uid}</code> diubah menjadi <b>${role}</b>.`, { parse_mode: 'HTML' });
+  } catch (e) {
+    await ctx.reply(`❌ ${esc(e.message)}`);
+  }
+});
+
 // ---------- Keuangan ----------
 // Tambah saldo: ketik "userId jumlah" dari keyboard
 bot.action('adm_addsaldo', async (ctx) => {
-  if (!admin.isAdmin(ctx)) { await safeCb(ctx); return; }
+  if (!await admin.hasAdminAccess(ctx)) { await safeCb(ctx); return; }
   await safeCb(ctx);
   sessions.set(ctx.chat.id, { step: 'adm_addsaldo_input', data: {} });
   await ctx.reply('💵 <b>Tambah Saldo</b>\n\nKetik dengan format:\n<code>userId jumlah</code>\nContoh: <code>123456 50000</code>', { parse_mode: 'HTML' });
@@ -1209,7 +1386,7 @@ bot.action('adm_addsaldo', async (ctx) => {
 
 // Kurangi saldo: ketik "userId jumlah" dari keyboard
 bot.action('adm_minsaldo', async (ctx) => {
-  if (!admin.isAdmin(ctx)) { await safeCb(ctx); return; }
+  if (!await admin.hasAdminAccess(ctx)) { await safeCb(ctx); return; }
   await safeCb(ctx);
   sessions.set(ctx.chat.id, { step: 'adm_minsaldo_input', data: {} });
   await ctx.reply('➖ <b>Kurangi Saldo</b>\n\nKetik dengan format:\n<code>userId jumlah</code>\nContoh: <code>123456 10000</code>', { parse_mode: 'HTML' });
@@ -1217,7 +1394,7 @@ bot.action('adm_minsaldo', async (ctx) => {
 
 // Hasil penjualan
 bot.action('adm_sales', async (ctx) => {
-  if (!admin.isAdmin(ctx)) { await safeCb(ctx); return; }
+  if (!await admin.hasAdminAccess(ctx)) { await safeCb(ctx); return; }
   await safeCb(ctx);
   const { get, all } = require('./src/db');
   const total = await get("SELECT COUNT(*) c, COALESCE(SUM(amount),0) s FROM transactions WHERE status = 'success'");
@@ -1237,7 +1414,7 @@ bot.action('adm_sales', async (ctx) => {
 
 // Log topup (10 terakhir)
 bot.action('adm_topuplog', async (ctx) => {
-  if (!admin.isAdmin(ctx)) { await safeCb(ctx); return; }
+  if (!await admin.hasAdminAccess(ctx)) { await safeCb(ctx); return; }
   await safeCb(ctx);
   const { all } = require('./src/db');
   const rows = await all("SELECT telegram_id, amount, ref_id, status, created_at FROM transactions WHERE type = 'deposit' ORDER BY id DESC LIMIT 10");
@@ -1254,7 +1431,7 @@ bot.action('adm_topuplog', async (ctx) => {
 // ---------- Lainnya ----------
 // Backup DB via tombol (pakai logika yang sama dengan /backupdb)
 bot.action('adm_backupdb', async (ctx) => {
-  if (!admin.isAdmin(ctx)) { await safeCb(ctx); return; }
+  if (!await admin.hasAdminAccess(ctx)) { await safeCb(ctx); return; }
   await safeCb(ctx);
   const dbPath = path.join(__dirname, 'data', 'bot.db');
   const backupDir = path.join(__dirname, 'data', 'backups');
@@ -1271,7 +1448,7 @@ bot.action('adm_backupdb', async (ctx) => {
 
 // Restore DB via tombol (pakai session yang sama dengan /restoredb)
 bot.action('adm_restoredb', async (ctx) => {
-  if (!admin.isAdmin(ctx)) { await safeCb(ctx); return; }
+  if (!await admin.hasAdminAccess(ctx)) { await safeCb(ctx); return; }
   await safeCb(ctx);
   await ctx.reply(
     '⚠️ <b>Restore Database</b>\n\n' +
@@ -1284,7 +1461,7 @@ bot.action('adm_restoredb', async (ctx) => {
 
 // ---------- Reseller ----------
 bot.command('setreseller', async (ctx) => {
-  if (!admin.isAdmin(ctx)) return ctx.reply('❌ Khusus admin.');
+  if (!await admin.hasAdminAccess(ctx)) return ctx.reply('❌ Khusus admin.');
   const uid = ctx.message.text.split(' ')[1];
   if (!uid) return ctx.reply('Contoh: <code>/setreseller 123456</code>', { parse_mode: 'HTML' });
   await ppob.setRole(Number(uid), 'reseller');
@@ -1292,7 +1469,7 @@ bot.command('setreseller', async (ctx) => {
 });
 
 bot.command('unsetreseller', async (ctx) => {
-  if (!admin.isAdmin(ctx)) return ctx.reply('❌ Khusus admin.');
+  if (!await admin.hasAdminAccess(ctx)) return ctx.reply('❌ Khusus admin.');
   const uid = ctx.message.text.split(' ')[1];
   if (!uid) return ctx.reply('Contoh: <code>/unsetreseller 123456</code>', { parse_mode: 'HTML' });
   await ppob.setRole(Number(uid), 'member');
@@ -1301,7 +1478,7 @@ bot.command('unsetreseller', async (ctx) => {
 
 // ---------- Bonus Topup ----------
 bot.command('setbonus', async (ctx) => {
-  if (!admin.isAdmin(ctx)) return ctx.reply('❌ Khusus admin.');
+  if (!await admin.hasAdminAccess(ctx)) return ctx.reply('❌ Khusus admin.');
   const [, min, persen] = ctx.message.text.split(' ');
   if (!min || !persen) {
     const cfg = await ppob.getBonusConfig();
@@ -1324,7 +1501,7 @@ bot.command('setbonus', async (ctx) => {
 });
 
 bot.command('cleanup', async (ctx) => {
-  if (!admin.isAdmin(ctx)) return;
+  if (!await admin.hasAdminAccess(ctx)) return;
   const dry = ctx.message.text.includes('dry');
   if (dry) {
     const r = await cleanup.dryRun();
@@ -1458,7 +1635,7 @@ setInterval(async () => {
 }, (config.syncMinutes || 60) * 60 * 1000);
 
 bot.command('syncproduk', async (ctx) => {
-  if (!admin.isAdmin(ctx)) return;
+  if (!await admin.hasAdminAccess(ctx)) return;
   await ctx.reply('⏳ Sinkronisasi produk Digiflazz...');
   try {
     const out = await digi.sync();
@@ -1478,6 +1655,7 @@ bot.catch((err, ctx) => {
 // ---------- Start ----------
 (async () => {
   await initDb();
+  await vpn.seedVpnPrices().catch((e) => console.error('seed vpn prices:', e.message));
   await sewa.initTable().catch((e) => console.error('sewa table:', e.message));
   console.log('✅ Database siap');
   await 
@@ -1489,7 +1667,7 @@ bot.command('riwayat', async (ctx) => {
 });
 
 bot.command('backupdb', async (ctx) => {
-  if (!(await admin.isAdmin(ctx))) return ctx.reply('❌ Khusus admin.');
+  if (!(await admin.hasAdminAccess(ctx))) return ctx.reply('❌ Khusus admin.');
   const fs = require('fs');
   const path = require('path');
   const dbPath = path.join(__dirname, 'data', 'bot.db');
@@ -1506,7 +1684,7 @@ bot.command('backupdb', async (ctx) => {
 });
 
 bot.command('restoredb', async (ctx) => {
-  if (!(await admin.isAdmin(ctx))) return ctx.reply('❌ Khusus admin.');
+  if (!(await admin.hasAdminAccess(ctx))) return ctx.reply('❌ Khusus admin.');
   await ctx.reply(
     '⚠️ <b>Restore Database</b>\n\n' +
     'Kirim file <b>.db</b> backup sebagai dokumen ke chat ini untuk restore.\n' +

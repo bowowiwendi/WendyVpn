@@ -242,7 +242,64 @@ async function createZivpn(username, password, days) {
   };
 }
 
+// ---------- Harga VPN per role (diatur admin, Rp/hari) ----------
+// product_key = jenis akun VPN. Harga disimpan di tabel vpn_prices
+// (kolom: product_key, role, price). Role 'admin' selalu harga 0 (modal).
+const VPN_PRODUCTS = [
+  { key: 'ssh', label: 'SSH' },
+  { key: 'vmess', label: 'VMess' },
+  { key: 'vless', label: 'VLess' },
+  { key: 'trojan', label: 'Trojan' },
+  { key: 'shadowsocks', label: 'Shadowsocks' },
+  { key: 'zivpn', label: 'Zivpn UDP' },
+];
+// Default awal (meniru perilaku lama: Rp500/hari, reseller diskon 10%)
+const DEFAULT_VPN_PRICE = { member: 500, reseller: 450 };
+
+async function seedVpnPrices() {
+  for (const p of VPN_PRODUCTS) {
+    for (const role of ['member', 'reseller']) {
+      await run(
+        'INSERT OR IGNORE INTO vpn_prices (product_key, role, price) VALUES (?,?,?)',
+        [p.key, role, DEFAULT_VPN_PRICE[role]]
+      ).catch(() => {});
+    }
+  }
+}
+
+async function getVpnPrice(productKey, role) {
+  if (role === 'admin') return 0; // harga modal untuk admin
+  const row = await get(
+    'SELECT price FROM vpn_prices WHERE product_key = ? AND role = ?',
+    [productKey, role]
+  ).catch(() => null);
+  if (row && Number.isFinite(Number(row.price))) return Number(row.price);
+  return DEFAULT_VPN_PRICE[role] ?? DEFAULT_VPN_PRICE.member;
+}
+
+async function setVpnPrice(productKey, role, price) {
+  if (!VPN_PRODUCTS.some((p) => p.key === productKey)) {
+    throw new Error('Produk tidak dikenal: ' + productKey);
+  }
+  if (!['member', 'reseller'].includes(role)) {
+    throw new Error('Harga hanya bisa diatur untuk role member/reseller (admin = 0)');
+  }
+  price = Math.round(Number(price));
+  if (!Number.isFinite(price) || price < 0) throw new Error('Harga tidak valid (angka ≥ 0)');
+  await run(
+    `INSERT INTO vpn_prices (product_key, role, price) VALUES (?,?,?)
+     ON CONFLICT(product_key, role) DO UPDATE SET price = ?`,
+    [productKey, role, price, price]
+  );
+  return price;
+}
+
+async function listVpnPrices() {
+  return all('SELECT product_key, role, price FROM vpn_prices ORDER BY product_key, role');
+}
+
 module.exports = {
   createSSH, cfSSHInfo, createVMess, createVLess, createTrojan, createShadowsocks, createZivpn,
   renewAccount, deleteAccount, saveAccount, myAccounts, validUser, expiryDate,
+  VPN_PRODUCTS, DEFAULT_VPN_PRICE, seedVpnPrices, getVpnPrice, setVpnPrice, listVpnPrices,
 };

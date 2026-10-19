@@ -20,6 +20,30 @@ const isAdmin = (ctx) => ctx.from?.id === config.adminId;
 // Alias untuk kejelasan di command yang butuh "pemilik" mutlak.
 const isOwner = (ctx) => ctx.from?.id === config.adminId;
 
+// Cek akses admin berbasis role: owner (config.adminId) ATAU user dengan
+// role 'admin' di tabel users. Versi async — pakai ini untuk gate menu admin.
+async function hasAdminAccess(ctx) {
+  if (!ctx?.from?.id) return false;
+  if (isAdmin(ctx)) return true;
+  try {
+    const row = await get('SELECT role FROM users WHERE telegram_id = ?', [ctx.from.id]);
+    return row?.role === 'admin';
+  } catch {
+    return false;
+  }
+}
+
+async function listUsersByRole(role, limit = 50) {
+  return all(
+    'SELECT telegram_id, username, role, saldo FROM users WHERE role = ? ORDER BY telegram_id LIMIT ?',
+    [role, limit]
+  );
+}
+
+async function countUsersByRole() {
+  return all('SELECT role, COUNT(*) c FROM users GROUP BY role');
+}
+
 async function statistik() {
   const users = await get('SELECT COUNT(*) c FROM users');
   const acc = await all('SELECT proto, COUNT(*) c, SUM(is_trial) t FROM vpn_accounts GROUP BY proto');
@@ -46,4 +70,4 @@ const TEMPLATES = {
   maint: (t) => `🔧 <b>MAINTENANCE</b>\n\n${esc(t)}`,
 };
 
-module.exports = { isAdmin, isOwner, statistik, broadcastList, TEMPLATES };
+module.exports = { isAdmin, isOwner, hasAdminAccess, listUsersByRole, countUsersByRole, statistik, broadcastList, TEMPLATES };
