@@ -215,7 +215,11 @@ async function checkOrder(ref) {
 // ---------- Daftar produk (dengan paginasi) ----------
 const PROD_PER_PAGE = 10;
 
-async function productList(category, page = 1) {
+// Kategori khusus menu "Pulsa & Paket Data"
+const PULSA_CATS = ['pulsa', 'data'];
+
+async function productList(group, page = 1) {
+  // group: 'pulsa' (hanya Pulsa & Data), 'lainnya' (selain Pulsa & Data), atau kosong = semua
   if (!digi.enabled()) return { success: false, message: '❌ Digiflazz belum dikonfigurasi.' };
   // Baca dari cache lokal — API Digiflazz membatasi pengecekan pricelist,
   // jadi JANGAN panggil API setiap buka daftar produk (dulu selalu error limit).
@@ -231,8 +235,15 @@ async function productList(category, page = 1) {
       rawList = fresh;
     }
   }
+  const g = String(group || '').toLowerCase();
   const items = (Array.isArray(rawList) ? rawList : [])
     .filter((p) => p && p.buyer_product_status && p.seller_product_status)
+    .filter((p) => {
+      const c = String(p.category || '').toLowerCase();
+      if (g === 'pulsa') return PULSA_CATS.includes(c);
+      if (g === 'lainnya') return !PULSA_CATS.includes(c);
+      return true;
+    })
     .slice(0, 100)
     .map((p) => { p.price_sell = sellPriceOf(p); return p; });
   if (!items.length) return { success: false, message: '❌ Produk tidak ditemukan.' };
@@ -244,8 +255,11 @@ async function productList(category, page = 1) {
     const n = (pg - 1) * PROD_PER_PAGE + i + 1;
     return `${n}. <code>${esc(p.buyer_sku_code)}</code> — ${esc(p.product_name)}\n   💰 ${digi.rp(p.price_sell)}`;
   });
+  const title = g === 'pulsa' ? '📱 <b>Pulsa & Paket Data</b>'
+    : g === 'lainnya' ? '🛍️ <b>Produk Lainnya</b>'
+    : `🛒 <b>Daftar Produk</b>`;
   const message =
-    `🛒 <b>Daftar Produk</b>\n` +
+    `${title}\n` +
     `📄 Halaman <b>${pg}</b> dari <b>${pages}</b> • ${total} produk\n` +
     `━━━━━━━━━━━━━━━━━━\n\n<blockquote>${lines.join('\n')}</blockquote>\n\n` +
     `<i>Tap tombol 🛒 di bawah untuk beli</i>`;
@@ -253,7 +267,8 @@ async function productList(category, page = 1) {
 }
 
 // Keyboard produk: tombol beli per produk + paginasi (format reply_markup mentah)
-function productKeyboard(page, pages, items) {
+function productKeyboard(page, pages, items, group) {
+  const g = group || '';
   const kb = [];
   // Tombol beli per produk (2 kolom)
   if (Array.isArray(items)) {
@@ -262,14 +277,14 @@ function productKeyboard(page, pages, items) {
       for (let j = i; j < Math.min(i + 2, items.length); j++) {
         const p = items[j];
         const label = ('🛒 ' + p.product_name).slice(0, 30);
-        row.push({ text: label, callback_data: 'prod_buy_' + page + '_' + j });
+        row.push({ text: label, callback_data: 'prod_buy_' + g + '_' + page + '_' + j });
       }
       kb.push(row);
     }
   }
   const nav = [];
-  if (page > 1) nav.push({ text: '◀️ Prev', callback_data: `prod_page_${page - 1}` });
-  if (page < pages) nav.push({ text: 'Next ▶️', callback_data: `prod_page_${page + 1}` });
+  if (page > 1) nav.push({ text: '◀️ Prev', callback_data: `prod_page_${g}_${page - 1}` });
+  if (page < pages) nav.push({ text: 'Next ▶️', callback_data: `prod_page_${g}_${page + 1}` });
   if (nav.length) kb.push(nav);
   kb.push([{ text: '🔙 Kembali', callback_data: 'menu_ppob' }]);
   return { inline_keyboard: kb };
