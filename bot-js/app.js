@@ -41,6 +41,7 @@ if (!config.botToken) {
 }
 
 const bot = new Telegraf(config.botToken);
+const BOT_START_TIME = Date.now(); // untuk hitung uptime di /start
 const sessions = new Map(); // chatId -> { step, data }
 const lastMenus = new Map();
 // Helper aman untuk answerCbQuery (thrown sync oleh Telegraf bila bukan callback_query)
@@ -96,10 +97,10 @@ async function sendMenuPhoto(ctx, imageFile, caption, keyboard) {
 // ---------- Helper ----------
 const mainMenu = (isAdmin = false, isReseller = false) => {
   const rows = [
-    [sBtn('🛰️ VPN Premium', 'menu_vpn', 'primary'), sBtn('☁️ VPN CloudFront', 'menu_cf', 'primary')],
-    [sBtn('💰 PPOB & Pulsa', 'menu_ppob', 'success'), sBtn('📊 Cek Kuota', 'menu_kuota', 'primary')],
-    [sBtn('👤 Akun Saya', 'menu_akun', 'success'), sBtn('📈 Statistik', 'menu_stat', 'primary')],
-    [sBtn('💰 Sewa Script VPN', 'menu_sewa', 'success')],
+    [sBtn('🌐 Menu VPN', 'menu_vpn_home', 'success')],
+    [sBtn('💰 TopUp Saldo', 'ppob_deposit', 'success')],
+    [sBtn('🛒 Menu PPOB', 'menu_ppob', 'primary')],
+    [sBtn('👤 Akun Saya', 'menu_akun', 'primary')],
   ];
   if (isReseller) rows.push([sBtn('🏪 Panel Reseller', 'menu_reseller', 'success')]);
   if (isAdmin) rows.push([sBtn('🛠️ Panel Admin', 'adm_open', 'danger')]);
@@ -185,21 +186,62 @@ const ensureUser = async (ctx) => {
     [ctx.from.id, ctx.from.username || ctx.from.first_name || '']);
 };
 
-// ---------- /start ----------
-const WELCOME_CAPTION = (name, role = 'member') =>
-`👋 Halo <b>${esc(name)}</b>! ${settings.roleBadge(role)}
+// ---------- /start (ala RIPZZ STORE) ----------
+const HARI_ID = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+const BULAN_ID = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+  'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
 
-🛰 <b>WENDI VPN BOT</b> 🛰
-━━━━━━━━━━━━━━━━━━
-Pilih layanan di bawah ini:
+// Waktu server dalam WIB (UTC+7)
+function wibParts() {
+  const d = new Date(Date.now() + 7 * 3600 * 1000);
+  const p = (n) => String(n).padStart(2, '0');
+  return {
+    waktu: `${p(d.getUTCHours())}:${p(d.getUTCMinutes())}:${p(d.getUTCSeconds())} WIB`,
+    tanggal: `${HARI_ID[d.getUTCDay()]}, ${d.getUTCDate()} ${BULAN_ID[d.getUTCMonth()]} ${d.getUTCFullYear()}`,
+  };
+}
 
-<blockquote>🛰️ <b>VPN Premium</b> — SSH / VMess / VLess / Trojan
-☁️ <b>VPN CloudFront</b> — trafik disamarkan HTTPS
-💰 <b>PPOB & Pulsa</b> — isi pulsa, paket data, PLN
-📊 <b>Cek Kuota</b> — cek kuota semua operator
-💰 <b>Sewa Script</b> — lisensi script VPN</blockquote>
-━━━━━━━━━━━━━━━━━━
-<code>🌐 dikelola oleh Wendi Network</code>`;
+// Uptime bot: Xd Xh Xm Xs
+function botUptime() {
+  let s = Math.floor((Date.now() - BOT_START_TIME) / 1000);
+  const d = Math.floor(s / 86400); s %= 86400;
+  const h = Math.floor(s / 3600); s %= 3600;
+  const m = Math.floor(s / 60); s %= 60;
+  return `${d}d ${h}h ${m}m ${s}s`;
+}
+
+// Caption /start: info akun + waktu/server dalam blockquote
+async function buildWelcomeCaption(ctx) {
+  const { get } = require('./src/db');
+  const uid = ctx.from.id;
+  const role = await ppob.getRole(uid).catch(() => 'member');
+  const saldo = await ppob.getSaldo(uid).catch(() => 0);
+  const cnt = await get('SELECT COUNT(*) AS n FROM users').catch(() => ({ n: 0 }));
+  const { waktu, tanggal } = wibParts();
+  const username = ctx.from.username ? '@' + ctx.from.username : '-';
+  return `SELAMAT DATANG DI WENDI STORE 💎
+NIKMATI PENGALAMAN MEMBELI AKUN VPN
+TERCEPAT, AMAN, DAN OTOMATIS 🚀
+
+<blockquote>👁️ INFORMASI AKUN
+💰 SALDO: ${digi.rp(saldo)}
+👤 STATUS: ${settings.roleBadge(role)}
+🌐 USERNAME: ${esc(username)}
+🆔 ID PENGGUNA: <code>${uid}</code>
+
+🕐 WAKTU &amp; SERVER
+⏱️ WAKTU: ${waktu}
+📅 TANGGAL: ${tanggal}
+🖥️ SERVER: 1 | 👥 USER: ${cnt?.n || 0}
+⌚ BOT AKTIF: ${botUptime()}
+
+☎️ HUBUNGI ADMIN
+📩 @WendiWibowo</blockquote>
+
+📦 ─────────── 📦
+🌐 DIKELOLA OLEH WENDI STORE NETWORK
+📦 ─────────── 📦`;
+}
 
 bot.start(async (ctx) => {
   await ensureUser(ctx);
@@ -219,7 +261,7 @@ bot.start(async (ctx) => {
     );
   }
   await sendMenuPhoto(ctx, 'banner-utama.webp',
-    WELCOME_CAPTION(ctx.from.first_name || 'kawan', await ppob.getRole(ctx.from.id).catch(() => 'member')),
+    await buildWelcomeCaption(ctx),
     mainMenu(await admin.hasAdminAccess(ctx), (await ppob.getRole(ctx.from.id).catch(() => 'member')) === 'reseller'));
 });
 
@@ -231,7 +273,7 @@ bot.action('fj_verify', async (ctx) => {
     return ctx.reply('❌ Kamu belum join semua. Join dulu lalu tekan tombol verifikasi lagi.');
   }
   await sendMenuPhoto(ctx, 'banner-utama.webp',
-    WELCOME_CAPTION(ctx.from.first_name || 'kawan', await ppob.getRole(ctx.from.id).catch(() => 'member')),
+    await buildWelcomeCaption(ctx),
     mainMenu(await admin.hasAdminAccess(ctx), (await ppob.getRole(ctx.from.id).catch(() => 'member')) === 'reseller'));
 });
 
@@ -239,15 +281,29 @@ bot.action('menu_main', async (ctx) => {
   await safeCb(ctx);
   const role = await ppob.getRole(ctx.from.id).catch(() => 'member');
   await sendMenuPhoto(ctx, 'banner-utama.webp',
-    `🏠 <b>MENU UTAMA</b> ${settings.roleBadge(role)}
+    await buildWelcomeCaption(ctx),
+    mainMenu(await admin.hasAdminAccess(ctx), role === 'reseller'));
+});
+
+// ---------- Submenu VPN (dari tombol 🌐 Menu VPN) ----------
+bot.action('menu_vpn_home', async (ctx) => {
+  await safeCb(ctx);
+  await sendMenuPhoto(ctx, 'banner-utama.webp',
+    `🌐 <b>MENU VPN</b>
 ━━━━━━━━━━━━━━━━━━
-Pilih layanan di bawah ini:`, mainMenu(await admin.hasAdminAccess(ctx), role === 'reseller'));
+Pilih layanan VPN:`,
+    Markup.inlineKeyboard([
+      [sBtn('🛰️ VPN Premium', 'menu_vpn', 'success'), sBtn('☁️ VPN CloudFront', 'menu_cf', 'primary')],
+      [sBtn('📊 Cek Kuota', 'menu_kuota', 'primary'), sBtn('💰 Sewa Script', 'menu_sewa', 'success')],
+      [sBtn('📈 Statistik', 'menu_stat', 'primary')],
+      [sBtn('🔙 Kembali', 'menu_main', 'danger')],
+    ]));
 });
 
 // ---------- Menu VPN ----------
 bot.action('menu_vpn', async (ctx) => {
   await safeCb(ctx);
-  await sendMenuPhoto(ctx, 'menu-vpn.png',
+  await sendMenuPhoto(ctx, 'banner-utama.webp',
     `🛰️ <b>VPN PREMIUM</b>
 ━━━━━━━━━━━━━━━━━━
 ` +
@@ -267,7 +323,7 @@ bot.action('menu_vpn', async (ctx) => {
 
 bot.action('menu_cf', async (ctx) => {
   await safeCb(ctx);
-  await sendMenuPhoto(ctx, 'menu-cf.png',
+  await sendMenuPhoto(ctx, 'banner-utama.webp',
     `☁️ <b>VPN via CLOUDFRONT</b>
 ━━━━━━━━━━━━━━━━━━
 ` +
@@ -979,7 +1035,7 @@ bot.action('menu_sewa', async (ctx) => {
   const lines = aktif.slice(0, 3).map((o) =>
     `• <code>${esc(o.username)}</code> (<code>${esc(o.ip)}</code>) — ${o.days} hari${o.expiry ? ` s/d ${o.expiry}` : ''}`
   );
-  await sendMenuPhoto(ctx, 'menu-sewa.png',
+  await sendMenuPhoto(ctx, 'banner-utama.webp',
     `💰 <b>SEWA SCRIPT VPN</b>\n━━━━━━━━━━━━━━━━━━\n\n` +
     `📦 <b>Daftar Paket:</b>\n<blockquote>${sewa.packageListText()}</blockquote>\n\n` +
     (lines.length ? `📋 <b>Sewamu (aktif):</b>\n<blockquote>${lines.join('\n')}</blockquote>\n\n` : ``) +
