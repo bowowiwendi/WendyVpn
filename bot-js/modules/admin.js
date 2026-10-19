@@ -4,8 +4,21 @@
 const config = require('../src/config');
 const digi = require('../src/digiflazz');
 const { run, get, all } = require('../src/db');
+const { esc } = require('../src/format');
 
+// ============================================================
+// ROLE:
+//  - admin/owner : hanya config.adminId (Wendi). Semua command sensitif
+//    (broadcast, tambah saldo, sewa list, statistik, dsb) wajib lewat
+//    isAdmin() / isOwner().
+//  - user        : semua pengguna Telegram lainnya. Hanya bisa pakai
+//    fitur publik (buat akun trial, beli, cek saldo, dsb).
+// Tidak ada tabel role terpisah; pembeda satu-satunya adalah adminId.
+// ============================================================
 const isAdmin = (ctx) => ctx.from?.id === config.adminId;
+
+// Alias untuk kejelasan di command yang butuh "pemilik" mutlak.
+const isOwner = (ctx) => ctx.from?.id === config.adminId;
 
 async function statistik() {
   const users = await get('SELECT COUNT(*) c FROM users');
@@ -28,9 +41,9 @@ async function broadcastList() {
 }
 
 const TEMPLATES = {
-  info: (t) => `📢 <b>INFORMASI</b>\n\n${t}`,
-  promo: (t) => `🎉 <b>PROMO</b>\n\n${t}`,
-  maint: (t) => `🔧 <b>MAINTENANCE</b>\n\n${t}`,
+  info: (t) => `📢 <b>INFORMASI</b>\n\n${esc(t)}`,
+  promo: (t) => `🎉 <b>PROMO</b>\n\n${esc(t)}`,
+  maint: (t) => `🔧 <b>MAINTENANCE</b>\n\n${esc(t)}`,
 };
 
-module.exports = { isAdmin, statistik, broadcastList, TEMPLATES };
+module.exports = { isAdmin, isOwner, statistik, broadcastList, TEMPLATES };
