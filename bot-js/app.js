@@ -94,13 +94,14 @@ async function sendMenuPhoto(ctx, imageFile, caption, keyboard) {
 }
 
 // ---------- Helper ----------
-const mainMenu = (isAdmin = false) => {
+const mainMenu = (isAdmin = false, isReseller = false) => {
   const rows = [
     [sBtn('🛰️ VPN Premium', 'menu_vpn', 'primary'), sBtn('☁️ VPN CloudFront', 'menu_cf', 'primary')],
     [sBtn('💰 PPOB & Pulsa', 'menu_ppob', 'success'), sBtn('📊 Cek Kuota', 'menu_kuota', 'primary')],
     [sBtn('👤 Akun Saya', 'menu_akun', 'success'), sBtn('📈 Statistik', 'menu_stat', 'primary')],
     [sBtn('💰 Sewa Script VPN', 'menu_sewa', 'success')],
   ];
+  if (isReseller) rows.push([sBtn('🏪 Panel Reseller', 'menu_reseller', 'success')]);
   if (isAdmin) rows.push([sBtn('🛠️ Panel Admin', 'adm_open', 'danger')]);
   return Markup.inlineKeyboard(rows);
 };
@@ -117,8 +118,8 @@ const adminPanel = () => Markup.inlineKeyboard([
   [sBtn('📊 Hasil Penjualan', 'adm_sales', 'primary'), sBtn('📑 Log Topup', 'adm_topuplog', 'primary')],
   [sBtn('📦 Backup DB', 'adm_backupdb', 'success'), sBtn('♻️ Restore DB', 'adm_restoredb', 'danger')],
   [sBtn('🧾 Setting Pakasir', 'adm_pakasir', 'primary'), sBtn('🎁 Bonus & Reseller', 'adm_bonus', 'success')],
-  [sBtn('📢 Broadcast Grup', 'adm_bcast', 'primary'), sBtn('🔔 Grup Notifikasi', 'adm_notifgrp', 'primary')],
-  [sBtn('🔒 Force Join', 'adm_forcejoin', 'primary')],
+  [sBtn('📢 Broadcast Grup', 'adm_bcast', 'primary'), sBtn('📣 Broadcast User', 'adm_bcastuser', 'primary')],
+  [sBtn('🔔 Grup Notifikasi', 'adm_notifgrp', 'primary'), sBtn('🔒 Force Join', 'adm_forcejoin', 'primary')],
   [sBtn('🔙 Kembali', 'menu_main', 'danger')],
 ]);
 
@@ -219,7 +220,7 @@ bot.start(async (ctx) => {
   }
   await sendMenuPhoto(ctx, 'menu-utama.png',
     WELCOME_CAPTION(ctx.from.first_name || 'kawan', await ppob.getRole(ctx.from.id).catch(() => 'member')),
-    mainMenu(await admin.hasAdminAccess(ctx)));
+    mainMenu(await admin.hasAdminAccess(ctx), (await ppob.getRole(ctx.from.id).catch(() => 'member')) === 'reseller'));
 });
 
 // Verifikasi ulang force join setelah user tekan "Saya Sudah Gabung"
@@ -231,7 +232,7 @@ bot.action('fj_verify', async (ctx) => {
   }
   await sendMenuPhoto(ctx, 'menu-utama.png',
     WELCOME_CAPTION(ctx.from.first_name || 'kawan', await ppob.getRole(ctx.from.id).catch(() => 'member')),
-    mainMenu(await admin.hasAdminAccess(ctx)));
+    mainMenu(await admin.hasAdminAccess(ctx), (await ppob.getRole(ctx.from.id).catch(() => 'member')) === 'reseller'));
 });
 
 bot.action('menu_main', async (ctx) => {
@@ -240,7 +241,7 @@ bot.action('menu_main', async (ctx) => {
   await sendMenuPhoto(ctx, 'menu-utama.png',
     `🏠 <b>MENU UTAMA</b> ${settings.roleBadge(role)}
 ━━━━━━━━━━━━━━━━━━
-Pilih layanan di bawah ini:`, mainMenu(await admin.hasAdminAccess(ctx)));
+Pilih layanan di bawah ini:`, mainMenu(await admin.hasAdminAccess(ctx), role === 'reseller'));
 });
 
 // ---------- Menu VPN ----------
@@ -420,6 +421,30 @@ bot.on('text', async (ctx) => {
     return ctx.reply(`✅ Broadcast selesai.\n📨 Terkirim: <b>${ok}</b> grup${fail ? `\n❌ Gagal: <b>${fail}</b> grup` : ''}`, {
       parse_mode: 'HTML', reply_markup: adminPanel().reply_markup,
     });
+  }
+
+  // --- Session admin: tulis pesan broadcast user → konfirmasi ---
+  if (sess?.step === 'adm_bcu_msg') {
+    if (!await admin.hasAdminAccess(ctx)) { sessions.delete(chatId); return ctx.reply('❌ Khusus admin.'); }
+    const pesan = ctx.message.text;
+    const { target, tlabel } = sess.data || {};
+    if (!pesan || pesan.length < 2) return ctx.reply('❌ Pesan terlalu pendek.');
+    const { all } = require('./src/db');
+    const rows = target === 'all'
+      ? await all('SELECT telegram_id FROM users')
+      : await all('SELECT telegram_id FROM users WHERE role = ?', [target]);
+    const count = new Set(rows.map((r) => r.telegram_id).filter(Boolean)).size;
+    if (!count) { sessions.delete(chatId); return ctx.reply('❌ Tidak ada user pada target ini.'); }
+    sessions.set(chatId, { step: 'adm_bcu_confirm', data: { target, tlabel, pesan } });
+    return ctx.reply(
+      `📣 <b>Konfirmasi Broadcast</b>\n\n🎯 Target: <b>${tlabel}</b>\n👥 Penerima: <b>${count}</b> user\n\n<b>Isi pesan:</b>\n${pesan}\n\nKirim sekarang?`,
+      {
+        parse_mode: 'HTML',
+        reply_markup: Markup.inlineKeyboard([
+          [sBtn('✅ Ya, Kirim', 'adm_bcu_confirm', 'success'), sBtn('❌ Batal', 'adm_bcu_cancel', 'danger')],
+        ]).reply_markup,
+      }
+    );
   }
 
   // --- Session admin: set grup notifikasi ---
@@ -1083,6 +1108,105 @@ bot.action(/^akun_page_(\d+)$/, async (ctx) => {
     try { await ctx.editMessageText(text, extra); }
     catch (e2) { await ctx.reply(text, extra); }
   }
+});
+
+// ============================================================
+// ---------- Panel Reseller ----------
+// ============================================================
+const isResellerOrAdmin = async (ctx) => {
+  if (await admin.hasAdminAccess(ctx)) return true;
+  const role = await ppob.getRole(ctx.from.id).catch(() => 'member');
+  return role === 'reseller';
+};
+
+const resellerPanel = () => Markup.inlineKeyboard([
+  [sBtn('💰 Harga Modal Saya', 'rsl_prices', 'primary'), sBtn('➕ Buat Akun VPN', 'rsl_create', 'success')],
+  [sBtn('📋 Riwayat Transaksi', 'rsl_history', 'primary'), sBtn('💳 Saldo Saya', 'rsl_saldo', 'success')],
+  [sBtn('🔙 Kembali', 'menu_main', 'danger')],
+]);
+
+bot.action('menu_reseller', async (ctx) => {
+  await safeCb(ctx);
+  if (!await isResellerOrAdmin(ctx)) return ctx.reply('❌ Khusus reseller.');
+  const role = await ppob.getRole(ctx.from.id).catch(() => 'member');
+  const saldo = await ppob.getSaldo(ctx.from.id).catch(() => 0);
+  await ctx.reply(
+    `🏪 <b>PANEL RESELLER</b> ${settings.roleBadge(role)}\n━━━━━━━━━━━━━━━━━━\n\n` +
+    `💳 Saldo: <b>Rp${Number(saldo).toLocaleString('id-ID')}</b>\n\n` +
+    `Pilih menu di bawah ini:`,
+    { parse_mode: 'HTML', reply_markup: resellerPanel().reply_markup }
+  );
+});
+
+// a. Harga modal reseller
+bot.action('rsl_prices', async (ctx) => {
+  await safeCb(ctx);
+  if (!await isResellerOrAdmin(ctx)) return ctx.reply('❌ Khusus reseller.');
+  const protos = ['ssh', 'vmess', 'vless', 'trojan', 'shadowsocks', 'zivpn'];
+  const labels = { ssh: '🖥️ SSH', vmess: '📡 VMess', vless: '⚡ VLess', trojan: '🛡️ Trojan', shadowsocks: '👻 Shadowsocks', zivpn: '🚀 Zivpn UDP' };
+  const lines = [];
+  for (const p of protos) {
+    const harga = await vpn.getVpnPrice(p, 'reseller');
+    lines.push(`${labels[p]}: <b>Rp${Number(harga).toLocaleString('id-ID')}/hari</b>`);
+  }
+  await ctx.reply(
+    `💰 <b>Harga Modal Reseller</b>\n━━━━━━━━━━━━━━━━━━\n\n${lines.join('\n')}\n\n<i>Harga per hari. Admin = Rp0 (modal).</i>`,
+    { parse_mode: 'HTML', reply_markup: resellerPanel().reply_markup }
+  );
+});
+
+// b. Buat akun VPN (pakai alur yang sudah ada — harga otomatis sesuai role)
+bot.action('rsl_create', async (ctx) => {
+  await safeCb(ctx);
+  if (!await isResellerOrAdmin(ctx)) return ctx.reply('❌ Khusus reseller.');
+  const saldo = await ppob.getSaldo(ctx.from.id).catch(() => 0);
+  await ctx.reply(
+    `➕ <b>Buat Akun VPN</b>\n━━━━━━━━━━━━━━━━━━\n\n` +
+    `💳 Saldo kamu: <b>Rp${Number(saldo).toLocaleString('id-ID')}</b>\n` +
+    `Harga sesuai tarif reseller.\n\nPilih protokol:`,
+    { parse_mode: 'HTML', reply_markup: vpnMenu(false).reply_markup }
+  );
+});
+
+// c. Riwayat transaksi reseller
+bot.action('rsl_history', async (ctx) => {
+  await safeCb(ctx);
+  if (!await isResellerOrAdmin(ctx)) return ctx.reply('❌ Khusus reseller.');
+  const { all } = require('./src/db');
+  const rows = await all(
+    'SELECT type, amount, status, created_at FROM transactions WHERE telegram_id = ? ORDER BY rowid DESC LIMIT 15',
+    [ctx.from.id]
+  ).catch(() => []);
+  if (!rows.length) {
+    return ctx.reply('📋 <b>Riwayat Transaksi</b>\n\n📭 Belum ada transaksi.', {
+      parse_mode: 'HTML', reply_markup: resellerPanel().reply_markup,
+    });
+  }
+  const lines = rows.map((r, i) => {
+    const tgl = r.created_at ? new Date(r.created_at).toLocaleDateString('id-ID') : '-';
+    return `${i + 1}. <code>${esc(r.type || '-')}</code> — Rp${Number(r.amount || 0).toLocaleString('id-ID')} (${esc(r.status || '-')}) <i>${tgl}</i>`;
+  });
+  await ctx.reply(
+    `📋 <b>Riwayat Transaksi</b> (15 terakhir)\n━━━━━━━━━━━━━━━━━━\n\n${lines.join('\n')}`,
+    { parse_mode: 'HTML', reply_markup: resellerPanel().reply_markup }
+  );
+});
+
+// d. Saldo reseller
+bot.action('rsl_saldo', async (ctx) => {
+  await safeCb(ctx);
+  if (!await isResellerOrAdmin(ctx)) return ctx.reply('❌ Khusus reseller.');
+  const saldo = await ppob.getSaldo(ctx.from.id).catch(() => 0);
+  await ctx.reply(
+    `💳 <b>Saldo Saya</b>\n━━━━━━━━━━━━━━━━━━\n\n💰 Saldo: <b>Rp${Number(saldo).toLocaleString('id-ID')}</b>`,
+    {
+      parse_mode: 'HTML',
+      reply_markup: Markup.inlineKeyboard([
+        [sBtn('💰 Topup Saldo', 'ppob_deposit', 'success')],
+        [sBtn('🔙 Kembali', 'menu_reseller', 'danger')],
+      ]).reply_markup,
+    }
+  );
 });
 
 // ---------- Renew Akun ----------
@@ -1997,6 +2121,71 @@ bot.action('adm_bcast_send', async (ctx) => {
     `Mendukung format HTML sederhana (&lt;b&gt;, &lt;i&gt;, &lt;code&gt;).`,
     { parse_mode: 'HTML' }
   );
+});
+
+// ============================================================
+// ---------- Broadcast ke User ----------
+// ============================================================
+bot.action('adm_bcastuser', async (ctx) => {
+  if (!await admin.hasAdminAccess(ctx)) { await safeCb(ctx); return; }
+  await safeCb(ctx);
+  const kb = [
+    [sBtn('👥 Semua User', 'adm_bcu_t_all', 'primary')],
+    [sBtn('👤 Hanya Member', 'adm_bcu_t_member', 'success'), sBtn('🏪 Hanya Reseller', 'adm_bcu_t_reseller', 'success')],
+    [sBtn('🔙 Kembali', 'adm_open', 'danger')],
+  ];
+  await ctx.reply(
+    `📣 <b>Broadcast ke User</b>\n\nPilih target penerima:`,
+    { parse_mode: 'HTML', reply_markup: Markup.inlineKeyboard(kb).reply_markup }
+  );
+});
+
+for (const [tkey, tlabel] of [['all', 'Semua User'], ['member', 'Member'], ['reseller', 'Reseller']]) {
+  bot.action(`adm_bcu_t_${tkey}`, async (ctx) => {
+    if (!await admin.hasAdminAccess(ctx)) { await safeCb(ctx); return; }
+    await safeCb(ctx);
+    sessions.set(ctx.chat.id, { step: 'adm_bcu_msg', data: { target: tkey, tlabel } });
+    await ctx.reply(
+      `📝 <b>Tulis Pesan Broadcast</b>\n\nTarget: <b>${tlabel}</b>\n\nKetik pesan yang akan dikirim.\nMendukung format HTML sederhana (&lt;b&gt;, &lt;i&gt;, &lt;code&gt;).`,
+      { parse_mode: 'HTML' }
+    );
+  });
+}
+
+bot.action('adm_bcu_confirm', async (ctx) => {
+  if (!await admin.hasAdminAccess(ctx)) { await safeCb(ctx); return; }
+  await safeCb(ctx);
+  const sess = sessions.get(ctx.chat.id);
+  if (!sess || sess.step !== 'adm_bcu_confirm') return ctx.reply('❌ Sesi kedaluwarsa. Ulangi dari awal.');
+  const { target, tlabel, pesan } = sess.data;
+  sessions.delete(ctx.chat.id);
+  const { all } = require('./src/db');
+  const rows = target === 'all'
+    ? await all('SELECT telegram_id FROM users')
+    : await all('SELECT telegram_id FROM users WHERE role = ?', [target]);
+  const ids = [...new Set(rows.map((r) => r.telegram_id).filter(Boolean))];
+  if (!ids.length) return ctx.reply('❌ Tidak ada user pada target ini.');
+  await ctx.reply(`⏳ Mengirim broadcast ke ${ids.length} user (${tlabel})...`);
+  let ok = 0, fail = 0;
+  for (const uid of ids) {
+    try {
+      await ctx.telegram.sendMessage(uid, `📢 <b>Pengumuman</b>\n\n${pesan}`, { parse_mode: 'HTML' });
+      ok++;
+    } catch (e) { fail++; }
+    await new Promise((r) => setTimeout(r, 50));
+  }
+  console.log(`[bcast-user] target=${target} ok=${ok} fail=${fail}`);
+  notifGrup(bot, `📣 <b>Broadcast User</b>\n👤 Admin: ${ctx.from.username ? '@' + ctx.from.username : ctx.from.first_name}\n🎯 Target: ${tlabel}\n✅ Terkirim: ${ok} user${fail ? `\n❌ Gagal: ${fail} user` : ''}`);
+  return ctx.reply(`✅ Broadcast selesai.\n🎯 Target: <b>${tlabel}</b>\n📨 Terkirim: <b>${ok}</b> user${fail ? `\n❌ Gagal: <b>${fail}</b> user` : ''}`, {
+    parse_mode: 'HTML', reply_markup: adminPanel().reply_markup,
+  });
+});
+
+bot.action('adm_bcu_cancel', async (ctx) => {
+  if (!await admin.hasAdminAccess(ctx)) { await safeCb(ctx); return; }
+  await safeCb(ctx);
+  sessions.delete(ctx.chat.id);
+  await ctx.reply('❌ Broadcast dibatalkan.', { reply_markup: adminPanel().reply_markup });
 });
 
 // ============================================================
