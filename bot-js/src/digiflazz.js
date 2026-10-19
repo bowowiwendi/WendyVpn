@@ -191,35 +191,6 @@ async function balance() {
   );
 }
 
-async function balance() {
-  if (!enabled()) {
-    throw new Error(
-      'DIGIFLAZZ_USERNAME / DIGIFLAZZ_API_KEY belum diisi di .vars.json'
-    );
-  }
-
-  const signature = sign('depo');
-
-  console.log('🔐 DIGIFLAZZ CEK SALDO');
-  console.log('Username:', USERNAME);
-  console.log('API Key length:', API_KEY.length);
-  console.log('Signature:', signature);
-
-  const result = await post('/cek-saldo', {
-    cmd: 'deposit',
-    username: USERNAME,
-    sign: signature
-  });
-
-  if (result?.data) {
-    return result.data;
-  }
-
-  throw new Error(
-    result?.message ||
-    'Gagal mengambil saldo supplier Digiflazz'
-  );
-}
 // ============================================================
 // TRANSAKSI
 // ============================================================
@@ -254,6 +225,34 @@ async function transaction({
       username: USERNAME,
       buyer_sku_code: sku,
       customer_no: customerNo,
+      ref_id: refId,
+      sign: sign(refId)
+    }
+  );
+
+  return result?.data;
+}
+
+
+// ============================================================
+// CEK STATUS TRANSAKSI (by ref_id)
+// ============================================================
+
+async function checkTransaction(refId) {
+  if (!enabled()) {
+    throw new Error(
+      'DIGIFLAZZ_USERNAME / DIGIFLAZZ_API_KEY belum diisi di .vars.json'
+    );
+  }
+
+  if (!refId) {
+    throw new Error('Ref ID tidak boleh kosong');
+  }
+
+  const result = await post(
+    '/transaction',
+    {
+      username: USERNAME,
       ref_id: refId,
       sign: sign(refId)
     }
@@ -540,6 +539,7 @@ module.exports = {
   sync,
   balance,
   transaction,
+  checkTransaction,
   find,
   basePrice,
   sellPrice,
