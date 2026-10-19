@@ -364,19 +364,28 @@ bot.on('text', async (ctx) => {
     return ctx.reply(r.message, { parse_mode: 'HTML' });
   }
 
-  // --- Session beli PPOB via tombol ---
+  // --- Session beli PPOB: tujuan (tombol daftar produk ATAU input kode manual) ---
   if (sess?.step === 'ppob_tujuan') {
     const tujuan = ctx.message.text.trim();
     if (!tujuan || tujuan.length < 5) {
       return ctx.reply('❌ Nomor tujuan tidak valid. Coba lagi:');
     }
-    const d = sess.data;
+    const d = sess.data || {};
     sessions.delete(chatId);
     await ctx.reply('⏳ Memproses pembelian...');
-    const r = await ppob.buyProduct(ctx.from.id, d.sku, tujuan, d.price);
+    let sku = d.sku, price = d.price, productName = d.productName;
+    if (!sku && d.kode) {
+      // Alur input kode manual: cari produk & harga dari daftar
+      const list = await ppob.productList().catch(() => ({ items: [] }));
+      const prod = (list.items || []).find((p) => p.buyer_sku_code.toUpperCase() === String(d.kode).toUpperCase());
+      if (!prod) return ctx.reply('❌ Kode produk tidak ditemukan. Lihat /produk');
+      sku = prod.buyer_sku_code; price = prod.price_sell; productName = prod.product_name;
+    }
+    if (!sku) return ctx.reply('❌ Data produk tidak lengkap. Ulangi dari menu PPOB.');
+    const r = await ppob.buyProduct(ctx.from.id, sku, tujuan, price);
     if (r.success) {
       const uname = ctx.from.username ? '@' + ctx.from.username : ctx.from.first_name;
-      notifGrup(bot, `🛒 <b>Pembelian PPOB</b>\n👤 ${uname}\n📦 ${d.productName}\n📱 ${tujuan}\n💰 Rp${Number(d.price).toLocaleString('id-ID')}`);
+      notifGrup(bot, `🛒 <b>Pembelian PPOB</b>\n👤 ${uname}\n📦 ${productName || sku}\n📱 ${tujuan}\n💰 Rp${Number(price).toLocaleString('id-ID')}`);
     }
     return ctx.reply(r.message, { parse_mode: 'HTML' });
   }
@@ -423,22 +432,6 @@ bot.on('text', async (ctx) => {
     return ctx.reply('Kirim <b>nomor tujuan</b>:', { parse_mode: 'HTML' });
   }
 
-  if (sess?.step === 'ppob_tujuan') {
-    const tujuan = ctx.message.text.trim();
-    const { kode } = sess.data;
-    sessions.delete(chatId);
-    await ctx.reply('⏳ Memproses transaksi...');
-    // Cari harga dari daftar terakhir (disederhanakan: pakai priceList)
-    const list = await ppob.productList().catch(() => ({ items: [] }));
-    const prod = (list.items || []).find((p) => p.buyer_sku_code.toUpperCase() === kode);
-    if (!prod) return ctx.reply('❌ Kode produk tidak ditemukan. Lihat /produk');
-    const r = await ppob.buyProduct(ctx.from.id, kode, tujuan, prod.price_sell);
-    if (r.success) {
-      const uname2 = ctx.from.username ? '@' + ctx.from.username : ctx.from.first_name;
-      notifGrup(bot, `🛒 <b>Pembelian PPOB</b>\n👤 ${uname2}\n💰 Transaksi berhasil`);
-    }
-    return ctx.reply(r.message, { parse_mode: 'HTML' });
-  }
 
   // ============================================================
   // --- Session PANEL ADMIN ---
