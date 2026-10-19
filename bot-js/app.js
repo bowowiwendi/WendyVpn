@@ -905,7 +905,7 @@ bot.action('menu_ppob', async (ctx) => {
     `Pilih layanan:`,
     Markup.inlineKeyboard([
       [sBtn('🟢 Deposit / Top Up', 'ppob_deposit', 'success'), sBtn('🛒 Beli Pulsa/Paket', 'ppob_beli', 'primary')],
-      [sBtn('🔵 Cek Order', 'ppob_cekorder', 'primary'), sBtn('🟣 Daftar Produk', 'ppob_produk', 'success')],
+      [sBtn('🔵 Cek Order', 'ppob_cekorder', 'primary'), sBtn('🟣 Produk Lainnya', 'ppob_produk', 'success')],
       [sBtn('🔙 Kembali', 'menu_main', 'danger')],
     ]));
 });
@@ -917,35 +917,35 @@ bot.action('ppob_deposit', async (ctx) => {
 });
 
 // Tampilkan daftar produk PPOB (dipakai tombol Beli & Daftar Produk)
-async function showProductList(ctx, page) {
+async function showProductList(ctx, group, page = 1) {
   await safeCb(ctx);
-  const r = await ppob.productList(undefined, page)
+  const r = await ppob.productList(group, page)
     .catch((e) => ({ success: false, message: `❌ ${esc(e.message)}` }));
   if (!r.success) { await ctx.reply(r.message, { parse_mode: 'HTML' }); return; }
-  if (r.pageItems) prodCache.set(ctx.from.id, { pageItems: r.pageItems, page: r.page });
-  const extra = { parse_mode: 'HTML', reply_markup: ppob.productKeyboard(r.page, r.pages, r.pageItems) };
+  if (r.pageItems) prodCache.set(ctx.from.id, { pageItems: r.pageItems, page: r.page, group: group || '' });
+  const extra = { parse_mode: 'HTML', reply_markup: ppob.productKeyboard(r.page, r.pages, r.pageItems, group || '') };
   try { await ctx.editMessageText(r.message, extra); }
   catch (e) { await ctx.reply(r.message, extra); }
 }
 
 bot.action('ppob_beli', async (ctx) => {
-  await showProductList(ctx);
+  await showProductList(ctx, 'pulsa');
 });
 
 bot.action('ppob_produk', async (ctx) => {
-  await showProductList(ctx);
+  await showProductList(ctx, 'lainnya');
 });
-bot.action(/^prod_page_(\d+)$/, async (ctx) => {
-  await showProductList(ctx, parseInt(ctx.match[1], 10));
+bot.action(/^prod_page_([a-z]*)_(\d+)$/, async (ctx) => {
+  await showProductList(ctx, ctx.match[1] || undefined, parseInt(ctx.match[2], 10));
 });
 
 // Tombol beli produk PPOB
-bot.action(/^prod_buy_(\d+)_(\d+)$/, async (ctx) => {
+bot.action(/^prod_buy_([a-z]*)_(\d+)_(\d+)$/, async (ctx) => {
   await safeCb(ctx);
-  const page = parseInt(ctx.match[1], 10);
-  const idx = parseInt(ctx.match[2], 10);
+  const page = parseInt(ctx.match[2], 10);
+  const idx = parseInt(ctx.match[3], 10);
   const cached = prodCache.get(ctx.from.id);
-  if (!cached || !cached.pageItems || cached.page !== page || !cached.pageItems[idx]) {
+  if (!cached || !cached.pageItems || cached.page !== page || (cached.group || '') !== (ctx.match[1] || '') || !cached.pageItems[idx]) {
     await ctx.reply('❌ Produk tidak ditemukan / halaman kadaluarsa. Buka daftar produk lagi.');
     return;
   }
@@ -981,10 +981,7 @@ bot.command('saldo', async (ctx) => {
 });
 
 bot.command('produk', async (ctx) => {
-  const r = await ppob.productList().catch((e) => ({ success: false, message: `❌ ${esc(e.message)}` }));
-  if (!r.success) return ctx.reply(r.message, { parse_mode: 'HTML' });
-  if (r.success && r.pageItems) prodCache.set(ctx.from.id, { pageItems: r.pageItems, page: r.page });
-  await ctx.reply(r.message, { parse_mode: 'HTML', reply_markup: ppob.productKeyboard(r.page, r.pages, r.pageItems) });
+  await showProductList(ctx, 'lainnya');
 });
 
 bot.command('beli', async (ctx) => {
