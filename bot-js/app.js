@@ -1456,6 +1456,36 @@ setInterval(async () => {
   }
 }, 60 * 1000);
 
+// ---------- Auto-sync produk Digiflazz (cache lokal, anti rate-limit) ----------
+(async () => {
+  try {
+    const cached = require('./src/db').products();
+    const intervalMs = (config.syncMinutes || 60) * 60 * 1000;
+    if (!cached.lastSync || Date.now() - cached.lastSync > intervalMs) {
+      console.log('[digiflazz] sync produk awal...');
+      await digi.sync().catch((e) => console.error('[digiflazz] sync awal gagal:', e.message));
+    }
+  } catch (e) { console.error('[digiflazz] cek cache gagal:', e.message); }
+})();
+setInterval(async () => {
+  try {
+    await digi.sync();
+    console.log('[digiflazz] auto-sync produk OK', new Date().toISOString());
+  } catch (e) { console.error('[digiflazz] auto-sync produk gagal:', e.message); }
+}, (config.syncMinutes || 60) * 60 * 1000);
+
+bot.command('syncproduk', async (ctx) => {
+  if (!admin.isAdmin(ctx)) return;
+  await ctx.reply('⏳ Sinkronisasi produk Digiflazz...');
+  try {
+    const out = await digi.sync();
+    const n = (out.list_prepaid || []).length;
+    await ctx.reply(`✅ Sinkronisasi selesai.\n📦 ${n} produk prabayar dimuat.`);
+  } catch (e) {
+    await ctx.reply(`❌ Gagal sync: ${esc(e.message)}`);
+  }
+});
+
 // ---------- Error handler ----------
 bot.catch((err, ctx) => {
   console.error('Bot error:', err.message);
