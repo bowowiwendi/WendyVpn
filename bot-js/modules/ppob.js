@@ -324,9 +324,9 @@ async function productList(group, page = 1, opts = {}) {
   const title = grpDef ? grpDef.title
     : g === 'pulsa' ? '📱 <b>Pulsa & Paket Data</b>'
     : g === 'lainnya' ? '🛍️ <b>Produk Lainnya</b>'
-    : g === 'prabayar' ? '🔵 <b>Prabayar</b>'
-    : g === 'pascabayar' ? '🟣 <b>Pascabayar</b>'
-    : g === 'populer' ? '🔥 <b>Produk Populer</b>'
+    : g === 'prabayar' ? '📱 <b>Prabayar</b>'
+    : g === 'pascabayar' ? '🧾 <b>Pascabayar</b>'
+    : g === 'populer' ? '⭐ <b>Produk Populer</b>'
     : g.startsWith('cari:') ? `🔍 <b>Hasil: ${esc(g.slice(5))}</b>`
     : `🛒 <b>Daftar Produk</b>`;
   const message =

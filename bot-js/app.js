@@ -96,9 +96,9 @@ async function sendMenuPhoto(ctx, imageFile, caption, keyboard) {
 // ---------- Helper ----------
 const mainMenu = (isAdmin = false) => {
   const rows = [
-    [sBtn('🟢 VPN Premium', 'menu_vpn', 'primary'), sBtn('☁️ VPN CloudFront', 'menu_cf', 'primary')],
-    [sBtn('🟡 PPOB & Pulsa', 'menu_ppob', 'success'), sBtn('🔵 Cek Kuota', 'menu_kuota', 'primary')],
-    [sBtn('🟣 Akun Saya', 'menu_akun', 'success'), sBtn('🟠 Statistik', 'menu_stat', 'primary')],
+    [sBtn('🛰️ VPN Premium', 'menu_vpn', 'primary'), sBtn('☁️ VPN CloudFront', 'menu_cf', 'primary')],
+    [sBtn('💰 PPOB & Pulsa', 'menu_ppob', 'success'), sBtn('📊 Cek Kuota', 'menu_kuota', 'primary')],
+    [sBtn('👤 Akun Saya', 'menu_akun', 'success'), sBtn('📈 Statistik', 'menu_stat', 'primary')],
     [sBtn('💰 Sewa Script VPN', 'menu_sewa', 'success')],
   ];
   if (isAdmin) rows.push([sBtn('🛠️ Panel Admin', 'adm_open', 'danger')]);
@@ -131,9 +131,9 @@ async function getServers() {
 const vpnMenu = (cf = false) => {
   const p = cf ? 'cf_' : '';
   return Markup.inlineKeyboard([
-    [sBtn('🔴 SSH', `${p}mk_ssh`, 'danger'), sBtn('🟢 VMess', `${p}mk_vmess`, 'success')],
-    [sBtn('🔵 VLess', `${p}mk_vless`, 'primary'), sBtn('🟡 Trojan', `${p}mk_trojan`, 'success')],
-    [sBtn('🟣 Shadowsocks', `${p}mk_shadowsocks`, 'primary')],
+    [sBtn('🖥️ SSH', `${p}mk_ssh`, 'danger'), sBtn('📡 VMess', `${p}mk_vmess`, 'success')],
+    [sBtn('⚡ VLess', `${p}mk_vless`, 'primary'), sBtn('🛡️ Trojan', `${p}mk_trojan`, 'success')],
+    [sBtn('👻 Shadowsocks', `${p}mk_shadowsocks`, 'primary')],
     [sBtn('⚡ Zivpn UDP', `${p}mk_zivpn`, 'success')],
     [sBtn('💰 Topup Saldo', 'ppob_deposit', 'success')],
     [sBtn('🔙 Kembali', 'menu_main', 'danger')],
@@ -192,10 +192,10 @@ const WELCOME_CAPTION = (name, role = 'member') =>
 ━━━━━━━━━━━━━━━━━━
 Pilih layanan di bawah ini:
 
-<blockquote>🟢 <b>VPN Premium</b> — SSH / VMess / VLess / Trojan
+<blockquote>🛰️ <b>VPN Premium</b> — SSH / VMess / VLess / Trojan
 ☁️ <b>VPN CloudFront</b> — trafik disamarkan HTTPS
-🟡 <b>PPOB & Pulsa</b> — isi pulsa, paket data, PLN
-🔵 <b>Cek Kuota</b> — cek kuota semua operator
+💰 <b>PPOB & Pulsa</b> — isi pulsa, paket data, PLN
+📊 <b>Cek Kuota</b> — cek kuota semua operator
 💰 <b>Sewa Script</b> — lisensi script VPN</blockquote>
 ━━━━━━━━━━━━━━━━━━
 <code>🌐 dikelola oleh Wendi Network</code>`;
@@ -247,18 +247,18 @@ Pilih layanan di bawah ini:`, mainMenu(await admin.hasAdminAccess(ctx)));
 bot.action('menu_vpn', async (ctx) => {
   await safeCb(ctx);
   await sendMenuPhoto(ctx, 'menu-vpn.png',
-    `🟢 <b>VPN PREMIUM</b>
+    `🛰️ <b>VPN PREMIUM</b>
 ━━━━━━━━━━━━━━━━━━
 ` +
-    `<blockquote>🔴 <b>SSH</b> — cepat & stabil
+    `<blockquote>🖥️ <b>SSH</b> — cepat & stabil
 ` +
-    `🟢 <b>VMess</b> — protokol V2Ray
+    `📡 <b>VMess</b> — protokol V2Ray
 ` +
-    `🔵 <b>VLess</b> — ringan & cepat
+    `⚡ <b>VLess</b> — ringan & cepat
 ` +
-    `🟡 <b>Trojan</b> — aman & anti-blokir
+    `🛡️ <b>Trojan</b> — aman & anti-blokir
 ` +
-    `🟣 <b>Shadowsocks</b> — simpel & cepat</blockquote>
+    `👻 <b>Shadowsocks</b> — simpel & cepat</blockquote>
 
 ` +
     `Pilih protokol di bawah ini:`, vpnMenu(false));
@@ -275,9 +275,9 @@ bot.action('menu_cf', async (ctx) => {
     `sulit dideteksi & diblokir.</blockquote>
 
 ` +
-    `🔴 <b>SSH</b>  🟢 <b>VMess</b>
+    `🖥️ <b>SSH</b>  📡 <b>VMess</b>
 ` +
-    `🔵 <b>VLess</b>  🟡 <b>Trojan</b>
+    `⚡ <b>VLess</b>  🛡️ <b>Trojan</b>
 
 ` +
     `Pilih protokol di bawah ini:`, vpnMenu(true));
@@ -1058,7 +1058,7 @@ function akunPageText(rows, page) {
     return `${n}. <b>${esc(a.proto.toUpperCase())}</b> <code>${esc(a.username)}</code>\n   📅 Exp: ${esc(a.expiry)}${a.via_cf ? ' ☁️CF' : ''}${a.is_trial ? ' 🎁trial' : ''}`;
   });
   return {
-    text: `🟣 <b>AKUN SAYA</b>\n━━━━━━━━━━━━━━━━━━\n📄 Halaman <b>${pg}</b> dari <b>${pages}</b>\n\n<blockquote>${lines.join('\n')}</blockquote>`,
+    text: `👤 <b>AKUN SAYA</b>\n━━━━━━━━━━━━━━━━━━\n📄 Halaman <b>${pg}</b> dari <b>${pages}</b>\n\n<blockquote>${lines.join('\n')}</blockquote>`,
     page: pg, pages, slice,
   };
 }
@@ -1067,7 +1067,7 @@ bot.action('menu_akun', async (ctx) => {
   const rows = await vpn.myAccounts(ctx.from.id);
   if (!rows.length) {
     return sendMenuPhoto(ctx, 'menu-akun.png',
-      `🟣 <b>AKUN SAYA</b>\n━━━━━━━━━━━━━━━━━━\n\n📭 Kamu belum punya akun VPN.\nBuat dulu di menu VPN ya!`, backBtn());
+      `👤 <b>AKUN SAYA</b>\n━━━━━━━━━━━━━━━━━━\n\n📭 Kamu belum punya akun VPN.\nBuat dulu di menu VPN ya!`, backBtn());
   }
   const { text, page, pages, slice } = akunPageText(rows, 1);
   await sendMenuPhoto(ctx, 'menu-akun.png', text, { reply_markup: akunKeyboard(page, pages, slice) });
@@ -1177,7 +1177,7 @@ function ppobCategoryKeyboard() {
   const btns = ppobLayout.CATEGORY_BUTTONS || [];
   const rows = [];
   // Baris deposit di atas
-  rows.push([sBtn('🟢 Deposit / Top Up', 'ppob_deposit', 'success')]);
+  rows.push([sBtn('💰 Deposit / Top Up', 'ppob_deposit', 'success')]);
   for (let i = 0; i < btns.length; i += 2) {
     const row = [];
     for (let j = i; j < Math.min(i + 2, btns.length); j++) {
@@ -1186,9 +1186,9 @@ function ppobCategoryKeyboard() {
     }
     rows.push(row);
   }
-  rows.push([sBtn('🔍 CARI PRODUK', 'ppob_cari', 'primary'), sBtn('🔥 POPULER', 'ppob_populer', 'danger')]);
-  rows.push([sBtn('🔵 Prabayar', 'ppob_prabayar', 'primary'), sBtn('🟣 Pascabayar', 'ppob_pascabayar', 'primary')]);
-  rows.push([sBtn('🔵 Cek Order', 'ppob_cekorder', 'primary'), sBtn('🏠 Menu Utama', 'menu_main', 'success')]);
+  rows.push([sBtn('🔍 CARI PRODUK', 'ppob_cari', 'primary'), sBtn('⭐ POPULER', 'ppob_populer', 'danger')]);
+  rows.push([sBtn('📱 Prabayar', 'ppob_prabayar', 'primary'), sBtn('🧾 Pascabayar', 'ppob_pascabayar', 'primary')]);
+  rows.push([sBtn('📋 Cek Order', 'ppob_cekorder', 'primary'), sBtn('🏠 Menu Utama', 'menu_main', 'success')]);
   return Markup.inlineKeyboard(rows);
 }
 

@@ -65,12 +65,12 @@ module.exports = {
   // Label tombol kategori di menu utama PPOB (urutan tampil).
   // Key = group id untuk productList(), value = label tombol.
   CATEGORY_BUTTONS: [
-    ['perdana', 'Perdana'], ['voucher', 'Voucher'],
-    ['kuota', 'Kuota'], ['e-money', 'E-Money'],
-    ['game', 'Game'], ['gas', 'Gas'],
-    ['masa-aktif', 'Masa Aktif'], ['sms-telp', 'SMS & Telp'],
-    ['pln', 'PLN'], ['pulsa', 'Pulsa'],
-    ['tv', 'TV'], ['voucher', 'Voucher'],
+    ['perdana', '📱 Perdana'], ['voucher', '🎫 Voucher'],
+    ['kuota', '📶 Kuota'], ['e-money', '💳 E-Money'],
+    ['game', '🎮 Game'], ['gas', '🔥 Gas'],
+    ['masa-aktif', '⏰ Masa Aktif'], ['sms-telp', '💬 SMS & Telp'],
+    ['pln', '💡 PLN'], ['pulsa', '📞 Pulsa'],
+    ['tv', '📺 TV'], ['voucher', '🎫 Voucher'],
   ],
 
   // ------------------------------------------------------------
