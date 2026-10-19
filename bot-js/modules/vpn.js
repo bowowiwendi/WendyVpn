@@ -5,6 +5,7 @@
 const axios = require('axios');
 const config = require('../src/config');
 const { run, get, all } = require('../src/db');
+const { esc } = require('../src/format');
 
 const { apiBase, apiAuth, domain } = config.vpn;
 const cf = config.cloudfront;
@@ -29,16 +30,16 @@ async function createSSH(username, password, days, ipLimit = 1) {
   const { data } = await api.get('/createshh', {
     params: apiParams({ user: username, password, exp: days, iplimit: ipLimit }),
   });
-  if (data?.status !== 'success') return { success: false, message: `❌ Gagal: ${data?.message || 'API error'}` };
+  if (data?.status !== 'success') return { success: false, message: `❌ Gagal: ${esc(data?.message || 'API error')}` };
   const exp = expiryDate(days);
   return {
     success: true,
     message:
-      `✅ <b>SSH Account</b>\n` +
+      `✅ <b>SSH Account</b>\n<blockquote>` +
       `👤 Username: <code>${username}</code>\n` +
       `🔑 Password: <code>${password}</code>\n` +
       `🌐 Host: <code>${domain}</code>\n` +
-      `📅 Expired: <code>${exp}</code>`,
+      `📅 Expired: <code>${exp}</code></blockquote>`,
     expiry: exp,
   };
 }
@@ -51,16 +52,16 @@ function cfSSHInfo(username, password, days) {
   const p = cf.paths.ssh;
   // Format untuk HTTP Custom / aplikasi SSH WS
   const message =
-    `✅ <b>SSH via CloudFront</b>\n` +
+    `✅ <b>SSH via CloudFront</b>\n<blockquote>` +
     `👤 Username: <code>${username}</code>\n` +
     `🔑 Password: <code>${password}</code>\n` +
     `🌐 Host: <code>${cf.domain}</code>\n` +
     `🔌 Port: <code>443</code> (TLS)\n` +
     `🛣️ Path: <code>${p}</code>\n` +
-    `📅 Expired: <code>${exp}</code>\n\n` +
+    `📅 Expired: <code>${exp}</code></blockquote>\n\n` +
     `<i>Payload HTTP Custom:</i>\n` +
     `<code>GET ${p} HTTP/1.1[crlf]Host: ${cf.domain}[crlf]Upgrade: websocket[crlf][crlf]</code>`;
-  return { success: true, message, expiry: exp };
+  return { success: true, message, expiry: exp, password };
 }
 
 // ---------- VMess ----------
@@ -80,9 +81,12 @@ async function createVMess(username, days, viaCF = false) {
   const { data } = await api.get('/createvmess', {
     params: apiParams({ user: username, uuid, exp: days }),
   }).catch(() => ({ data: {} }));
-  // Jika API tidak support, tetap hasilkan link dari UUID lokal
   const host = viaCF ? cf.domain : domain;
   if (viaCF && !cf.domain) return { success: false, message: '❌ Domain CloudFront belum diset.' };
+  // Mode CF memakai UUID CF yang sudah terdaftar — aman lanjut walau API gagal.
+  // Mode biasa: akun harus terdaftar di server; gagal API = gagal jujur (jangan kasih link mati).
+  if (!viaCF && data?.status !== 'success')
+    return { success: false, message: `❌ Gagal membuat akun: ${esc(data?.message || 'API error')}` };
   const useUuid = viaCF ? cf.vmessUuid || uuid : uuid;
   const path = viaCF ? cf.paths.vmess : `/vmess-${username}`;
   const link = vmessLink(useUuid, `${username}-cf`, host, viaCF ? 443 : 443, path, true);
@@ -90,11 +94,11 @@ async function createVMess(username, days, viaCF = false) {
   return {
     success: true,
     message:
-      `✅ <b>VMess${viaCF ? ' via CloudFront' : ''}</b>\n` +
+      `✅ <b>VMess${viaCF ? ' via CloudFront' : ''}</b>\n<blockquote>` +
       `👤 Username: <code>${username}</code>\n` +
-      `📅 Expired: <code>${exp}</code>\n\n` +
+      `📅 Expired: <code>${exp}</code></blockquote>\n\n` +
       `<code>${link}</code>`,
-    expiry: exp, link,
+    expiry: exp, link, uuid: useUuid,
   };
 }
 
@@ -102,9 +106,11 @@ async function createVMess(username, days, viaCF = false) {
 async function createVLess(username, days, viaCF = false) {
   if (!validUser(username)) return { success: false, message: '❌ Username 3-20 karakter, huruf/angka saja.' };
   const uuid = require('crypto').randomUUID();
-  await api.get('/createvless', { params: apiParams({ user: username, uuid, exp: days }) }).catch(() => {});
+  const { data: dataVL } = await api.get('/createvless', { params: apiParams({ user: username, uuid, exp: days }) }).catch(() => ({ data: {} }));
   const host = viaCF ? cf.domain : domain;
   if (viaCF && !cf.domain) return { success: false, message: '❌ Domain CloudFront belum diset.' };
+  if (!viaCF && dataVL?.status !== 'success')
+    return { success: false, message: `❌ Gagal membuat akun: ${esc(dataVL?.message || 'API error')}` };
   const useUuid = viaCF ? cf.vlessUuid || uuid : uuid;
   const path = encodeURIComponent(viaCF ? cf.paths.vless : `/vless-${username}`);
   const link = `vless://${useUuid}@${host}:443?encryption=none&security=tls&sni=${host}&type=ws&path=${path}#${username}${viaCF ? '-cf' : ''}`;
@@ -112,11 +118,11 @@ async function createVLess(username, days, viaCF = false) {
   return {
     success: true,
     message:
-      `✅ <b>VLess${viaCF ? ' via CloudFront' : ''}</b>\n` +
+      `✅ <b>VLess${viaCF ? ' via CloudFront' : ''}</b>\n<blockquote>` +
       `👤 Username: <code>${username}</code>\n` +
-      `📅 Expired: <code>${exp}</code>\n\n` +
+      `📅 Expired: <code>${exp}</code></blockquote>\n\n` +
       `<code>${link}</code>`,
-    expiry: exp, link,
+    expiry: exp, link, uuid: useUuid,
   };
 }
 
@@ -124,9 +130,11 @@ async function createVLess(username, days, viaCF = false) {
 async function createTrojan(username, days, viaCF = false) {
   if (!validUser(username)) return { success: false, message: '❌ Username 3-20 karakter, huruf/angka saja.' };
   const password = require('crypto').randomUUID();
-  await api.get('/createtrojan', { params: apiParams({ user: username, password, exp: days }) }).catch(() => {});
+  const { data: dataTR } = await api.get('/createtrojan', { params: apiParams({ user: username, password, exp: days }) }).catch(() => ({ data: {} }));
   const host = viaCF ? cf.domain : domain;
   if (viaCF && !cf.domain) return { success: false, message: '❌ Domain CloudFront belum diset.' };
+  if (!viaCF && dataTR?.status !== 'success')
+    return { success: false, message: `❌ Gagal membuat akun: ${esc(dataTR?.message || 'API error')}` };
   const usePass = viaCF ? cf.trojanPassword || password : password;
   const path = encodeURIComponent(viaCF ? cf.paths.trojan : `/trojan-${username}`);
   const link = `trojan://${usePass}@${host}:443?security=tls&sni=${host}&type=ws&path=${path}#${username}${viaCF ? '-cf' : ''}`;
@@ -134,11 +142,44 @@ async function createTrojan(username, days, viaCF = false) {
   return {
     success: true,
     message:
-      `✅ <b>Trojan${viaCF ? ' via CloudFront' : ''}</b>\n` +
+      `✅ <b>Trojan${viaCF ? ' via CloudFront' : ''}</b>\n<blockquote>` +
       `👤 Username: <code>${username}</code>\n` +
-      `📅 Expired: <code>${exp}</code>\n\n` +
+      `📅 Expired: <code>${exp}</code></blockquote>\n\n` +
       `<code>${link}</code>`,
-    expiry: exp, link,
+    expiry: exp, link, password: usePass,
+  };
+}
+
+// ---------- Shadowsocks ----------
+function ssLink(method, password, host, port, remark) {
+  const userinfo = Buffer.from(`${method}:${password}`).toString('base64');
+  return `ss://${userinfo}@${host}:${port}#${encodeURIComponent(remark)}`;
+}
+
+async function createShadowsocks(username, days, viaCF = false) {
+  if (!validUser(username)) return { success: false, message: '\u274c Username 3-20 karakter, huruf/angka saja.' };
+  const password = require('crypto').randomUUID();
+  const method = 'aes-256-gcm';
+  const { data: dataSS } = await api.get('/createss', { params: apiParams({ user: username, password, exp: days }) }).catch(() => ({ data: {} }));
+  const host = viaCF ? cf.domain : domain;
+  if (!viaCF && dataSS?.status !== 'success')
+    return { success: false, message: `❌ Gagal membuat akun: ${esc(dataSS?.message || 'API error')}` };
+  if (viaCF && !cf.domain) return { success: false, message: '\u274c Domain CloudFront belum diset.' };
+  const port = 443;
+  const link = ssLink(method, password, host, port, `${username}${viaCF ? '-cf' : ''}`);
+  const exp = expiryDate(days);
+  return {
+    success: true,
+    message:
+      `\u2705 <b>Shadowsocks${viaCF ? ' via CloudFront' : ''}</b>\n<blockquote>` +
+      `👤 Username: <code>${username}</code>\n` +
+      `🔑 Password: <code>${password}</code>\n` +
+      `🔐 Method: <code>${method}</code>\n` +
+      `🌍 Host: <code>${host}</code>\n` +
+      `🔌 Port: <code>${port}</code>\n` +
+      `📅 Expired: <code>${exp}</code></blockquote>\n\n` +
+      `<code>${link}</code>`,
+    expiry: exp, link, password,
   };
 }
 
@@ -148,10 +189,18 @@ async function renewAccount(proto, username, days) {
     params: apiParams({ proto, user: username, exp: days }),
   }).catch(() => ({ data: {} }));
   if (data?.status === 'success') {
-    await run('UPDATE vpn_accounts SET expiry = ? WHERE username = ? AND proto = ?', [expiryDate(days), username, proto]);
-    return { success: true, message: `✅ <b>${username}</b> diperpanjang ${days} hari.` };
+    // Perpanjang dari expiry saat ini (bila masih aktif), bukan dari hari ini —
+    // user tidak kehilangan sisa masa aktif yang sudah dibayar.
+    const today = new Date().toISOString().slice(0, 10);
+    const row = await get('SELECT expiry FROM vpn_accounts WHERE username = ? AND proto = ?', [username, proto]).catch(() => null);
+    const base = (row?.expiry && row.expiry > today) ? row.expiry : today;
+    const d = new Date(base + 'T00:00:00');
+    d.setDate(d.getDate() + Number(days));
+    const newExp = d.toISOString().slice(0, 10);
+    await run('UPDATE vpn_accounts SET expiry = ? WHERE username = ? AND proto = ?', [newExp, username, proto]);
+    return { success: true, message: `✅ <b>${username}</b> diperpanjang ${days} hari (s/d <code>${newExp}</code>).` };
   }
-  return { success: false, message: `❌ Gagal renew: ${data?.message || 'API error'}` };
+  return { success: false, message: `❌ Gagal renew: ${esc(data?.message || 'API error')}` };
 }
 
 async function deleteAccount(proto, username) {
@@ -171,7 +220,29 @@ async function myAccounts(telegramId) {
   return all('SELECT * FROM vpn_accounts WHERE telegram_id = ? ORDER BY id DESC', [telegramId]);
 }
 
+
+async function createZivpn(username, password, days) {
+  if (!validUser(username)) return { success: false, message: 'Username 3-20 karakter, huruf/angka saja.' };
+  try {
+    await api.get('/createzivpn', { params: apiParams({ user: username, password, exp: days }) });
+  } catch(e) {}
+  const host = domain;
+  const port = 5667;
+  const exp = expiryDate(days);
+  return {
+    success: true,
+    message:
+      'Zivpn UDP<br><blockquote>' +
+      'Username: <code>' + username + '</code><br>' +
+      'Password: <code>' + password + '</code><br>' +
+      'Host: <code>' + host + '</code><br>' +
+      'Port UDP: <code>' + port + '</code><br>' +
+      'Expired: <code>' + exp + '</code></blockquote>',
+    expiry: exp,
+  };
+}
+
 module.exports = {
-  createSSH, cfSSHInfo, createVMess, createVLess, createTrojan,
+  createSSH, cfSSHInfo, createVMess, createVLess, createTrojan, createShadowsocks, createZivpn,
   renewAccount, deleteAccount, saveAccount, myAccounts, validUser, expiryDate,
 };
