@@ -218,7 +218,7 @@ bot.start(async (ctx) => {
       { parse_mode: 'HTML', reply_markup: { inline_keyboard: rows } }
     );
   }
-  await sendMenuPhoto(ctx, 'menu-utama.png',
+  await sendMenuPhoto(ctx, 'banner-utama.webp',
     WELCOME_CAPTION(ctx.from.first_name || 'kawan', await ppob.getRole(ctx.from.id).catch(() => 'member')),
     mainMenu(await admin.hasAdminAccess(ctx), (await ppob.getRole(ctx.from.id).catch(() => 'member')) === 'reseller'));
 });
@@ -230,7 +230,7 @@ bot.action('fj_verify', async (ctx) => {
   if (!fj.ok) {
     return ctx.reply('❌ Kamu belum join semua. Join dulu lalu tekan tombol verifikasi lagi.');
   }
-  await sendMenuPhoto(ctx, 'menu-utama.png',
+  await sendMenuPhoto(ctx, 'banner-utama.webp',
     WELCOME_CAPTION(ctx.from.first_name || 'kawan', await ppob.getRole(ctx.from.id).catch(() => 'member')),
     mainMenu(await admin.hasAdminAccess(ctx), (await ppob.getRole(ctx.from.id).catch(() => 'member')) === 'reseller'));
 });
@@ -238,7 +238,7 @@ bot.action('fj_verify', async (ctx) => {
 bot.action('menu_main', async (ctx) => {
   await safeCb(ctx);
   const role = await ppob.getRole(ctx.from.id).catch(() => 'member');
-  await sendMenuPhoto(ctx, 'menu-utama.png',
+  await sendMenuPhoto(ctx, 'banner-utama.webp',
     `🏠 <b>MENU UTAMA</b> ${settings.roleBadge(role)}
 ━━━━━━━━━━━━━━━━━━
 Pilih layanan di bawah ini:`, mainMenu(await admin.hasAdminAccess(ctx), role === 'reseller'));
@@ -1280,8 +1280,8 @@ bot.action('menu_ppob', async (ctx) => {
   await safeCb(ctx);
   const saldo = await ppob.getSaldo(ctx.from.id);
   const role = await ppob.getRole(ctx.from.id).catch(() => 'member');
-  await sendMenuPhoto(ctx, 'menu-ppob.png',
-    `🛒 <b>PPOB RIPZZSTORE</b>
+  await sendMenuPhoto(ctx, 'banner-ppob.webp',
+    `🛒 <b>PPOB WENDI STORE</b>
 Belanja kebutuhan digital otomatis — cepat, aman & 24 jam.
 
 ` +
