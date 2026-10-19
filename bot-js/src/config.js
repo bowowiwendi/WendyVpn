@@ -45,9 +45,27 @@ module.exports = {
     apiKey: process.env.P2P_API_KEY || '',
   },
 
+  hcApiKey: process.env.HC_API_KEY || '',
+
   sidompul: {
     apiKey: process.env.SIDOMPUL_API_KEY || '',
   },
 
   dbPath: process.env.DB_PATH || require('path').join(__dirname, '../data/bot.db'),
+
+  // ===== Kompatibilitas PPOB Aji (registerPPOB) =====
+  admins: [String(num(process.env.ADMIN_ID, 5162695441))],
+  botName: 'Wendi VPN',
+  channelId: process.env.CHANNEL_ID || '',
+  groupId: -1002068435369,
+  pageSize: 10,
+  paymentPollMs: 5000,
+  qrisExpireMinutes: 30,
+  requiredChannelId: '',
+  requiredChannelUrl: 'https://t.me/Wendi_VPN',
+  roles: ['bronze', 'silver', 'gold'],
+  storePhoto: '',
+  syncMinutes: 60,
+  trxMaxPolls: 20,
+  trxPollMs: 5000,
 };
