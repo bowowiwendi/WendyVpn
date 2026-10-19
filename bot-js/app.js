@@ -30,6 +30,7 @@ const hcCache = new Map(); // userId_proto_username -> {proto, username, uuid, p
 const prodCache = new Map(); // userId -> {pageItems: [...], page}
 const digi = require('./src/digiflazz');
 const { esc } = require('./src/format');
+const ppobLayout = require('./src/ppob-layout');
 
 if (!config.botToken) {
   console.error('❌ BOT_TOKEN belum diisi di .env');
@@ -367,6 +368,19 @@ bot.on('text', async (ctx) => {
     sessions.delete(chatId);
     const r = await kuota.cekKuota(ctx.message.text.trim());
     return ctx.reply(r.message, { parse_mode: 'HTML' });
+  }
+
+  // --- Session cari produk PPOB: keyword ---
+  if (sess?.step === 'ppob_cari') {
+    const kw = ctx.message.text.trim();
+    sessions.delete(chatId);
+    if (!kw || kw.length < 2) {
+      return ctx.reply('❌ Kata kunci minimal 2 karakter. Coba lagi dari menu PPOB.');
+    }
+    if (kw.length > 40) {
+      return ctx.reply('❌ Kata kunci terlalu panjang (maks 40 karakter).');
+    }
+    return showProductList(ctx, 'cari:' + kw);
   }
 
   // --- Session beli PPOB: tujuan (tombol daftar produk ATAU input kode manual) ---
@@ -932,27 +946,42 @@ async function finishRenew(ctx, accountId, days) {
 bot.action('menu_ppob', async (ctx) => {
   await safeCb(ctx);
   const saldo = await ppob.getSaldo(ctx.from.id);
+  const role = await ppob.getRole(ctx.from.id).catch(() => 'member');
   await sendMenuPhoto(ctx, 'menu-ppob.png',
-    `🟡 <b>PPOB & PULSA</b>
-━━━━━━━━━━━━━━━━━━
+    `🛒 <b>PPOB RIPZZSTORE</b>
+Belanja kebutuhan digital otomatis — cepat, aman & 24 jam.
+
+` +
+    `👤 Role: <b>${esc(role.toUpperCase())}</b>
 ` +
     `💰 Saldo: <b>${digi.rp(saldo)}</b>
 
 ` +
-    `<blockquote>🟢 <b>Deposit</b> — top up saldo via QRIS
+    `⚡ <i>Harga mengikuti role kamu.</i>
 ` +
-    `🛒 <b>Beli</b> — pulsa, paket data, token PLN
-` +
-    `📦 <b>Cek Order</b> — lacak transaksimu</blockquote>
-
-` +
-    `Pilih layanan:`,
-    Markup.inlineKeyboard([
-      [sBtn('🟢 Deposit / Top Up', 'ppob_deposit', 'success'), sBtn('🛒 Beli Pulsa/Paket', 'ppob_beli', 'primary')],
-      [sBtn('🔵 Cek Order', 'ppob_cekorder', 'primary'), sBtn('🟣 Produk Lainnya', 'ppob_produk', 'success')],
-      [sBtn('🔙 Kembali', 'menu_main', 'danger')],
-    ]));
+    `Pilih kategori layanan:`,
+    ppobCategoryKeyboard());
 });
+
+// Keyboard kategori PPOB (2 kolom, ala screenshot)
+function ppobCategoryKeyboard() {
+  const btns = ppobLayout.CATEGORY_BUTTONS || [];
+  const rows = [];
+  // Baris deposit di atas
+  rows.push([sBtn('🟢 Deposit / Top Up', 'ppob_deposit', 'success')]);
+  for (let i = 0; i < btns.length; i += 2) {
+    const row = [];
+    for (let j = i; j < Math.min(i + 2, btns.length); j++) {
+      const [group, label] = btns[j];
+      row.push(sBtn(label, 'ppob_cat_' + group, j % 2 === 0 ? 'success' : 'primary'));
+    }
+    rows.push(row);
+  }
+  rows.push([sBtn('🔍 CARI PRODUK', 'ppob_cari', 'primary'), sBtn('🔥 POPULER', 'ppob_populer', 'danger')]);
+  rows.push([sBtn('🔵 Prabayar', 'ppob_prabayar', 'primary'), sBtn('🟣 Pascabayar', 'ppob_pascabayar', 'primary')]);
+  rows.push([sBtn('🔵 Cek Order', 'ppob_cekorder', 'primary'), sBtn('🏠 Menu Utama', 'menu_main', 'success')]);
+  return Markup.inlineKeyboard(rows);
+}
 
 bot.action('ppob_deposit', async (ctx) => {
   await safeCb(ctx);
@@ -979,12 +1008,37 @@ bot.action('ppob_beli', async (ctx) => {
 bot.action('ppob_produk', async (ctx) => {
   await showProductList(ctx, 'lainnya');
 });
-bot.action(/^prod_page_([a-z]*)_(\d+)$/, async (ctx) => {
+
+// Kategori PPOB (tombol grid): ppob_cat_<group>
+bot.action(/^ppob_cat_([a-z0-9-]+)$/, async (ctx) => {
+  await showProductList(ctx, ctx.match[1]);
+});
+
+// Prabayar / Pascabayar
+bot.action('ppob_prabayar', async (ctx) => {
+  await showProductList(ctx, 'prabayar');
+});
+bot.action('ppob_pascabayar', async (ctx) => {
+  await showProductList(ctx, 'pascabayar');
+});
+
+// Produk populer
+bot.action('ppob_populer', async (ctx) => {
+  await showProductList(ctx, 'populer');
+});
+
+// Cari produk — minta keyword via session
+bot.action('ppob_cari', async (ctx) => {
+  await safeCb(ctx);
+  sessions.set(ctx.chat.id, { step: 'ppob_cari' });
+  await ctx.reply('🔍 Kirim <b>kata kunci</b> produk yang dicari (contoh: <code>telkomsel 10</code>):', { parse_mode: 'HTML' });
+});
+bot.action(/^prod_page_([a-z0-9-: ]*?)_(\d+)$/, async (ctx) => {
   await showProductList(ctx, ctx.match[1] || undefined, parseInt(ctx.match[2], 10));
 });
 
 // Tombol beli produk PPOB
-bot.action(/^prod_buy_([a-z]*)_(\d+)_(\d+)$/, async (ctx) => {
+bot.action(/^prod_buy_([a-z0-9-: ]*?)_(\d+)_(\d+)$/, async (ctx) => {
   await safeCb(ctx);
   const page = parseInt(ctx.match[2], 10);
   const idx = parseInt(ctx.match[3], 10);

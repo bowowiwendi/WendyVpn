@@ -141,8 +141,8 @@ async function buyProduct(telegramId, buyerSkuCode, customerNo, priceSell) {
   const cek = await deductSaldo(telegramId, priceSell);
   if (!cek.success) return cek;
   const ref = refId('PPOB');
-  await run('INSERT INTO transactions (telegram_id, type, amount, ref_id, status) VALUES (?,?,?,?,?)',
-    [telegramId, 'ppob', priceSell, ref, 'pending']);
+  await run('INSERT INTO transactions (telegram_id, type, amount, ref_id, sku, status) VALUES (?,?,?,?,?,?)',
+    [telegramId, 'ppob', priceSell, ref, buyerSkuCode || '', 'pending']);
   try {
     const res = await digi.transaction({ sku: buyerSkuCode, customerNo, refId: ref });
     const status = (res?.status || '').toLowerCase();
@@ -223,35 +223,92 @@ async function checkOrder(ref) {
 // ---------- Daftar produk (dengan paginasi) ----------
 const PROD_PER_PAGE = 10;
 
-// Kategori khusus menu "Pulsa & Paket Data"
+// Kategori khusus menu "Pulsa & Paket Data" (legacy, dipertahankan)
 const PULSA_CATS = ['pulsa', 'data'];
 
-async function productList(group, page = 1) {
-  // group: 'pulsa' (hanya Pulsa & Data), 'lainnya' (selain Pulsa & Data), atau kosong = semua
+// Pemetaan tombol kategori → filter produk.
+// Prioritas: field `category` Digiflazz; fallback: keyword di category/brand/product_name.
+const norm = (s) => String(s || '').toLowerCase();
+const hasKw = (p, ...kws) => {
+  const hay = `${p.category || ''} ${p.brand || ''} ${p.product_name || ''}`.toLowerCase();
+  return kws.some((k) => hay.includes(k));
+};
+const CATEGORY_GROUPS = {
+  'perdana':   { title: '📱 <b>Perdana</b>',        match: (p) => hasKw(p, 'perdana', 'aktivasi perdana') },
+  'voucher':   { title: '🎫 <b>Voucher</b>',        match: (p) => norm(p.category) === 'voucher' || hasKw(p, 'voucher') },
+  'kuota':     { title: '📶 <b>Kuota / Paket Data</b>', match: (p) => ['data'].includes(norm(p.category)) || hasKw(p, 'kuota', 'paket data', 'internet') },
+  'e-money':   { title: '💳 <b>E-Money</b>',        match: (p) => norm(p.category) === 'e-money' || hasKw(p, 'e-money', 'emoney', 'e money', 'ovo', 'gopay', 'dana', 'shopeepay', 'linkaja') },
+  'game':      { title: '🎮 <b>Game</b>',           match: (p) => ['games', 'game'].includes(norm(p.category)) || hasKw(p, 'game', 'games', 'mobile legend', 'free fire', 'pubg', 'diamond', 'voucher game') },
+  'gas':       { title: '🔥 <b>Gas</b>',            match: (p) => norm(p.category) === 'gas' || hasKw(p, 'gas') },
+  'masa-aktif':{ title: '📅 <b>Masa Aktif</b>',     match: (p) => hasKw(p, 'masa aktif', 'masaaktif', 'perpanjangan masa') },
+  'sms-telp':  { title: '📞 <b>SMS & Telp</b>',     match: (p) => hasKw(p, 'sms', 'telpon', 'telepon', 'paket sms', 'nelpon') },
+  'pln':       { title: '⚡ <b>PLN</b>',            match: (p) => norm(p.category) === 'pln' || hasKw(p, 'pln', 'token listrik', 'listrik') },
+  'pulsa':     { title: '📱 <b>Pulsa</b>',          match: (p) => norm(p.category) === 'pulsa' || hasKw(p, 'pulsa') },
+  'tv':        { title: '📺 <b>TV</b>',             match: (p) => norm(p.category) === 'tv' || hasKw(p, 'tv', 'k vision', 'nex parabola', 'transvision') },
+};
+// Urutan tombol kategori di menu (2 kolom)
+const CATEGORY_ORDER = [
+  ['perdana', 'voucher'],
+  ['kuota', 'e-money'],
+  ['game', 'gas'],
+  ['masa-aktif', 'sms-telp'],
+  ['pln', 'pulsa'],
+  ['tv', 'voucher'],
+];
+// Label tombol kategori (boleh dioverride via ppob-layout.js)
+const CATEGORY_LABELS = {
+  'perdana': 'Perdana', 'voucher': 'Voucher', 'kuota': 'Kuota', 'e-money': 'E-Money',
+  'game': 'Game', 'gas': 'Gas', 'masa-aktif': 'Masa Aktif', 'sms-telp': 'SMS & Telp',
+  'pln': 'PLN', 'pulsa': 'Pulsa', 'tv': 'TV',
+};
+
+async function productList(group, page = 1, opts = {}) {
+  // group: nama kategori (lihat CATEGORY_GROUPS), 'pulsa' (legacy: pulsa+data),
+  //   'lainnya', 'prabayar', 'pascabayar', 'populer', 'cari:<keyword>', atau kosong = semua
   if (!digi.enabled()) return { success: false, message: '❌ Digiflazz belum dikonfigurasi.' };
   // Baca dari cache lokal — API Digiflazz membatasi pengecekan pricelist,
   // jadi JANGAN panggil API setiap buka daftar produk (dulu selalu error limit).
   const cached = dbProducts();
-  let rawList = cached.list_prepaid || [];
+  const g = String(group || '').toLowerCase();
+
+  // Tentukan sumber daftar: prabayar vs pascabayar
+  const usePasca = g === 'pascabayar';
+  let rawList = usePasca ? (cached.list_pasca || []) : (cached.list_prepaid || []);
   const stale = !cached.lastSync || Date.now() - cached.lastSync > 6 * 3600 * 1000;
   if (!rawList.length || stale) {
     // Sync di background; pakai cache lama sementara bila ada
     digi.sync().catch(() => {});
     if (!rawList.length) {
-      const fresh = dbProducts().list_prepaid || [];
-      if (!fresh.length) return { success: false, message: '⏳ Sinkronisasi produk berjalan, coba lagi 1 menit.' };
-      rawList = fresh;
+      const fresh = dbProducts();
+      rawList = usePasca ? (fresh.list_pasca || []) : (fresh.list_prepaid || []);
+      if (!rawList.length) return { success: false, message: '⏳ Sinkronisasi produk berjalan, coba lagi 1 menit.' };
     }
   }
-  const g = String(group || '').toLowerCase();
-  const items = (Array.isArray(rawList) ? rawList : [])
-    .filter((p) => p && p.buyer_product_status && p.seller_product_status)
-    .filter((p) => {
-      const c = String(p.category || '').toLowerCase();
-      if (g === 'pulsa') return PULSA_CATS.includes(c);
-      if (g === 'lainnya') return !PULSA_CATS.includes(c);
-      return true;
-    })
+
+  let items = (Array.isArray(rawList) ? rawList : [])
+    .filter((p) => p && p.buyer_product_status && p.seller_product_status);
+
+  // Filter kategori
+  if (g === 'pulsa') {
+    items = items.filter((p) => PULSA_CATS.includes(norm(p.category)));
+  } else if (g === 'lainnya') {
+    items = items.filter((p) => !PULSA_CATS.includes(norm(p.category)));
+  } else if (g === 'prabayar') {
+    // sudah dari list_prepaid — tidak perlu filter tambahan
+  } else if (g === 'pascabayar') {
+    // sudah dari list_pasca — tidak perlu filter tambahan
+  } else if (g === 'populer') {
+    items = await popularItems(items);
+  } else if (g.startsWith('cari:')) {
+    const kw = g.slice(5).trim();
+    items = searchItems(items, kw);
+  } else if (CATEGORY_GROUPS[g]) {
+    const m = CATEGORY_GROUPS[g].match;
+    items = items.filter((p) => m(p));
+  }
+  // else: kosong = semua
+
+  items = items
     .slice(0, 100)
     .map((p) => { p.price_sell = sellPriceOf(p); return p; });
   if (!items.length) return { success: false, message: '❌ Produk tidak ditemukan.' };
@@ -263,8 +320,14 @@ async function productList(group, page = 1) {
     const n = (pg - 1) * PROD_PER_PAGE + i + 1;
     return `${n}. <code>${esc(p.buyer_sku_code)}</code> — ${esc(p.product_name)}\n   💰 ${digi.rp(p.price_sell)}`;
   });
-  const title = g === 'pulsa' ? '📱 <b>Pulsa & Paket Data</b>'
+  const grpDef = CATEGORY_GROUPS[g];
+  const title = grpDef ? grpDef.title
+    : g === 'pulsa' ? '📱 <b>Pulsa & Paket Data</b>'
     : g === 'lainnya' ? '🛍️ <b>Produk Lainnya</b>'
+    : g === 'prabayar' ? '🔵 <b>Prabayar</b>'
+    : g === 'pascabayar' ? '🟣 <b>Pascabayar</b>'
+    : g === 'populer' ? '🔥 <b>Produk Populer</b>'
+    : g.startsWith('cari:') ? `🔍 <b>Hasil: ${esc(g.slice(5))}</b>`
     : `🛒 <b>Daftar Produk</b>`;
   const message =
     `${title}\n` +
@@ -272,6 +335,43 @@ async function productList(group, page = 1) {
     `━━━━━━━━━━━━━━━━━━\n\n<blockquote>${lines.join('\n')}</blockquote>\n\n` +
     `<i>Tap tombol 🛒 di bawah untuk beli</i>`;
   return { success: true, message, items, pageItems: slice, page: pg, pages, total };
+}
+
+// Cari produk berdasar keyword di nama/sku/brand
+function searchItems(items, keyword) {
+  const kw = String(keyword || '').toLowerCase().trim();
+  if (!kw) return [];
+  const parts = kw.split(/\s+/);
+  return items.filter((p) => {
+    const hay = `${p.product_name || ''} ${p.buyer_sku_code || ''} ${p.brand || ''} ${p.category || ''}`.toLowerCase();
+    return parts.every((w) => hay.includes(w));
+  });
+}
+
+// Produk populer: urut berdasar jumlah pembelian sukses di transactions.sku
+async function popularItems(items) {
+  try {
+    const rows = await all(
+      `SELECT sku, COUNT(*) AS cnt FROM transactions
+       WHERE type = 'ppob' AND status = 'success' AND sku IS NOT NULL AND sku != ''
+       GROUP BY sku ORDER BY cnt DESC LIMIT 20`
+    ).catch(() => []);
+    if (!rows || !rows.length) return items.slice(0, 10); // fallback
+    const rank = new Map(rows.map((r, i) => [String(r.sku), rows.length - i]));
+    const bySku = new Map(items.map((p) => [String(p.buyer_sku_code), p]));
+    const ranked = [];
+    for (const [sku] of rank) {
+      if (bySku.has(sku)) ranked.push(bySku.get(sku));
+    }
+    // Tambah sisa produk agar daftar tetap penuh bila data sedikit
+    for (const p of items) {
+      if (ranked.length >= 20) break;
+      if (!ranked.includes(p)) ranked.push(p);
+    }
+    return ranked;
+  } catch (e) {
+    return items.slice(0, 10);
+  }
 }
 
 // Keyboard produk: tombol beli per produk + paginasi (format reply_markup mentah)
@@ -334,4 +434,4 @@ async function getHistory(telegramId, limit = 10) {
   };
 }
 
-module.exports = { getSaldo, addSaldo, deductSaldo, createDeposit, buyProduct, checkOrder, productList, productKeyboard, refId, getHistory, getRole, setRole, VALID_ROLES, getBonusConfig, setBonusConfig, applyTopupBonus };
+module.exports = { getSaldo, addSaldo, deductSaldo, createDeposit, buyProduct, checkOrder, productList, productKeyboard, refId, getHistory, getRole, setRole, VALID_ROLES, getBonusConfig, setBonusConfig, applyTopupBonus, CATEGORY_GROUPS, CATEGORY_ORDER, CATEGORY_LABELS, searchItems };

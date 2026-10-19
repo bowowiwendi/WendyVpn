@@ -58,6 +58,7 @@ async function init() {
     created_at TEXT DEFAULT (datetime('now'))
   )`);
   await run(`ALTER TABLE transactions ADD COLUMN payment_id TEXT DEFAULT ''`).catch(() => {});
+  await run(`ALTER TABLE transactions ADD COLUMN sku TEXT DEFAULT ''`).catch(() => {});
 
   await run(`CREATE TABLE IF NOT EXISTS notified_expired (
     account_id INTEGER PRIMARY KEY,
