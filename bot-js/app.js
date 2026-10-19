@@ -425,12 +425,6 @@ bot.on('text', async (ctx) => {
   }
 
 
-  // --- Session beli PPOB: kode produk ---
-  if (sess?.step === 'ppob_kode') {
-    sess.data.kode = ctx.message.text.trim().toUpperCase();
-    sess.step = 'ppob_tujuan';
-    return ctx.reply('Kirim <b>nomor tujuan</b>:', { parse_mode: 'HTML' });
-  }
 
 
   // ============================================================
@@ -922,28 +916,27 @@ bot.action('ppob_deposit', async (ctx) => {
   await ctx.reply('💰 Kirim <b>nominal deposit</b> (min Rp10.000):', { parse_mode: 'HTML' });
 });
 
-bot.action('ppob_beli', async (ctx) => {
+// Tampilkan daftar produk PPOB (dipakai tombol Beli & Daftar Produk)
+async function showProductList(ctx, page) {
   await safeCb(ctx);
-  sessions.set(ctx.chat.id, { step: 'ppob_kode', data: {} });
-  await ctx.reply('🛒 Kirim <b>kode produk</b> (lihat /produk):', { parse_mode: 'HTML' });
-});
-
-bot.action('ppob_produk', async (ctx) => {
-  await safeCb(ctx);
-  const r = await ppob.productList().catch((e) => ({ success: false, message: `❌ ${esc(e.message)}` }));
-  if (!r.success) return ctx.reply(r.message, { parse_mode: 'HTML' });
-  if (r.success && r.pageItems) prodCache.set(ctx.from.id, { pageItems: r.pageItems, page: r.page });
-  await ctx.reply(r.message, { parse_mode: 'HTML', reply_markup: ppob.productKeyboard(r.page, r.pages, r.pageItems) });
-});
-bot.action(/^prod_page_(\d+)$/, async (ctx) => {
-  await safeCb(ctx);
-  const r = await ppob.productList(undefined, parseInt(ctx.match[1], 10))
+  const r = await ppob.productList(undefined, page)
     .catch((e) => ({ success: false, message: `❌ ${esc(e.message)}` }));
-  if (!r.success) return ctx.reply(r.message, { parse_mode: 'HTML' });
-  if (r.success && r.pageItems) prodCache.set(ctx.from.id, { pageItems: r.pageItems, page: r.page });
+  if (!r.success) { await ctx.reply(r.message, { parse_mode: 'HTML' }); return; }
+  if (r.pageItems) prodCache.set(ctx.from.id, { pageItems: r.pageItems, page: r.page });
   const extra = { parse_mode: 'HTML', reply_markup: ppob.productKeyboard(r.page, r.pages, r.pageItems) };
   try { await ctx.editMessageText(r.message, extra); }
   catch (e) { await ctx.reply(r.message, extra); }
+}
+
+bot.action('ppob_beli', async (ctx) => {
+  await showProductList(ctx);
+});
+
+bot.action('ppob_produk', async (ctx) => {
+  await showProductList(ctx);
+});
+bot.action(/^prod_page_(\d+)$/, async (ctx) => {
+  await showProductList(ctx, parseInt(ctx.match[1], 10));
 });
 
 // Tombol beli produk PPOB
