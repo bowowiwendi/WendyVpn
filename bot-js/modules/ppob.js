@@ -333,7 +333,7 @@ async function productList(group, page = 1, opts = {}) {
     `${title}\n` +
     `📄 Halaman <b>${pg}</b> dari <b>${pages}</b> • ${total} produk\n` +
     `━━━━━━━━━━━━━━━━━━\n\n<blockquote>${lines.join('\n')}</blockquote>\n\n` +
-    `<i>Tap tombol 🛒 di bawah untuk beli, atau ketik <b>nomor</b> produk (contoh: <code>3</code>)</i>`;
+    `<i>Tap tombol nomor di bawah untuk beli</i>`;
   return { success: true, message, items, pageItems: slice, page: pg, pages, total };
 }
 
@@ -378,14 +378,12 @@ async function popularItems(items) {
 function productKeyboard(page, pages, items, group) {
   const g = group || '';
   const kb = [];
-  // Tombol beli per produk (2 kolom)
+  // Tombol beli per produk — HANYA nomor (5 kolom per baris)
   if (Array.isArray(items)) {
-    for (let i = 0; i < items.length; i += 2) {
+    for (let i = 0; i < items.length; i += 5) {
       const row = [];
-      for (let j = i; j < Math.min(i + 2, items.length); j++) {
-        const p = items[j];
-        const label = ('🛒 ' + p.product_name).slice(0, 30);
-        row.push({ text: label, callback_data: 'prod_buy_' + g + '_' + page + '_' + j });
+      for (let j = i; j < Math.min(i + 5, items.length); j++) {
+        row.push({ text: String(j + 1), callback_data: 'prod_buy_' + g + '_' + page + '_' + j });
       }
       kb.push(row);
     }

@@ -465,33 +465,6 @@ bot.on('text', async (ctx) => {
     );
   }
 
-  // --- Session pilih produk PPOB via nomor ---
-  // User ketik angka 1-10 saat daftar produk tampil (prodCache masih segar < 10 menit).
-  // Hanya aktif bila tidak ada session lain yang menunggu input angka.
-  if (!sess?.step) {
-    const numTxt = ctx.message.text.trim();
-    if (/^\d{1,2}$/.test(numTxt)) {
-      const cached = prodCache.get(ctx.from.id);
-      if (cached && cached.pageItems && cached._ts && Date.now() - cached._ts < 10 * 60 * 1000) {
-        const idx = parseInt(numTxt, 10) - 1;
-        if (idx >= 0 && idx < cached.pageItems.length) {
-          const p = cached.pageItems[idx];
-          sessions.set(chatId, {
-            step: 'ppob_tujuan',
-            data: { sku: p.buyer_sku_code, price: p.price_sell, productName: p.product_name },
-          });
-          const spec = digi.destinationSpec(p.category, p.brand);
-          return ctx.reply(
-            '🛒 <b>' + esc(p.product_name) + '</b>\n' +
-            '💰 Harga: <b>' + digi.rp(p.price_sell) + '</b>\n\n' +
-            'Kirim <b>' + esc(spec.label) + '</b> (contoh: <code>' + esc(spec.placeholder) + '</code>):',
-            { parse_mode: 'HTML' }
-          );
-        }
-      }
-    }
-  }
-
   // --- Session buat akun VPN ---
   if (sess?.step === 'vpn_username') {
     const username = ctx.message.text.trim();
