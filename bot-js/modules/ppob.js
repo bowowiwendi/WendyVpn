@@ -333,7 +333,7 @@ async function productList(group, page = 1, opts = {}) {
     `${title}\n` +
     `📄 Halaman <b>${pg}</b> dari <b>${pages}</b> • ${total} produk\n` +
     `━━━━━━━━━━━━━━━━━━\n\n<blockquote>${lines.join('\n')}</blockquote>\n\n` +
-    `<i>Tap tombol 🛒 di bawah untuk beli</i>`;
+    `<i>Tap tombol 🛒 di bawah untuk beli, atau ketik <b>nomor</b> produk (contoh: <code>3</code>)</i>`;
   return { success: true, message, items, pageItems: slice, page: pg, pages, total };
 }
 

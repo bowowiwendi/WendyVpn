@@ -97,6 +97,23 @@ async function init() {
     price INTEGER NOT NULL DEFAULT 0,
     PRIMARY KEY (product_key, role)
   )`);
+
+  // Pengaturan umum bot (key-value) — diatur admin via panel:
+  // force_join_enabled, force_join_channel_id, force_join_channel_url,
+  // force_join_group_id, force_join_group_url, notif_group_id,
+  // reseller_min_topup
+  await run(`CREATE TABLE IF NOT EXISTS bot_settings (
+    key TEXT PRIMARY KEY,
+    value TEXT DEFAULT ''
+  )`);
+
+  // Grup tujuan broadcast (diatur admin via panel)
+  await run(`CREATE TABLE IF NOT EXISTS broadcast_groups (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    chat_id TEXT NOT NULL UNIQUE,
+    title TEXT DEFAULT '',
+    created_at TEXT DEFAULT (datetime('now'))
+  )`);
 }
 
 // ---------- File-based cache (produk Digiflazz) ----------

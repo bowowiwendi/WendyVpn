@@ -26,6 +26,9 @@ const admin = require('./modules/admin');
 const cleanup = require('./modules/cleanup');
 const sewa = require('./modules/sewa');
 const hc = require('./modules/hc');
+const settings = require('./modules/settings');
+// Grup wajib join & grup notifikasi — dikonfigurasi via panel admin (tabel bot_settings).
+// Fallback ke nilai lama agar tidak blokir user bila belum dikonfigurasi.
 const hcCache = new Map(); // userId_proto_username -> {proto, username, uuid, password}
 const prodCache = new Map(); // userId -> {pageItems: [...], page}
 const digi = require('./src/digiflazz');
@@ -113,7 +116,9 @@ const adminPanel = () => Markup.inlineKeyboard([
   [sBtn('💵 Tambah Saldo', 'adm_addsaldo', 'success'), sBtn('➖ Kurangi Saldo', 'adm_minsaldo', 'danger')],
   [sBtn('📊 Hasil Penjualan', 'adm_sales', 'primary'), sBtn('📑 Log Topup', 'adm_topuplog', 'primary')],
   [sBtn('📦 Backup DB', 'adm_backupdb', 'success'), sBtn('♻️ Restore DB', 'adm_restoredb', 'danger')],
-  [sBtn('🧾 Setting Pakasir', 'adm_pakasir', 'primary')],
+  [sBtn('🧾 Setting Pakasir', 'adm_pakasir', 'primary'), sBtn('🎁 Bonus & Reseller', 'adm_bonus', 'success')],
+  [sBtn('📢 Broadcast Grup', 'adm_bcast', 'primary'), sBtn('🔔 Grup Notifikasi', 'adm_notifgrp', 'primary')],
+  [sBtn('🔒 Force Join', 'adm_forcejoin', 'primary')],
   [sBtn('🔙 Kembali', 'menu_main', 'danger')],
 ]);
 
@@ -135,19 +140,42 @@ const vpnMenu = (cf = false) => {
   ]);
 };
 
-// Cek apakah user sudah join grup wajib (admin selalu lolos)
-async function checkGroupMember(ctx) {
+// Cek apakah user sudah join channel & grup wajib (admin selalu lolos).
+// Konfigurasi via panel admin (tabel bot_settings). Masing-masing bisa
+// dikosongkan = tidak dicek. Return { ok, missing: [{id, url, label}] }.
+async function checkForceJoin(ctx) {
   try {
-    // Admin bypass - tidak perlu join
-    if (await admin.hasAdminAccess(ctx)) return true;
-    const m = await ctx.telegram.getChatMember(GROUP_WAJIB, ctx.from.id);
-    return ['member', 'administrator', 'creator'].includes(m.status);
+    if (await admin.hasAdminAccess(ctx)) return { ok: true, missing: [] };
+    const fj = await settings.getForceJoin();
+    if (!fj.enabled) return { ok: true, missing: [] };
+    const missing = [];
+    const targets = [
+      { id: fj.channelId, url: fj.channelUrl, label: 'Channel' },
+      { id: fj.groupId, url: fj.groupUrl, label: 'Grup' },
+    ];
+    for (const t of targets) {
+      if (!t.id) continue;
+      try {
+        const m = await ctx.telegram.getChatMember(t.id, ctx.from.id);
+        if (!['member', 'administrator', 'creator'].includes(m.status)) {
+          missing.push(t);
+        }
+      } catch (e) {
+        // Bot bukan member / ID salah — lewati target ini agar tidak blokir semua user
+        console.error('checkForceJoin error:', t.id, e.message);
+      }
+    }
+    return { ok: missing.length === 0, missing };
   } catch (e) {
-    // Jika bot bukan member grup / error API, anggap lolos agar tidak blokir semua user
-    // (log error untuk debugging)
-    console.error('checkGroupMember error:', e.message);
-    return true;
+    console.error('checkForceJoin error:', e.message);
+    return { ok: true, missing: [] };
   }
+}
+
+// Kompatibilitas: versi boolean sederhana (dipakai kode lama)
+async function checkGroupMember(ctx) {
+  const r = await checkForceJoin(ctx);
+  return r.ok;
 }
 
 const ensureUser = async (ctx) => {
@@ -157,8 +185,8 @@ const ensureUser = async (ctx) => {
 };
 
 // ---------- /start ----------
-const WELCOME_CAPTION = (name) =>
-`👋 Halo <b>${esc(name)}</b>!
+const WELCOME_CAPTION = (name, role = 'member') =>
+`👋 Halo <b>${esc(name)}</b>! ${settings.roleBadge(role)}
 
 🛰 <b>WENDI VPN BOT</b> 🛰
 ━━━━━━━━━━━━━━━━━━
@@ -175,28 +203,42 @@ Pilih layanan di bawah ini:
 bot.start(async (ctx) => {
   await ensureUser(ctx);
   await safeCb(ctx);
-  const joined = await checkGroupMember(ctx);
-  if (!joined) {
+  const fj = await checkForceJoin(ctx);
+  if (!fj.ok) {
+    const rows = fj.missing.map((t) => [
+      { text: `📢 Join ${t.label}`, url: t.url || `https://t.me/${String(t.id).replace('@', '')}` },
+    ]);
+    rows.push([{ text: '✅ Saya Sudah Gabung', callback_data: 'fj_verify' }]);
     return ctx.reply(
-      '⚠️ <b>Wajib Join Grup Dulu</b>\n\n' +
-      'Untuk memakai bot ini, silakan join grup kami dulu.\n\n' +
-      'Setelah join, ketik /start lagi.',
-      {
-        parse_mode: 'HTML',
-        reply_markup: {
-          inline_keyboard: [[{ text: '📢 Join Grup Wendi VPN', url: 'https://t.me/Wendi_VPN' }]]
-        }
-      }
+      '⚠️ <b>Wajib Join Dulu</b>\n\n' +
+      'Untuk memakai bot ini, silakan join ' +
+      fj.missing.map((t) => t.label).join(' & ') +
+      ' kami dulu.\n\nSetelah join, tekan tombol <b>✅ Saya Sudah Gabung</b>.',
+      { parse_mode: 'HTML', reply_markup: { inline_keyboard: rows } }
     );
   }
   await sendMenuPhoto(ctx, 'menu-utama.png',
-    WELCOME_CAPTION(ctx.from.first_name || 'kawan'), mainMenu(await admin.hasAdminAccess(ctx)));
+    WELCOME_CAPTION(ctx.from.first_name || 'kawan', await ppob.getRole(ctx.from.id).catch(() => 'member')),
+    mainMenu(await admin.hasAdminAccess(ctx)));
+});
+
+// Verifikasi ulang force join setelah user tekan "Saya Sudah Gabung"
+bot.action('fj_verify', async (ctx) => {
+  await safeCb(ctx);
+  const fj = await checkForceJoin(ctx);
+  if (!fj.ok) {
+    return ctx.reply('❌ Kamu belum join semua. Join dulu lalu tekan tombol verifikasi lagi.');
+  }
+  await sendMenuPhoto(ctx, 'menu-utama.png',
+    WELCOME_CAPTION(ctx.from.first_name || 'kawan', await ppob.getRole(ctx.from.id).catch(() => 'member')),
+    mainMenu(await admin.hasAdminAccess(ctx)));
 });
 
 bot.action('menu_main', async (ctx) => {
   await safeCb(ctx);
+  const role = await ppob.getRole(ctx.from.id).catch(() => 'member');
   await sendMenuPhoto(ctx, 'menu-utama.png',
-    `🏠 <b>MENU UTAMA</b>
+    `🏠 <b>MENU UTAMA</b> ${settings.roleBadge(role)}
 ━━━━━━━━━━━━━━━━━━
 Pilih layanan di bawah ini:`, mainMenu(await admin.hasAdminAccess(ctx)));
 });
@@ -300,6 +342,154 @@ bot.on('text', async (ctx) => {
     return ctx.reply(`✅ API key Pakasir disimpan (<code>${pakasir.maskKey(apiKey)}</code>).`, {
       parse_mode: 'HTML', reply_markup: adminPanel().reply_markup,
     });
+  }
+
+  // --- Session admin: set bonus topup (format: "min_topup persen") ---
+  if (sess?.step === 'adm_bonus_input') {
+    if (!await admin.hasAdminAccess(ctx)) { sessions.delete(chatId); return ctx.reply('❌ Khusus admin.'); }
+    const parts = ctx.message.text.trim().split(/\s+/);
+    const minTopup = Number((parts[0] || '').replace(/\D/g, ''));
+    const persen = Number((parts[1] || '').replace(/\D/g, ''));
+    sessions.delete(chatId);
+    if (parts[0] === '0' || (!minTopup && !persen)) {
+      await ppob.setBonusConfig(0, 0);
+      return ctx.reply('✅ Bonus topup <b>dinonaktifkan</b>.', { parse_mode: 'HTML', reply_markup: adminPanel().reply_markup });
+    }
+    if (!minTopup || !persen || persen > 100) {
+      return ctx.reply('❌ Format salah. Contoh: <code>50000 10</code>', { parse_mode: 'HTML' });
+    }
+    const cfg = await ppob.setBonusConfig(minTopup, persen);
+    return ctx.reply(
+      `✅ <b>Bonus topup diaktifkan!</b>\n\nMin. topup: <b>${digi.rp(cfg.min_topup)}</b>\nBonus: <b>${cfg.bonus_percent}%</b>`,
+      { parse_mode: 'HTML', reply_markup: adminPanel().reply_markup }
+    );
+  }
+
+  // --- Session admin: set minimal topup otomatis reseller ---
+  if (sess?.step === 'adm_resset_input') {
+    if (!await admin.hasAdminAccess(ctx)) { sessions.delete(chatId); return ctx.reply('❌ Khusus admin.'); }
+    const nominal = Number(ctx.message.text.replace(/\D/g, ''));
+    sessions.delete(chatId);
+    await settings.setSetting('reseller_min_topup', String(nominal || 0));
+    return ctx.reply(
+      nominal > 0
+        ? `✅ Min. topup otomatis reseller: <b>${digi.rp(nominal)}</b>\n\nUser yang total topup-nya mencapai nominal ini otomatis jadi 🏪 Reseller.`
+        : `✅ Fitur otomatis reseller <b>dinonaktifkan</b>.`,
+      { parse_mode: 'HTML', reply_markup: adminPanel().reply_markup }
+    );
+  }
+
+  // --- Session admin: tambah grup broadcast ---
+  if (sess?.step === 'adm_bcast_add') {
+    if (!await admin.hasAdminAccess(ctx)) { sessions.delete(chatId); return ctx.reply('❌ Khusus admin.'); }
+    const chatIdIn = ctx.message.text.trim();
+    sessions.delete(chatId);
+    if (!/^-?\d+$/.test(chatIdIn)) return ctx.reply('❌ ID grup tidak valid. Contoh: <code>-1001234567890</code>', { parse_mode: 'HTML' });
+    // Ambil judul grup (best effort)
+    let title = '';
+    try {
+      const ch = await ctx.telegram.getChat(chatIdIn);
+      title = ch.title || '';
+    } catch (e) {
+      return ctx.reply(`⚠️ Tidak bisa akses grup <code>${esc(chatIdIn)}</code>.\nPastikan bot sudah jadi <b>admin</b> di grup tersebut, lalu coba lagi.`, { parse_mode: 'HTML' });
+    }
+    await settings.addBroadcastGroup(chatIdIn, title);
+    return ctx.reply(`✅ Grup <b>${esc(title || chatIdIn)}</b> ditambahkan ke daftar broadcast.`, {
+      parse_mode: 'HTML', reply_markup: adminPanel().reply_markup,
+    });
+  }
+
+  // --- Session admin: tulis pesan broadcast ---
+  if (sess?.step === 'adm_bcast_msg') {
+    if (!await admin.hasAdminAccess(ctx)) { sessions.delete(chatId); return ctx.reply('❌ Khusus admin.'); }
+    const pesan = ctx.message.text;
+    sessions.delete(chatId);
+    if (!pesan || pesan.length < 2) return ctx.reply('❌ Pesan terlalu pendek.');
+    const groups = await settings.listBroadcastGroups();
+    if (!groups.length) return ctx.reply('❌ Belum ada grup terdaftar.');
+    await ctx.reply(`⏳ Mengirim broadcast ke ${groups.length} grup...`);
+    let ok = 0, fail = 0;
+    for (const g of groups) {
+      try {
+        await ctx.telegram.sendMessage(g.chat_id, `📢 <b>Pengumuman</b>\n\n${pesan}`, { parse_mode: 'HTML' });
+        ok++;
+      } catch (e) { fail++; }
+      await new Promise((r) => setTimeout(r, 100));
+    }
+    notifGrup(bot, `📢 <b>Broadcast Grup</b>\n👤 Admin: ${ctx.from.username ? '@' + ctx.from.username : ctx.from.first_name}\n✅ Terkirim: ${ok} grup${fail ? `\n❌ Gagal: ${fail} grup` : ''}`);
+    return ctx.reply(`✅ Broadcast selesai.\n📨 Terkirim: <b>${ok}</b> grup${fail ? `\n❌ Gagal: <b>${fail}</b> grup` : ''}`, {
+      parse_mode: 'HTML', reply_markup: adminPanel().reply_markup,
+    });
+  }
+
+  // --- Session admin: set grup notifikasi ---
+  if (sess?.step === 'adm_notifgrp_input') {
+    if (!await admin.hasAdminAccess(ctx)) { sessions.delete(chatId); return ctx.reply('❌ Khusus admin.'); }
+    const gid = ctx.message.text.trim();
+    sessions.delete(chatId);
+    if (!/^-?\d+$/.test(gid)) return ctx.reply('❌ ID grup tidak valid. Contoh: <code>-1001234567890</code>', { parse_mode: 'HTML' });
+    try {
+      await ctx.telegram.sendMessage(gid, '🔔 <b>Grup notifikasi terhubung!</b>\n\nNotifikasi transaksi akan dikirim ke sini.', { parse_mode: 'HTML' });
+    } catch (e) {
+      return ctx.reply(`⚠️ Tidak bisa kirim pesan ke <code>${esc(gid)}</code>.\nPastikan bot sudah jadi <b>admin</b> di grup tersebut.`, { parse_mode: 'HTML' });
+    }
+    await settings.setSetting('notif_group_id', gid);
+    return ctx.reply(`✅ Grup notifikasi diatur ke <code>${esc(gid)}</code>.`, {
+      parse_mode: 'HTML', reply_markup: adminPanel().reply_markup,
+    });
+  }
+
+  // --- Session admin: set channel/grup force join (format: "ID | link") ---
+  if (sess?.step === 'adm_fj_channel' || sess?.step === 'adm_fj_group') {
+    if (!await admin.hasAdminAccess(ctx)) { sessions.delete(chatId); return ctx.reply('❌ Khusus admin.'); }
+    const isChannel = sess.step === 'adm_fj_channel';
+    const raw = ctx.message.text.trim();
+    sessions.delete(chatId);
+    const key = isChannel ? 'force_join_channel' : 'force_join_group';
+    const label = isChannel ? 'Channel' : 'Grup';
+    if (raw === '-') {
+      await settings.setSetting(key + '_id', '');
+      await settings.setSetting(key + '_url', '');
+      return ctx.reply(`✅ ${label} wajib join <b>dikosongkan</b> (tidak dicek).`, {
+        parse_mode: 'HTML', reply_markup: adminPanel().reply_markup,
+      });
+    }
+    const [idPart, ...urlParts] = raw.split('|').map((s) => s.trim());
+    const url = urlParts.join('|').trim();
+    if (!idPart) return ctx.reply('❌ ID tidak boleh kosong.', { parse_mode: 'HTML' });
+    await settings.setSetting(key + '_id', idPart);
+    if (url) await settings.setSetting(key + '_url', url);
+    return ctx.reply(
+      `✅ ${label} wajib join diatur:\n🆔 ID: <code>${esc(idPart)}</code>\n🔗 Link: ${esc(url || '-')}`,
+      { parse_mode: 'HTML', reply_markup: adminPanel().reply_markup }
+    );
+  }
+
+  // --- Session pilih produk PPOB via nomor ---
+  // User ketik angka 1-10 saat daftar produk tampil (prodCache masih segar < 10 menit).
+  // Hanya aktif bila tidak ada session lain yang menunggu input angka.
+  if (!sess?.step) {
+    const numTxt = ctx.message.text.trim();
+    if (/^\d{1,2}$/.test(numTxt)) {
+      const cached = prodCache.get(ctx.from.id);
+      if (cached && cached.pageItems && cached._ts && Date.now() - cached._ts < 10 * 60 * 1000) {
+        const idx = parseInt(numTxt, 10) - 1;
+        if (idx >= 0 && idx < cached.pageItems.length) {
+          const p = cached.pageItems[idx];
+          sessions.set(chatId, {
+            step: 'ppob_tujuan',
+            data: { sku: p.buyer_sku_code, price: p.price_sell, productName: p.product_name },
+          });
+          const spec = digi.destinationSpec(p.category, p.brand);
+          return ctx.reply(
+            '🛒 <b>' + esc(p.product_name) + '</b>\n' +
+            '💰 Harga: <b>' + digi.rp(p.price_sell) + '</b>\n\n' +
+            'Kirim <b>' + esc(spec.label) + '</b> (contoh: <code>' + esc(spec.placeholder) + '</code>):',
+            { parse_mode: 'HTML' }
+          );
+        }
+      }
+    }
   }
 
   // --- Session buat akun VPN ---
@@ -723,10 +913,13 @@ async function finishCreateVpn(ctx, sess, username, password = '', days = 30) {
   await ctx.reply(r.message, extra);
 }
 
-// Kirim notifikasi transaksi ke grup
+// Kirim notifikasi transaksi ke grup (ID dikonfigurasi via panel admin;
+// fallback ke GROUP_NOTIF bila belum dikonfigurasi)
 async function notifGrup(bot, pesan) {
   try {
-    await bot.telegram.sendMessage(GROUP_NOTIF, pesan, { parse_mode: 'HTML', disable_web_page_preview: true });
+    const gid = (await settings.getNotifGroup().catch(() => '')) || GROUP_NOTIF;
+    if (!gid) return;
+    await bot.telegram.sendMessage(gid, pesan, { parse_mode: 'HTML', disable_web_page_preview: true });
   } catch (e) { /* abaikan jika gagal */ }
 }
 
@@ -995,7 +1188,7 @@ bot.action('menu_ppob', async (ctx) => {
 Belanja kebutuhan digital otomatis — cepat, aman & 24 jam.
 
 ` +
-    `👤 Role: <b>${esc(role.toUpperCase())}</b>
+    `👤 Role: <b>${settings.roleBadge(role)}</b>
 ` +
     `💰 Saldo: <b>${digi.rp(saldo)}</b>
 
@@ -1029,7 +1222,11 @@ function ppobCategoryKeyboard() {
 bot.action('ppob_deposit', async (ctx) => {
   await safeCb(ctx);
   sessions.set(ctx.chat.id, { step: 'deposit_nominal' });
-  await ctx.reply('💰 Kirim <b>nominal deposit</b> (min Rp10.000):', { parse_mode: 'HTML' });
+  const bonus = await ppob.getBonusConfig().catch(() => ({}));
+  const bonusTxt = bonus?.enabled
+    ? `\n🎁 <b>Bonus ${bonus.bonus_percent}%</b> untuk topup min. <b>${digi.rp(bonus.min_topup)}</b>!`
+    : '';
+  await ctx.reply(`💰 Kirim <b>nominal deposit</b> (min Rp10.000):${bonusTxt}`, { parse_mode: 'HTML' });
 });
 
 // User pilih metode deposit: GoPay QRIS (gateway sendiri)
@@ -1115,7 +1312,7 @@ async function showProductList(ctx, group, page = 1) {
   const r = await ppob.productList(group, page)
     .catch((e) => ({ success: false, message: `❌ ${esc(e.message)}` }));
   if (!r.success) { await ctx.reply(r.message, { parse_mode: 'HTML' }); return; }
-  if (r.pageItems) prodCache.set(ctx.from.id, { pageItems: r.pageItems, page: r.page, group: group || '' });
+  if (r.pageItems) prodCache.set(ctx.from.id, { pageItems: r.pageItems, page: r.page, group: group || '', _ts: Date.now() });
   const extra = { parse_mode: 'HTML', reply_markup: ppob.productKeyboard(r.page, r.pages, r.pageItems, group || '') };
   try { await ctx.editMessageText(r.message, extra); }
   catch (e) { await ctx.reply(r.message, extra); }
@@ -1694,6 +1891,219 @@ bot.action('adm_pakasir_toggle', async (ctx) => {
   await showPakasirPanel(ctx);
 });
 
+// ============================================================
+// ---------- Bonus Topup & Minimal Topup Reseller ----------
+// ============================================================
+async function showBonusPanel(ctx) {
+  const cfg = await ppob.getBonusConfig();
+  const minRes = await settings.getResellerMinTopup();
+  const text =
+    `🎁 <b>Bonus Topup & Reseller</b>\n\n` +
+    `<b>Bonus Topup:</b> ${cfg.enabled ? '✅ Aktif' : '❌ Nonaktif'}\n` +
+    `• Min. topup: <b>${digi.rp(cfg.min_topup)}</b>\n` +
+    `• Bonus: <b>${cfg.bonus_percent}%</b>\n\n` +
+    `<b>Otomatis jadi Reseller:</b>\n` +
+    `• Min. total topup: <b>${minRes > 0 ? digi.rp(minRes) : '(nonaktif)'}</b>\n` +
+    (minRes > 0 ? `User yang total topup-nya mencapai nominal ini otomatis naik jadi 🏪 Reseller.\n` : ``);
+  const kb = Markup.inlineKeyboard([
+    [sBtn('🎁 Set Bonus', 'adm_bonus_set', 'success'), sBtn(cfg.enabled ? '⏸️ Matikan Bonus' : '▶️ Nyalakan Bonus', 'adm_bonus_toggle', cfg.enabled ? 'danger' : 'success')],
+    [sBtn('🏪 Set Min. Topup Reseller', 'adm_resset', 'primary')],
+    [sBtn('🔙 Kembali', 'adm_open', 'danger')],
+  ]);
+  await ctx.reply(text, { parse_mode: 'HTML', reply_markup: kb.reply_markup });
+}
+
+bot.action('adm_bonus', async (ctx) => {
+  if (!await admin.hasAdminAccess(ctx)) { await safeCb(ctx); return; }
+  await safeCb(ctx);
+  await showBonusPanel(ctx);
+});
+
+bot.action('adm_bonus_set', async (ctx) => {
+  if (!await admin.hasAdminAccess(ctx)) { await safeCb(ctx); return; }
+  await safeCb(ctx);
+  sessions.set(ctx.chat.id, { step: 'adm_bonus_input', data: {} });
+  await ctx.reply(
+    `🎁 <b>Set Bonus Topup</b>\n\nKetik dengan format:\n<code>min_topup persen</code>\nContoh: <code>50000 10</code> (topup min 50rb dapat bonus 10%)\n\nKetik <code>0 0</code> untuk menonaktifkan.`,
+    { parse_mode: 'HTML' }
+  );
+});
+
+bot.action('adm_bonus_toggle', async (ctx) => {
+  if (!await admin.hasAdminAccess(ctx)) { await safeCb(ctx); return; }
+  await safeCb(ctx);
+  const cfg = await ppob.getBonusConfig();
+  if (cfg.enabled) {
+    await ppob.setBonusConfig(0, 0);
+    await ctx.reply('✅ Bonus topup <b>dinonaktifkan</b>.', { parse_mode: 'HTML' });
+  } else {
+    if (!cfg.min_topup || !cfg.bonus_percent) {
+      return ctx.reply('❌ Set dulu nominal & persen bonus via tombol 🎁 Set Bonus.');
+    }
+    await ppob.setBonusConfig(cfg.min_topup, cfg.bonus_percent);
+    await ctx.reply('✅ Bonus topup <b>diaktifkan</b>.', { parse_mode: 'HTML' });
+  }
+  await showBonusPanel(ctx);
+});
+
+bot.action('adm_resset', async (ctx) => {
+  if (!await admin.hasAdminAccess(ctx)) { await safeCb(ctx); return; }
+  await safeCb(ctx);
+  sessions.set(ctx.chat.id, { step: 'adm_resset_input', data: {} });
+  await ctx.reply(
+    `🏪 <b>Min. Topup Otomatis Reseller</b>\n\nKetik <b>nominal rupiah</b> (angka saja).\nContoh: <code>500000</code>\n\nUser yang total topup sukses-nya mencapai nominal ini otomatis jadi Reseller.\nKetik <code>0</code> untuk menonaktifkan.`,
+    { parse_mode: 'HTML' }
+  );
+});
+
+// ============================================================
+// ---------- Broadcast ke Grup ----------
+// ============================================================
+async function showBcastPanel(ctx) {
+  const groups = await settings.listBroadcastGroups();
+  const lines = groups.length
+    ? groups.map((g, i) => `${i + 1}. <code>${esc(g.chat_id)}</code>${g.title ? ` — ${esc(g.title)}` : ''}`).join('\n')
+    : '<i>Belum ada grup terdaftar.</i>';
+  const kb = [
+    [sBtn('➕ Tambah Grup', 'adm_bcast_add', 'success'), sBtn('❌ Hapus Grup', 'adm_bcast_del', 'danger')],
+    [sBtn('📝 Tulis & Kirim Broadcast', 'adm_bcast_send', 'primary')],
+    [sBtn('🔙 Kembali', 'adm_open', 'danger')],
+  ];
+  await ctx.reply(
+    `📢 <b>Broadcast ke Grup</b>\n\n<b>Grup terdaftar (${groups.length}):</b>\n${lines}`,
+    { parse_mode: 'HTML', reply_markup: Markup.inlineKeyboard(kb).reply_markup }
+  );
+}
+
+bot.action('adm_bcast', async (ctx) => {
+  if (!await admin.hasAdminAccess(ctx)) { await safeCb(ctx); return; }
+  await safeCb(ctx);
+  await showBcastPanel(ctx);
+});
+
+bot.action('adm_bcast_add', async (ctx) => {
+  if (!await admin.hasAdminAccess(ctx)) { await safeCb(ctx); return; }
+  await safeCb(ctx);
+  sessions.set(ctx.chat.id, { step: 'adm_bcast_add', data: {} });
+  await ctx.reply(
+    `➕ <b>Tambah Grup Broadcast</b>\n\nKetik <b>ID grup</b> (contoh: <code>-1001234567890</code>).\n` +
+    `Cara dapat ID: tambahkan bot ke grup, lalu forward pesan dari grup ke @userinfobot.\n\n` +
+    `Bot harus jadi <b>admin</b> di grup tersebut agar bisa kirim pesan.`,
+    { parse_mode: 'HTML' }
+  );
+});
+
+bot.action('adm_bcast_del', async (ctx) => {
+  if (!await admin.hasAdminAccess(ctx)) { await safeCb(ctx); return; }
+  await safeCb(ctx);
+  const groups = await settings.listBroadcastGroups();
+  if (!groups.length) return ctx.reply('❌ Belum ada grup terdaftar.');
+  const kb = groups.map((g) => [sBtn(`❌ ${g.title || g.chat_id}`, `adm_bcastdel_${g.id}`, 'danger')]);
+  kb.push([sBtn('🔙 Kembali', 'adm_bcast', 'danger')]);
+  await ctx.reply('❌ <b>Hapus Grup Broadcast</b>\n\nPilih grup:', {
+    parse_mode: 'HTML', reply_markup: { inline_keyboard: kb },
+  });
+});
+
+bot.action(/^adm_bcastdel_(\d+)$/, async (ctx) => {
+  if (!await admin.hasAdminAccess(ctx)) { await safeCb(ctx); return; }
+  await safeCb(ctx);
+  const ok = await settings.delBroadcastGroup(ctx.match[1]);
+  await ctx.reply(ok ? '✅ Grup dihapus dari daftar broadcast.' : '⚠️ Grup tidak ditemukan.');
+  await showBcastPanel(ctx);
+});
+
+bot.action('adm_bcast_send', async (ctx) => {
+  if (!await admin.hasAdminAccess(ctx)) { await safeCb(ctx); return; }
+  await safeCb(ctx);
+  const groups = await settings.listBroadcastGroups();
+  if (!groups.length) return ctx.reply('❌ Belum ada grup terdaftar. Tambah dulu via ➕ Tambah Grup.');
+  sessions.set(ctx.chat.id, { step: 'adm_bcast_msg', data: {} });
+  await ctx.reply(
+    `📝 <b>Tulis Pesan Broadcast</b>\n\nKetik pesan yang akan dikirim ke <b>${groups.length} grup</b>.\n` +
+    `Mendukung format HTML sederhana (&lt;b&gt;, &lt;i&gt;, &lt;code&gt;).`,
+    { parse_mode: 'HTML' }
+  );
+});
+
+// ============================================================
+// ---------- Grup Notifikasi Transaksi ----------
+// ============================================================
+bot.action('adm_notifgrp', async (ctx) => {
+  if (!await admin.hasAdminAccess(ctx)) { await safeCb(ctx); return; }
+  await safeCb(ctx);
+  const cur = await settings.getNotifGroup();
+  sessions.set(ctx.chat.id, { step: 'adm_notifgrp_input', data: {} });
+  await ctx.reply(
+    `🔔 <b>Grup Notifikasi Transaksi</b>\n\n` +
+    `ID saat ini: <code>${esc(cur || '(belum diatur)')}</code>\n\n` +
+    `Semua notifikasi (deposit, pembelian VPN/PPOB, topup) dikirim ke grup ini.\n` +
+    `Bot harus jadi <b>admin</b> di grup tersebut.\n\n` +
+    `Ketik <b>ID grup baru</b> (contoh: <code>-1001234567890</code>), atau kirim pesan dari grup yang sudah ada.`,
+    { parse_mode: 'HTML' }
+  );
+});
+
+// ============================================================
+// ---------- Force Join Channel & Grup ----------
+// ============================================================
+async function showForceJoinPanel(ctx) {
+  const fj = await settings.getForceJoin();
+  const text =
+    `🔒 <b>Force Join</b>\n\n` +
+    `Status: <b>${fj.enabled ? '✅ Aktif' : '❌ Nonaktif'}</b>\n\n` +
+    `📢 Channel: <code>${esc(fj.channelId || '(kosong)')}</code>\n` +
+    `🔗 Link: ${esc(fj.channelUrl || '-')}\n\n` +
+    `👥 Grup: <code>${esc(fj.groupId || '(kosong)')}</code>\n` +
+    `🔗 Link: ${esc(fj.groupUrl || '-')}\n\n` +
+    `<i>User baru wajib join sebelum bisa pakai bot. Admin selalu lolos.</i>`;
+  const kb = Markup.inlineKeyboard([
+    [sBtn('📢 Set Channel', 'adm_fj_channel', 'primary'), sBtn('👥 Set Grup', 'adm_fj_group', 'primary')],
+    [sBtn(fj.enabled ? '⏸️ Nonaktifkan' : '▶️ Aktifkan', 'adm_fj_toggle', fj.enabled ? 'danger' : 'success')],
+    [sBtn('🔙 Kembali', 'adm_open', 'danger')],
+  ]);
+  await ctx.reply(text, { parse_mode: 'HTML', reply_markup: kb.reply_markup });
+}
+
+bot.action('adm_forcejoin', async (ctx) => {
+  if (!await admin.hasAdminAccess(ctx)) { await safeCb(ctx); return; }
+  await safeCb(ctx);
+  await showForceJoinPanel(ctx);
+});
+
+bot.action('adm_fj_channel', async (ctx) => {
+  if (!await admin.hasAdminAccess(ctx)) { await safeCb(ctx); return; }
+  await safeCb(ctx);
+  sessions.set(ctx.chat.id, { step: 'adm_fj_channel', data: {} });
+  await ctx.reply(
+    `📢 <b>Set Channel Wajib Join</b>\n\nKetik dengan format:\n<code>ID | link_undangan</code>\n` +
+    `Contoh: <code>@Wendi_Channel | https://t.me/Wendi_Channel</code>\n\n` +
+    `Kosongkan ID (ketik <code>-</code>) untuk menonaktifkan cek channel.`,
+    { parse_mode: 'HTML' }
+  );
+});
+
+bot.action('adm_fj_group', async (ctx) => {
+  if (!await admin.hasAdminAccess(ctx)) { await safeCb(ctx); return; }
+  await safeCb(ctx);
+  sessions.set(ctx.chat.id, { step: 'adm_fj_group', data: {} });
+  await ctx.reply(
+    `👥 <b>Set Grup Wajib Join</b>\n\nKetik dengan format:\n<code>ID | link_undangan</code>\n` +
+    `Contoh: <code>-1001234567890 | https://t.me/Wendi_VPN</code>\n\n` +
+    `Kosongkan ID (ketik <code>-</code>) untuk menonaktifkan cek grup.`,
+    { parse_mode: 'HTML' }
+  );
+});
+
+bot.action('adm_fj_toggle', async (ctx) => {
+  if (!await admin.hasAdminAccess(ctx)) { await safeCb(ctx); return; }
+  await safeCb(ctx);
+  const fj = await settings.getForceJoin();
+  await settings.setSetting('force_join_enabled', fj.enabled ? '0' : '1');
+  await ctx.reply(`✅ Force join <b>${fj.enabled ? 'dinonaktifkan' : 'diaktifkan'}</b>.`, { parse_mode: 'HTML' });
+  await showForceJoinPanel(ctx);
+});
+
 // ---------- Reseller ----------
 bot.command('setreseller', async (ctx) => {
   if (!await admin.hasAdminAccess(ctx)) return ctx.reply('❌ Khusus admin.');
@@ -1817,6 +2227,29 @@ setInterval(async () => {
         );
         if (!r.changes) continue; // sudah diproses (anti dobel kredit)
         const s = await ppob.addSaldo(tx.telegram_id, tx.amount);
+        // Otomatis jadi reseller bila total topup mencapai batas (diatur admin)
+        try {
+          const minRes = await settings.getResellerMinTopup();
+          if (minRes > 0) {
+            const curRole = await ppob.getRole(tx.telegram_id).catch(() => 'member');
+            if (curRole === 'member') {
+              const tot = await get(
+                `SELECT COALESCE(SUM(amount),0) AS t FROM transactions
+                 WHERE telegram_id = ? AND type = 'deposit' AND status = 'success'`,
+                [tx.telegram_id]
+              ).catch(() => ({ t: 0 }));
+              if (Number(tot?.t || 0) >= minRes) {
+                await ppob.setRole(tx.telegram_id, 'reseller');
+                await bot.telegram.sendMessage(
+                  tx.telegram_id,
+                  `🏪 <b>Selamat! Kamu kini RESELLER</b>\n\nTotal topup kamu mencapai <b>${digi.rp(minRes)}</b>.\nNikmati harga khusus reseller untuk VPN!`,
+                  { parse_mode: 'HTML' }
+                ).catch(() => {});
+                notifGrup(bot, `🏪 <b>User naik jadi Reseller</b>\n👤 ID: <code>${tx.telegram_id}</code>\n💰 Total topup: <b>${digi.rp(tot.t)}</b>`);
+              }
+            }
+          }
+        } catch (e) { console.error('[deposit] auto-reseller error:', e.message); }
         await bot.telegram.sendMessage(
           tx.telegram_id,
           `✅ <b>Deposit diterima!</b>\n💰 <b>${digi.rp(tx.amount)}</b> masuk ke saldo kamu.` +
