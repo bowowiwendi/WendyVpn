@@ -7,7 +7,7 @@ const QRCode = require('qrcode');
 const config = require('../src/config');
 const digi = require('../src/digiflazz');
 const { esc } = require('../src/format');
-const { run, get, all } = require('../src/db');
+const { run, get, all, products: dbProducts } = require('../src/db');
 
 // Harga jual = harga dasar Digiflazz (field `price`) + margin % dari config.
 // (API Digiflazz TIDAK punya field `price_sell` — kode lama membaca field yang
@@ -219,15 +219,14 @@ async function productList(category, page = 1) {
   if (!digi.enabled()) return { success: false, message: '❌ Digiflazz belum dikonfigurasi.' };
   // Baca dari cache lokal — API Digiflazz membatasi pengecekan pricelist,
   // jadi JANGAN panggil API setiap buka daftar produk (dulu selalu error limit).
-  const dbmod = require('./db');
-  const cached = dbmod.products();
+  const cached = dbProducts();
   let rawList = cached.list_prepaid || [];
   const stale = !cached.lastSync || Date.now() - cached.lastSync > 6 * 3600 * 1000;
   if (!rawList.length || stale) {
     // Sync di background; pakai cache lama sementara bila ada
     digi.sync().catch(() => {});
     if (!rawList.length) {
-      const fresh = dbmod.products().list_prepaid || [];
+      const fresh = dbProducts().list_prepaid || [];
       if (!fresh.length) return { success: false, message: '⏳ Sinkronisasi produk berjalan, coba lagi 1 menit.' };
       rawList = fresh;
     }
