@@ -9,6 +9,15 @@ const digi = require('../src/digiflazz');
 const { esc } = require('../src/format');
 const { run, get, all } = require('../src/db');
 
+// Harga jual = harga dasar Digiflazz (field `price`) + margin % dari config.
+// (API Digiflazz TIDAK punya field `price_sell` — kode lama membaca field yang
+//  tidak ada sehingga harga tampil Rp0 dan saldo user korup saat beli.)
+function sellPriceOf(prod) {
+  const base = Number(prod?.price || 0);
+  const margin = Number(config.digiflazz?.margin || 0);
+  return Math.ceil(base * (1 + margin / 100));
+}
+
 const refId = (prefix = 'TRX') =>
   `${prefix}${Date.now().toString(36).toUpperCase()}${crypto.randomBytes(3).toString('hex').toUpperCase()}`;
 
@@ -127,8 +136,8 @@ async function buyProduct(telegramId, buyerSkuCode, customerNo, priceSell) {
   await run('INSERT INTO transactions (telegram_id, type, amount, ref_id, status) VALUES (?,?,?,?,?)',
     [telegramId, 'ppob', priceSell, ref, 'pending']);
   try {
-    const res = await digi.transaction(buyerSkuCode, customerNo, ref);
-    const status = (res?.data?.status || '').toLowerCase();
+    const res = await digi.transaction({ sku: buyerSkuCode, customerNo, refId: ref });
+    const status = (res?.status || '').toLowerCase();
     if (status === 'sukses' || status === 'success') {
       await run('UPDATE transactions SET status = ? WHERE ref_id = ?', ['success', ref]);
       return {
@@ -140,7 +149,7 @@ async function buyProduct(telegramId, buyerSkuCode, customerNo, priceSell) {
           `📱 Tujuan: <code>${esc(customerNo)}</code>\n` +
           `💰 Harga: <b>${digi.rp(priceSell)}</b>\n` +
           `<blockquote>🧾 Ref: <code>${ref}</code>\n` +
-          `🔑 SN: <code>${esc(res.data.sn || '-')}</code></blockquote>`,
+          `🔑 SN: <code>${esc(res.sn || '-')}</code></blockquote>`,
       };
     }
     if (status === 'pending') {
@@ -158,7 +167,7 @@ async function buyProduct(telegramId, buyerSkuCode, customerNo, priceSell) {
     // gagal -> refund
     await addSaldo(telegramId, priceSell);
     await run('UPDATE transactions SET status = ? WHERE ref_id = ?', ['failed', ref]);
-    return { success: false, message: `❌ <b>Transaksi gagal.</b>\n${esc(res?.data?.message || 'unknown')}\n💰 Saldo dikembalikan.` };
+    return { success: false, message: `❌ <b>Transaksi gagal.</b>\n${esc(res?.message || 'unknown')}\n💰 Saldo dikembalikan.` };
   } catch (e) {
     await addSaldo(telegramId, priceSell);
     await run('UPDATE transactions SET status = ? WHERE ref_id = ?', ['failed', ref]);
@@ -169,10 +178,11 @@ async function buyProduct(telegramId, buyerSkuCode, customerNo, priceSell) {
 async function checkOrder(ref) {
   const cleanRef = String(ref || '').trim().toUpperCase();
   const tx = await get('SELECT * FROM transactions WHERE ref_id = ?', [cleanRef]);
-  if (!tx) return { success: false, message: '❌ Ref tidak ditemukan.' };
+  if (!tx) return { success: false, message: '❌ Ref tidak ditemukan.', status: 'unknown' };
   if (tx.status !== 'pending') {
     return {
       success: true,
+      status: tx.status,
       message:
         `📦 <b>Status Order</b>\n` +
         `━━━━━━━━━━━━━━━━━━\n` +
@@ -182,13 +192,14 @@ async function checkOrder(ref) {
   }
   try {
     const res = await digi.checkTransaction(cleanRef);
-    const status = (res?.data?.status || '').toLowerCase();
+    const status = (res?.status || '').toLowerCase();
     const map = { sukses: 'success', success: 'success', gagal: 'failed', failed: 'failed' };
     const final = map[status] || 'pending';
     await run('UPDATE transactions SET status = ? WHERE ref_id = ?', [final, cleanRef]);
     if (final === 'failed') await addSaldo(tx.telegram_id, tx.amount); // refund
     return {
       success: true,
+      status: final,
       message:
         `📦 <b>Status Order</b>\n` +
         `━━━━━━━━━━━━━━━━━━\n` +
@@ -208,7 +219,10 @@ async function productList(category, page = 1) {
   if (!digi.enabled()) return { success: false, message: '❌ Digiflazz belum dikonfigurasi.' };
   const res = await digi.priceList('prepaid', category ? { category } : {});
   const rawList = res?.data;
-  const items = (Array.isArray(rawList) ? rawList : []).filter((p) => p && p.buyer_product_status && p.seller_product_status).slice(0, 100);
+  const items = (Array.isArray(rawList) ? rawList : [])
+    .filter((p) => p && p.buyer_product_status && p.seller_product_status)
+    .slice(0, 100)
+    .map((p) => { p.price_sell = sellPriceOf(p); return p; });
   if (!items.length) return { success: false, message: '❌ Produk tidak ditemukan.' };
   const total = items.length;
   const pages = Math.max(1, Math.ceil(total / PROD_PER_PAGE));
