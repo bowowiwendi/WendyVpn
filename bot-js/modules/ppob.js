@@ -217,8 +217,21 @@ const PROD_PER_PAGE = 10;
 
 async function productList(category, page = 1) {
   if (!digi.enabled()) return { success: false, message: '❌ Digiflazz belum dikonfigurasi.' };
-  const res = await digi.priceList('prepaid', category ? { category } : {});
-  const rawList = res?.data;
+  // Baca dari cache lokal — API Digiflazz membatasi pengecekan pricelist,
+  // jadi JANGAN panggil API setiap buka daftar produk (dulu selalu error limit).
+  const dbmod = require('./db');
+  const cached = dbmod.products();
+  let rawList = cached.list_prepaid || [];
+  const stale = !cached.lastSync || Date.now() - cached.lastSync > 6 * 3600 * 1000;
+  if (!rawList.length || stale) {
+    // Sync di background; pakai cache lama sementara bila ada
+    digi.sync().catch(() => {});
+    if (!rawList.length) {
+      const fresh = dbmod.products().list_prepaid || [];
+      if (!fresh.length) return { success: false, message: '⏳ Sinkronisasi produk berjalan, coba lagi 1 menit.' };
+      rawList = fresh;
+    }
+  }
   const items = (Array.isArray(rawList) ? rawList : [])
     .filter((p) => p && p.buyer_product_status && p.seller_product_status)
     .slice(0, 100)
