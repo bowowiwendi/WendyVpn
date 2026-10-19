@@ -968,10 +968,11 @@ bot.action(/^prod_buy_(\d+)_(\d+)$/, async (ctx) => {
     step: 'ppob_tujuan',
     data: { sku: p.buyer_sku_code, price: p.price_sell, productName: p.product_name },
   });
+  const spec = digi.destinationSpec(p.category, p.brand);
   await ctx.reply(
     '🛒 <b>' + esc(p.product_name) + '</b>\n' +
-    '💰 Harga: <b>' + p.price_sell + '</b>\n\n' +
-    'Kirim <b>nomor tujuan</b>:',
+    '💰 Harga: <b>' + digi.rp(p.price_sell) + '</b>\n\n' +
+    'Kirim <b>' + esc(spec.label) + '</b> (contoh: <code>' + esc(spec.placeholder) + '</code>):',
     { parse_mode: 'HTML' }
   );
 });
@@ -1419,6 +1420,41 @@ setInterval(async () => {
     console.error('[deposit] poller error:', e.message);
   }
 }, 30 * 1000);
+
+// ---------- Poller order PPOB pending: cek status otomatis tiap 60 detik ----------
+// Order yang masih 'pending' di Digiflazz dicek ulang otomatis; bila sukses user
+// dapat notif, bila gagal saldo dikembalikan (lewat ppob.checkOrder).
+setInterval(async () => {
+  try {
+    const { all } = require('./src/db');
+    const pending = await all(
+      `SELECT ref_id, telegram_id FROM transactions
+       WHERE type = 'ppob' AND status = 'pending'
+         AND created_at > datetime('now','-2 hours')`
+    ).catch(() => []);
+    if (!pending.length) return;
+    for (const tx of pending) {
+      try {
+        const r = await ppob.checkOrder(tx.ref_id);
+        if (r.status === 'success') {
+          await bot.telegram.sendMessage(
+            tx.telegram_id,
+            `✅ <b>Transaksi PPOB sukses!</b>\n🧾 Ref: <code>${esc(tx.ref_id)}</code>`,
+            { parse_mode: 'HTML' }
+          ).catch(() => {});
+        } else if (r.status === 'failed') {
+          await bot.telegram.sendMessage(
+            tx.telegram_id,
+            `❌ <b>Transaksi PPOB gagal.</b>\n🧾 Ref: <code>${esc(tx.ref_id)}</code>\n💰 Saldo dikembalikan.`,
+            { parse_mode: 'HTML' }
+          ).catch(() => {});
+        }
+      } catch (e) { /* lanjut ke order berikutnya */ }
+    }
+  } catch (e) {
+    console.error('[ppob] poller error:', e.message);
+  }
+}, 60 * 1000);
 
 // ---------- Error handler ----------
 bot.catch((err, ctx) => {
