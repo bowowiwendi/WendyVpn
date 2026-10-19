@@ -1404,8 +1404,14 @@ bot.action(/^dep_pkcheck_(.+)$/, async (ctx) => {
 });
 
 // Tampilkan daftar produk PPOB (dipakai tombol Beli & Daftar Produk)
+// Bila kategori memakai layer provider dan belum pilih provider → tampilkan pilih provider dulu
 async function showProductList(ctx, group, page = 1) {
   await safeCb(ctx);
+  const gstr = String(group || '');
+  const base = gstr.split(':')[0].toLowerCase();
+  if (ppob.hasProviders(base) && !gstr.includes(':')) {
+    return showProviders(ctx, base);
+  }
   const r = await ppob.productList(group, page)
     .catch((e) => ({ success: false, message: `❌ ${esc(e.message)}` }));
   if (!r.success) { await ctx.reply(r.message, { parse_mode: 'HTML' }); return; }
@@ -1413,6 +1419,19 @@ async function showProductList(ctx, group, page = 1) {
   const extra = { parse_mode: 'HTML', reply_markup: ppob.productKeyboard(r.page, r.pages, r.pageItems, group || '') };
   try { await ctx.editMessageText(r.message, extra); }
   catch (e) { await ctx.reply(r.message, extra); }
+}
+
+// Layar pilih provider untuk kategori PPOB (ala bot RIPZZ)
+async function showProviders(ctx, group) {
+  await safeCb(ctx);
+  const names = await ppob.getProviderNames(group).catch(() => null);
+  if (!names || !names.length) return showProductList(ctx, group);
+  const grpDef = ppob.CATEGORY_GROUPS[group];
+  const title = grpDef ? grpDef.title : `📦 <b>${esc(group)}</b>`;
+  const text = `${title}\nPilih provider:`;
+  const extra = { parse_mode: 'HTML', reply_markup: ppob.providerKeyboard(group, names) };
+  try { await ctx.editMessageText(text, extra); }
+  catch (e) { await ctx.reply(text, extra); }
 }
 
 bot.action('ppob_beli', async (ctx) => {
@@ -1426,6 +1445,11 @@ bot.action('ppob_produk', async (ctx) => {
 // Kategori PPOB (tombol grid): ppob_cat_<group>
 bot.action(/^ppob_cat_([a-z0-9-]+)$/, async (ctx) => {
   await showProductList(ctx, ctx.match[1]);
+});
+
+// Provider PPOB: ppob_prov_<group>_<provider> → daftar produk "group:provider"
+bot.action(/^ppob_prov_([a-z0-9-]+)_(.+)$/, async (ctx) => {
+  await showProductList(ctx, ctx.match[1] + ':' + ctx.match[2].trim());
 });
 
 // Prabayar / Pascabayar
@@ -1447,12 +1471,12 @@ bot.action('ppob_cari', async (ctx) => {
   sessions.set(ctx.chat.id, { step: 'ppob_cari' });
   await ctx.reply('🔍 Kirim <b>kata kunci</b> produk yang dicari (contoh: <code>telkomsel 10</code>):', { parse_mode: 'HTML' });
 });
-bot.action(/^prod_page_([a-z0-9-: ]*?)_(\d+)$/, async (ctx) => {
+bot.action(/^prod_page_([a-zA-Z0-9-: .]*?)_(\d+)$/, async (ctx) => {
   await showProductList(ctx, ctx.match[1] || undefined, parseInt(ctx.match[2], 10));
 });
 
 // Tombol beli produk PPOB
-bot.action(/^prod_buy_([a-z0-9-: ]*?)_(\d+)_(\d+)$/, async (ctx) => {
+bot.action(/^prod_buy_([a-zA-Z0-9-: .]*?)_(\d+)_(\d+)$/, async (ctx) => {
   await safeCb(ctx);
   const page = parseInt(ctx.match[2], 10);
   const idx = parseInt(ctx.match[3], 10);
