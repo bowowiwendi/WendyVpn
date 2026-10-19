@@ -113,6 +113,7 @@ const adminPanel = () => Markup.inlineKeyboard([
   [sBtn('💵 Tambah Saldo', 'adm_addsaldo', 'success'), sBtn('➖ Kurangi Saldo', 'adm_minsaldo', 'danger')],
   [sBtn('📊 Hasil Penjualan', 'adm_sales', 'primary'), sBtn('📑 Log Topup', 'adm_topuplog', 'primary')],
   [sBtn('📦 Backup DB', 'adm_backupdb', 'success'), sBtn('♻️ Restore DB', 'adm_restoredb', 'danger')],
+  [sBtn('🧾 Setting Pakasir', 'adm_pakasir', 'primary')],
   [sBtn('🔙 Kembali', 'menu_main', 'danger')],
 ]);
 
@@ -273,6 +274,33 @@ bot.action('cf_mk_trial', async (ctx) => {
 bot.on('text', async (ctx) => {
   const chatId = ctx.chat.id;
   const sess = sessions.get(chatId);
+
+  // --- Session input slug Pakasir ---
+  if (sess?.step === 'adm_pakasir_slug') {
+    const slug = ctx.message.text.trim();
+    sessions.delete(chatId);
+    if (!slug) return ctx.reply('❌ Slug tidak boleh kosong.');
+    const c = await pakasir.getConfig();
+    await pakasir.setConfig(slug, c.api_key);
+    // Hapus pesan berisi slug dari chat demi keamanan? Tidak — slug bersifat publik.
+    return ctx.reply(`✅ Slug Pakasir disimpan: <code>${esc(slug)}</code>`, {
+      parse_mode: 'HTML', reply_markup: adminPanel().reply_markup,
+    });
+  }
+
+  // --- Session input API key Pakasir ---
+  if (sess?.step === 'adm_pakasir_key') {
+    const apiKey = ctx.message.text.trim();
+    sessions.delete(chatId);
+    if (!apiKey) return ctx.reply('❌ API key tidak boleh kosong.');
+    const c = await pakasir.getConfig();
+    await pakasir.setConfig(c.slug, apiKey);
+    // Hapus pesan berisi API key dari chat demi keamanan
+    try { await ctx.deleteMessage(ctx.message.message_id); } catch (_) {}
+    return ctx.reply(`✅ API key Pakasir disimpan (<code>${pakasir.maskKey(apiKey)}</code>).`, {
+      parse_mode: 'HTML', reply_markup: adminPanel().reply_markup,
+    });
+  }
 
   // --- Session buat akun VPN ---
   if (sess?.step === 'vpn_username') {
@@ -600,8 +628,23 @@ bot.on('text', async (ctx) => {
   // --- Session deposit nominal ---
   if (sess?.step === 'deposit_nominal') {
     const nominal = parseInt(ctx.message.text.replace(/\D/g, ''), 10);
+    if (!nominal || nominal < 10000) { sessions.delete(chatId); return ctx.reply('❌ Nominal minimal Rp10.000'); }
+    // Jika Pakasir aktif → user pilih metode bayar dulu
+    const pakasirReady = await pakasir.isReady().catch(() => false);
+    if (pakasirReady) {
+      sessions.set(chatId, { step: 'deposit_method', nominal });
+      const kb = Markup.inlineKeyboard([
+        [sBtn('💳 GoPay QRIS', 'dep_method_gopay', 'primary')],
+        [sBtn('🧾 Pakasir (QRIS/VA)', 'dep_method_pakasir', 'success')],
+        [sBtn('❌ Batal', 'menu_ppob', 'danger')],
+      ]);
+      return ctx.reply(
+        `💰 <b>Deposit ${digi.rp(nominal)}</b>\n\nPilih metode pembayaran:`,
+        { parse_mode: 'HTML', reply_markup: kb.reply_markup }
+      );
+    }
+    // Pakasir belum aktif → langsung GoPay seperti sebelumnya
     sessions.delete(chatId);
-    if (!nominal || nominal < 10000) return ctx.reply('❌ Nominal minimal Rp10.000');
     await ctx.reply('⏳ Membuat QRIS...');
     const r = await ppob.createDeposit(ctx.from.id, nominal);
     if (!r.success) return ctx.reply(r.message);
@@ -987,6 +1030,83 @@ bot.action('ppob_deposit', async (ctx) => {
   await safeCb(ctx);
   sessions.set(ctx.chat.id, { step: 'deposit_nominal' });
   await ctx.reply('💰 Kirim <b>nominal deposit</b> (min Rp10.000):', { parse_mode: 'HTML' });
+});
+
+// User pilih metode deposit: GoPay QRIS (gateway sendiri)
+bot.action('dep_method_gopay', async (ctx) => {
+  await safeCb(ctx);
+  const sess = sessions.get(ctx.chat.id);
+  const nominal = sess?.nominal;
+  sessions.delete(ctx.chat.id);
+  if (!nominal) return ctx.reply('❌ Sesi kedaluwarsa, ulangi dari menu deposit.');
+  await ctx.reply('⏳ Membuat QRIS...');
+  const r = await ppob.createDeposit(ctx.from.id, nominal);
+  if (!r.success) return ctx.reply(r.message);
+  const caption = `💳 <b>Deposit ${digi.rp(nominal)}</b>\nRef: <code>${r.ref}</code>\n\nScan QRIS di atas untuk bayar. Saldo masuk otomatis setelah pembayaran terdeteksi.`;
+  if (r.qrBuffer) return ctx.replyWithPhoto({ source: r.qrBuffer }, { caption, parse_mode: 'HTML' });
+  return ctx.reply(caption + `\n${r.qrUrl || ''}`, { parse_mode: 'HTML' });
+});
+
+// User pilih metode deposit: Pakasir (QRIS/VA via pakasir.com)
+bot.action('dep_method_pakasir', async (ctx) => {
+  await safeCb(ctx);
+  const sess = sessions.get(ctx.chat.id);
+  const nominal = sess?.nominal;
+  sessions.delete(ctx.chat.id);
+  if (!nominal) return ctx.reply('❌ Sesi kedaluwarsa, ulangi dari menu deposit.');
+  await ctx.reply('⏳ Membuat link pembayaran Pakasir...');
+  const ref = ppob.refId('PKR');
+  try {
+    const p = await pakasir.createPayment(nominal, ref, 'qris');
+    const { run } = require('./src/db');
+    await run(
+      `INSERT INTO transactions (telegram_id, type, amount, ref_id, payment_id, status, gateway)
+       VALUES (?,?,?,?,?,?,?)`,
+      [ctx.from.id, 'deposit', nominal, ref, p.orderId, 'pending', 'pakasir']
+    );
+    // QR dari QRIS string (pakai API QR publik)
+    const qrImgUrl = `https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent(p.paymentNumber || p.paymentUrl)}`;
+    const caption =
+      `🧾 <b>Deposit via Pakasir ${digi.rp(nominal)}</b>\n` +
+      `Ref: <code>${ref}</code>\n\n` +
+      `Scan QR atau buka link bayar:\n${p.paymentUrl}\n\n` +
+      `Saldo masuk otomatis setelah pembayaran terdeteksi.`;
+    const kb = Markup.inlineKeyboard([
+      [Markup.button.url('🔗 Buka Link Bayar', p.paymentUrl)],
+      [sBtn('🔄 Cek Status', `dep_pkcheck_${ref}`, 'primary')],
+    ]);
+    // Pakai URL button bila valid, fallback ke tombol cek status saja
+    try {
+      await ctx.replyWithPhoto(qrImgUrl, { caption, parse_mode: 'HTML', reply_markup: kb.reply_markup });
+    } catch (_) {
+      await ctx.reply(caption, { parse_mode: 'HTML', reply_markup: kb.reply_markup });
+    }
+  } catch (e) {
+    return ctx.reply(`❌ Gagal membuat pembayaran Pakasir: ${esc(e.message)}`);
+  }
+});
+
+// Cek status manual deposit Pakasir
+bot.action(/^dep_pkcheck_(.+)$/, async (ctx) => {
+  await safeCb(ctx);
+  const ref = ctx.match[1];
+  const { get } = require('./src/db');
+  const tx = await get(
+    `SELECT amount, payment_id, status FROM transactions WHERE ref_id = ? AND gateway = 'pakasir'`,
+    [ref]
+  ).catch(() => null);
+  if (!tx) return ctx.reply('❌ Transaksi tidak ditemukan.');
+  if (tx.status !== 'pending') return ctx.reply(`ℹ️ Status transaksi: <b>${esc(tx.status)}</b>`, { parse_mode: 'HTML' });
+  try {
+    const s = await pakasir.checkStatus(tx.payment_id, tx.amount);
+    if (s.status === 'completed') {
+      return ctx.reply('✅ Pembayaran terdeteksi lunas! Saldo akan masuk otomatis (tunggu polling).');
+    }
+    const label = { pending: 'menunggu pembayaran', cancelled: 'dibatalkan', expired: 'kedaluwarsa' }[s.status] || s.status;
+    return ctx.reply(`⏳ Status: <b>${label}</b>.`, { parse_mode: 'HTML' });
+  } catch (e) {
+    return ctx.reply(`❌ Gagal cek status: ${esc(e.message)}`);
+  }
 });
 
 // Tampilkan daftar produk PPOB (dipakai tombol Beli & Daftar Produk)
@@ -1513,6 +1633,67 @@ bot.action('adm_restoredb', async (ctx) => {
   sessions.set(ctx.chat.id, { step: 'restore_db' });
 });
 
+// ---------- Setting Pakasir ----------
+const pakasir = require('./modules/pakasir');
+
+async function showPakasirPanel(ctx) {
+  const c = await pakasir.getConfig();
+  const status = c.enabled && c.slug && c.api_key ? '🟢 Aktif' : (c.slug && c.api_key ? '🟡 Terisi (nonaktif)' : '🔴 Belum dikonfigurasi');
+  const text =
+    `🧾 <b>Setting Pakasir</b>\n\n` +
+    `Status: <b>${status}</b>\n` +
+    `🔗 Slug: <code>${esc(c.slug || '(kosong)')}</code>\n` +
+    `🔑 API Key: <code>${pakasir.maskKey(c.api_key)}</code>\n\n` +
+    `Pakasir = metode bayar kedua (selain GoPay QRIS).\n` +
+    `User bisa pilih saat deposit bila sudah aktif.`;
+  const kb = Markup.inlineKeyboard([
+    [sBtn('🔗 Set Slug', 'adm_pakasir_slug', 'primary'), sBtn('🔑 Set API Key', 'adm_pakasir_key', 'primary')],
+    [sBtn('🧪 Tes Koneksi', 'adm_pakasir_test', 'success'), sBtn(c.enabled ? '⏸️ Nonaktifkan' : '▶️ Aktifkan', 'adm_pakasir_toggle', c.enabled ? 'danger' : 'success')],
+    [sBtn('🔙 Kembali', 'adm_open', 'danger')],
+  ]);
+  await ctx.reply(text, { parse_mode: 'HTML', reply_markup: kb.reply_markup });
+}
+
+bot.action('adm_pakasir', async (ctx) => {
+  if (!await admin.hasAdminAccess(ctx)) { await safeCb(ctx); return; }
+  await safeCb(ctx);
+  await showPakasirPanel(ctx);
+});
+
+bot.action('adm_pakasir_slug', async (ctx) => {
+  if (!await admin.hasAdminAccess(ctx)) { await safeCb(ctx); return; }
+  await safeCb(ctx);
+  sessions.set(ctx.chat.id, { step: 'adm_pakasir_slug' });
+  await ctx.reply('🔗 Kirim <b>slug project Pakasir</b> (lihat di halaman detail project pakasir.com):', { parse_mode: 'HTML' });
+});
+
+bot.action('adm_pakasir_key', async (ctx) => {
+  if (!await admin.hasAdminAccess(ctx)) { await safeCb(ctx); return; }
+  await safeCb(ctx);
+  sessions.set(ctx.chat.id, { step: 'adm_pakasir_key' });
+  await ctx.reply('🔑 Kirim <b>API key Pakasir</b> (lihat di halaman detail project pakasir.com):', { parse_mode: 'HTML' });
+});
+
+bot.action('adm_pakasir_test', async (ctx) => {
+  if (!await admin.hasAdminAccess(ctx)) { await safeCb(ctx); return; }
+  await safeCb(ctx);
+  await ctx.reply('⏳ Mengetes koneksi ke Pakasir...');
+  const r = await pakasir.testConnection();
+  await ctx.reply(r.message, { parse_mode: 'HTML' });
+});
+
+bot.action('adm_pakasir_toggle', async (ctx) => {
+  if (!await admin.hasAdminAccess(ctx)) { await safeCb(ctx); return; }
+  await safeCb(ctx);
+  const c = await pakasir.getConfig();
+  if (!c.slug || !c.api_key) {
+    return ctx.reply('❌ Isi slug & API key dulu sebelum mengaktifkan.');
+  }
+  await pakasir.setEnabled(!c.enabled);
+  await ctx.reply(`✅ Pakasir ${!c.enabled ? '<b>diaktifkan</b>' : '<b>dinonaktifkan</b>'}.`, { parse_mode: 'HTML' });
+  await showPakasirPanel(ctx);
+});
+
 // ---------- Reseller ----------
 bot.command('setreseller', async (ctx) => {
   if (!await admin.hasAdminAccess(ctx)) return ctx.reply('❌ Khusus admin.');
@@ -1590,28 +1771,46 @@ setInterval(async () => {
 }, 24 * 60 * 60 * 1000); // tiap 24 jam
 
 // ---------- Poller deposit QRIS: kredit saldo otomatis tiap 30 detik ----------
-// Deposit yang sudah dibayar di gateway (status paid/success/settled) dikreditkan
-// ke saldo user. Klaim atomik: hanya transaksi yang masih 'pending' yang diproses.
+// Deposit yang sudah dibayar di gateway (status paid/success/settled/completed)
+// dikreditkan ke saldo user. Klaim atomik: hanya transaksi yang masih 'pending'
+// yang diproses. Mendukung 2 gateway: gopay (P2P sendiri) & pakasir.
 setInterval(async () => {
   try {
     const { all, run } = require('./src/db');
     const pending = await all(
-      `SELECT telegram_id, amount, ref_id, payment_id FROM transactions
+      `SELECT telegram_id, amount, ref_id, payment_id, gateway FROM transactions
        WHERE type = 'deposit' AND status = 'pending' AND payment_id != ''
          AND created_at > datetime('now','-1 day')`
     ).catch(() => []);
     if (!pending.length) return;
     const { gatewayUrl, apiKey } = config.p2p;
-    if (!apiKey) return;
     const axios = require('axios');
+    const pakasirReady = await pakasir.isReady().catch(() => false);
     for (const tx of pending) {
       try {
-        const { data } = await axios.get(
-          `${gatewayUrl}/api/payments/${encodeURIComponent(tx.payment_id)}`,
-          { headers: { 'X-API-Key': apiKey }, timeout: 15000 }
-        ).catch(() => ({ data: {} }));
-        const st = String(data?.status || '').toLowerCase();
-        if (!['paid', 'success', 'settled'].includes(st)) continue;
+        const gw = tx.gateway || 'gopay';
+        let isPaid = false;
+        if (gw === 'pakasir') {
+          if (!pakasirReady) continue;
+          const s = await pakasir.checkStatus(tx.payment_id, tx.amount).catch(() => null);
+          if (!s) continue;
+          if (s.status === 'completed') isPaid = true;
+          else if (s.status === 'expired' || s.status === 'cancelled') {
+            await run(`UPDATE transactions SET status = ? WHERE ref_id = ? AND status = 'pending'`,
+              [s.status, tx.ref_id]);
+            continue;
+          } else continue; // masih pending
+        } else {
+          if (!apiKey) continue;
+          const { data } = await axios.get(
+            `${gatewayUrl}/api/payments/${encodeURIComponent(tx.payment_id)}`,
+            { headers: { 'X-API-Key': apiKey }, timeout: 15000 }
+          ).catch(() => ({ data: {} }));
+          const st = String(data?.status || '').toLowerCase();
+          if (!['paid', 'success', 'settled'].includes(st)) continue;
+          isPaid = true;
+        }
+        if (!isPaid) continue;
         const r = await run(
           `UPDATE transactions SET status = 'success' WHERE ref_id = ? AND status = 'pending'`,
           [tx.ref_id]
@@ -1625,7 +1824,7 @@ setInterval(async () => {
           `\n💳 Saldo sekarang: <b>${digi.rp(s.saldo)}</b>`,
           { parse_mode: 'HTML' }
         ).catch(() => {});
-        console.log(`[deposit] ${tx.ref_id} lunas → saldo +${tx.amount} (tg:${tx.telegram_id})`);
+        console.log(`[deposit] ${tx.ref_id} lunas (${gw}) → saldo +${tx.amount} (tg:${tx.telegram_id})`);
       } catch (e) {
         console.error('[deposit] cek gagal:', tx.ref_id, e.message);
       }

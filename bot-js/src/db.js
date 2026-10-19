@@ -59,6 +59,16 @@ async function init() {
   )`);
   await run(`ALTER TABLE transactions ADD COLUMN payment_id TEXT DEFAULT ''`).catch(() => {});
   await run(`ALTER TABLE transactions ADD COLUMN sku TEXT DEFAULT ''`).catch(() => {});
+  await run(`ALTER TABLE transactions ADD COLUMN gateway TEXT DEFAULT 'gopay'`).catch(() => {});
+
+  // Konfigurasi Pakasir (payment link QRIS/VA) — diatur admin via panel bot
+  await run(`CREATE TABLE IF NOT EXISTS pakasir_config (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    slug TEXT DEFAULT '',
+    api_key TEXT DEFAULT '',
+    enabled INTEGER DEFAULT 0
+  )`);
+  await run(`INSERT OR IGNORE INTO pakasir_config (id, slug, api_key, enabled) VALUES (1, '', '', 0)`);
 
   await run(`CREATE TABLE IF NOT EXISTS notified_expired (
     account_id INTEGER PRIMARY KEY,
