@@ -111,6 +111,27 @@ const mainMenu = (isAdmin = false, isReseller = false) => {
 
 const backBtn = () => Markup.inlineKeyboard([[sBtn('🔙 Kembali', 'menu_main', 'danger')]]);
 
+// Tombol Batal untuk sesi input — tekan -> sesi dihapus -> kembali ke menu
+const cancelKb = () => ({ reply_markup: Markup.inlineKeyboard([[sBtn('❌ Batal', 'cancel_flow', 'danger')]]).reply_markup });
+
+// ---------- Batal Sesi Input ----------
+async function goMainMenu(ctx) {
+  const role = await ppob.getRole(ctx.from.id).catch(() => 'member');
+  const isAdm = await admin.hasAdminAccess(ctx).catch(() => false);
+  await sendMenuPhoto(ctx, 'banner-utama.webp',
+    await buildWelcomeCaption(ctx),
+    mainMenu(isAdm, role === 'reseller'));
+}
+
+bot.action('cancel_flow', async (ctx) => {
+  sessions.delete(ctx.chat.id);
+  await safeCb(ctx, '❌ Dibatalkan');
+  try {
+    await ctx.editMessageText('❌ <b>Dibatalkan.</b>', { parse_mode: 'HTML' });
+  } catch (_) {}
+  await goMainMenu(ctx);
+});
+
 // ---------- Panel Admin ----------
 const adminPanel = () => Markup.inlineKeyboard([
   [sBtn('➕ Tambah Server', 'adm_addserver', 'success'), sBtn('❌ Hapus Server', 'adm_delserver', 'danger')],
@@ -352,7 +373,7 @@ async function handleCreate(ctx, proto, viaCF) {
   await ctx.reply(
     `✏️ <b>Buat Akun ${PROTO_LABEL[proto]}${viaCF ? ' (CloudFront)' : ''}</b>\n\n` +
       `Kirim <b>username</b> (3-20 karakter, huruf/angka):`,
-    { parse_mode: 'HTML' }
+    { parse_mode: 'HTML', ...cancelKb() }
   );
   await safeCb(ctx);
 }
@@ -376,6 +397,13 @@ bot.action('cf_mk_trial', async (ctx) => {
 bot.on('text', async (ctx) => {
   const chatId = ctx.chat.id;
   const sess = sessions.get(chatId);
+
+  // Ketik "batal" untuk membatalkan sesi input yang sedang berjalan
+  if (sess && /^(batal|cancel)$/i.test(ctx.message.text.trim())) {
+    sessions.delete(chatId);
+    await ctx.reply('❌ <b>Dibatalkan.</b>', { parse_mode: 'HTML' });
+    return goMainMenu(ctx);
+  }
 
   // --- Session input slug Pakasir ---
   if (sess?.step === 'adm_pakasir_slug') {
@@ -512,7 +540,7 @@ bot.on('text', async (ctx) => {
     return ctx.reply(
       `📣 <b>Konfirmasi Broadcast</b>\n\n🎯 Target: <b>${tlabel}</b>\n👥 Penerima: <b>${count}</b> user\n\n<b>Isi pesan:</b>\n${pesan}\n\nKirim sekarang?`,
       {
-        parse_mode: 'HTML',
+        parse_mode: 'HTML', ...cancelKb(),
         reply_markup: Markup.inlineKeyboard([
           [sBtn('✅ Ya, Kirim', 'adm_bcu_confirm', 'success'), sBtn('❌ Batal', 'adm_bcu_cancel', 'danger')],
         ]).reply_markup,
@@ -1074,7 +1102,7 @@ for (const d of [30, 60, 90]) {
       `💰 <b>Sewa Script — ${d} Hari</b>\n` +
       `💵 Harga: <b>${digi.rp(pkg.price)}</b>\n\n` +
       `Kirim <b>username lisensi</b> (3-20 karakter, huruf/angka):`,
-      { parse_mode: 'HTML' }
+      { parse_mode: 'HTML', ...cancelKb() }
     );
   });
 }
@@ -1297,7 +1325,7 @@ bot.action(/^renew_(\d+)$/, async (ctx) => {
     `📅 Exp saat ini: <code>${esc(acc.expiry)}</code>\n\n` +
     `Harga: <b>Rp${_rpDay.toLocaleString('id-ID')}/hari</b> (${role})\n` +
     `Kirim <b>durasi perpanjangan (hari)</b>:`,
-    { parse_mode: 'HTML' }
+    { parse_mode: 'HTML', ...cancelKb() }
   );
 });
 
@@ -1396,7 +1424,7 @@ bot.action('ppob_deposit', async (ctx) => {
   const bonusTxt = bonus?.enabled
     ? `\n🎁 <b>Bonus ${bonus.bonus_percent}%</b> untuk topup min. <b>${digi.rp(bonus.min_topup)}</b>!`
     : '';
-  await ctx.reply(`💰 Kirim <b>nominal deposit</b> (min Rp10.000):${bonusTxt}`, { parse_mode: 'HTML' });
+  await ctx.reply(`💰 Kirim <b>nominal deposit</b> (min Rp10.000):${bonusTxt}`, { parse_mode: 'HTML', ...cancelKb() });
 });
 
 // User pilih metode deposit: GoPay QRIS (gateway sendiri)
@@ -1542,7 +1570,7 @@ bot.action('ppob_populer', async (ctx) => {
 bot.action('ppob_cari', async (ctx) => {
   await safeCb(ctx);
   sessions.set(ctx.chat.id, { step: 'ppob_cari' });
-  await ctx.reply('🔍 Kirim <b>kata kunci</b> produk yang dicari (contoh: <code>telkomsel 10</code>):', { parse_mode: 'HTML' });
+  await ctx.reply('🔍 Kirim <b>kata kunci</b> produk yang dicari (contoh: <code>telkomsel 10</code>):', { parse_mode: 'HTML', ...cancelKb() });
 });
 bot.action(/^prod_page_([a-zA-Z0-9-: .]*?)_(\d+)$/, async (ctx) => {
   await showProductList(ctx, ctx.match[1] || undefined, parseInt(ctx.match[2], 10));
@@ -1568,7 +1596,7 @@ bot.action(/^prod_buy_([a-zA-Z0-9-: .]*?)_(\d+)_(\d+)$/, async (ctx) => {
     '🛒 <b>' + esc(p.product_name) + '</b>\n' +
     '💰 Harga: <b>' + digi.rp(p.price_sell) + '</b>\n\n' +
     'Kirim <b>' + esc(spec.label) + '</b> (contoh: <code>' + esc(spec.placeholder) + '</code>):',
-    { parse_mode: 'HTML' }
+    { parse_mode: 'HTML', ...cancelKb() }
   );
 });
 
@@ -1616,7 +1644,7 @@ bot.action('menu_riwayat', async (ctx) => {
 bot.action('menu_kuota', async (ctx) => {
   await safeCb(ctx);
   sessions.set(ctx.chat.id, { step: 'kuota_nomor' });
-  await ctx.reply('📡 Kirim <b>nomor HP</b> (contoh: 083153170199):', { parse_mode: 'HTML' });
+  await ctx.reply('📡 Kirim <b>nomor HP</b> (contoh: 083153170199):', { parse_mode: 'HTML', ...cancelKb() });
 });
 
 // ---------- Statistik (admin lihat global, user lihat ringkas) ----------
@@ -1686,7 +1714,7 @@ bot.action('adm_addserver', async (ctx) => {
   if (!await admin.hasAdminAccess(ctx)) { await safeCb(ctx); return; }
   await safeCb(ctx);
   sessions.set(ctx.chat.id, { step: 'adm_addserver_nama', data: {} });
-  await ctx.reply('➕ <b>Tambah Server</b>\n\nKetik <b>nama server</b>:', { parse_mode: 'HTML' });
+  await ctx.reply('➕ <b>Tambah Server</b>\n\nKetik <b>nama server</b>:', { parse_mode: 'HTML', ...cancelKb() });
 });
 
 // Hapus server: tampilkan daftar dengan tombol hapus
@@ -1734,7 +1762,7 @@ bot.action(/^adm_editharga_(\d+)$/, async (ctx) => {
   sessions.set(ctx.chat.id, { step: 'adm_editharga_input', data: { serverId: id } });
   await ctx.reply(
     `💲 <b>Edit Harga</b>\n\nServer: <b>${esc(s.nama)}</b>\nHarga saat ini: <b>Rp${Number(s.harga).toLocaleString('id-ID')}/hari</b>\n\nKetik <b>harga baru per hari</b> (angka saja, contoh: 500):`,
-    { parse_mode: 'HTML' }
+    { parse_mode: 'HTML', ...cancelKb() }
   );
 });
 
@@ -1759,7 +1787,7 @@ bot.action(/^adm_editnama_(\d+)$/, async (ctx) => {
   const s = await get('SELECT * FROM servers WHERE id = ?', [id]);
   if (!s) return ctx.reply('⚠️ Server tidak ditemukan.');
   sessions.set(ctx.chat.id, { step: 'adm_editnama_input', data: { serverId: id } });
-  await ctx.reply(`📝 <b>Edit Nama</b>\n\nNama saat ini: <b>${esc(s.nama)}</b>\n\nKetik <b>nama baru</b>:`, { parse_mode: 'HTML' });
+  await ctx.reply(`📝 <b>Edit Nama</b>\n\nNama saat ini: <b>${esc(s.nama)}</b>\n\nKetik <b>nama baru</b>:`, { parse_mode: 'HTML', ...cancelKb() });
 });
 
 // Edit domain: pilih server -> ketik domain baru
@@ -1783,7 +1811,7 @@ bot.action(/^adm_editdomain_(\d+)$/, async (ctx) => {
   const s = await get('SELECT * FROM servers WHERE id = ?', [id]);
   if (!s) return ctx.reply('⚠️ Server tidak ditemukan.');
   sessions.set(ctx.chat.id, { step: 'adm_editdomain_input', data: { serverId: id } });
-  await ctx.reply(`🌐 <b>Edit Domain</b>\n\nServer: <b>${esc(s.nama)}</b>\nDomain saat ini: <code>${esc(s.domain || '-')}</code>\n\nKetik <b>domain baru</b>:`, { parse_mode: 'HTML' });
+  await ctx.reply(`🌐 <b>Edit Domain</b>\n\nServer: <b>${esc(s.nama)}</b>\nDomain saat ini: <code>${esc(s.domain || '-')}</code>\n\nKetik <b>domain baru</b>:`, { parse_mode: 'HTML', ...cancelKb() });
 });
 
 // List server
@@ -1869,7 +1897,7 @@ bot.action(/^adm_pricerole_([a-z]+)_(member|reseller)$/, async (ctx) => {
   sessions.set(ctx.chat.id, { step: 'adm_price_input', data: { key, role } });
   await ctx.reply(
     `💲 <b>Ubah Harga VPN</b>\n\n📦 Produk: <b>${esc(key)}</b>\n👤 Role: <b>${role}</b>\n📌 Harga saat ini: <b>Rp${Number(cur).toLocaleString('id-ID')}/hari</b>\n\nKetik <b>harga baru per hari</b> (angka saja, contoh: 500):`,
-    { parse_mode: 'HTML' }
+    { parse_mode: 'HTML', ...cancelKb() }
   );
 });
 
@@ -1926,7 +1954,7 @@ bot.action('adm_roleset', async (ctx) => {
   sessions.set(ctx.chat.id, { step: 'adm_role_id', data: {} });
   await ctx.reply(
     `✏️ <b>Ubah Role User</b>\n\nKetik <b>ID Telegram</b> user yang mau diubah rolenya (angka saja):`,
-    { parse_mode: 'HTML' }
+    { parse_mode: 'HTML', ...cancelKb() }
   );
 });
 
@@ -1953,7 +1981,7 @@ bot.action('adm_addsaldo', async (ctx) => {
   if (!await admin.hasAdminAccess(ctx)) { await safeCb(ctx); return; }
   await safeCb(ctx);
   sessions.set(ctx.chat.id, { step: 'adm_addsaldo_input', data: {} });
-  await ctx.reply('💵 <b>Tambah Saldo</b>\n\nKetik dengan format:\n<code>userId jumlah</code>\nContoh: <code>123456 50000</code>', { parse_mode: 'HTML' });
+  await ctx.reply('💵 <b>Tambah Saldo</b>\n\nKetik dengan format:\n<code>userId jumlah</code>\nContoh: <code>123456 50000</code>', { parse_mode: 'HTML', ...cancelKb() });
 });
 
 // Kurangi saldo: ketik "userId jumlah" dari keyboard
@@ -1961,7 +1989,7 @@ bot.action('adm_minsaldo', async (ctx) => {
   if (!await admin.hasAdminAccess(ctx)) { await safeCb(ctx); return; }
   await safeCb(ctx);
   sessions.set(ctx.chat.id, { step: 'adm_minsaldo_input', data: {} });
-  await ctx.reply('➖ <b>Kurangi Saldo</b>\n\nKetik dengan format:\n<code>userId jumlah</code>\nContoh: <code>123456 10000</code>', { parse_mode: 'HTML' });
+  await ctx.reply('➖ <b>Kurangi Saldo</b>\n\nKetik dengan format:\n<code>userId jumlah</code>\nContoh: <code>123456 10000</code>', { parse_mode: 'HTML', ...cancelKb() });
 });
 
 // Hasil penjualan
@@ -2062,14 +2090,14 @@ bot.action('adm_pakasir_slug', async (ctx) => {
   if (!await admin.hasAdminAccess(ctx)) { await safeCb(ctx); return; }
   await safeCb(ctx);
   sessions.set(ctx.chat.id, { step: 'adm_pakasir_slug' });
-  await ctx.reply('🔗 Kirim <b>slug project Pakasir</b> (lihat di halaman detail project pakasir.com):', { parse_mode: 'HTML' });
+  await ctx.reply('🔗 Kirim <b>slug project Pakasir</b> (lihat di halaman detail project pakasir.com):', { parse_mode: 'HTML', ...cancelKb() });
 });
 
 bot.action('adm_pakasir_key', async (ctx) => {
   if (!await admin.hasAdminAccess(ctx)) { await safeCb(ctx); return; }
   await safeCb(ctx);
   sessions.set(ctx.chat.id, { step: 'adm_pakasir_key' });
-  await ctx.reply('🔑 Kirim <b>API key Pakasir</b> (lihat di halaman detail project pakasir.com):', { parse_mode: 'HTML' });
+  await ctx.reply('🔑 Kirim <b>API key Pakasir</b> (lihat di halaman detail project pakasir.com):', { parse_mode: 'HTML', ...cancelKb() });
 });
 
 bot.action('adm_pakasir_test', async (ctx) => {
@@ -2124,7 +2152,7 @@ bot.action('adm_epro_key', async (ctx) => {
   if (!await admin.hasAdminAccess(ctx)) { await safeCb(ctx); return; }
   await safeCb(ctx);
   sessions.set(ctx.chat.id, { step: 'adm_epro_key' });
-  await ctx.reply('🔑 Kirim <b>API key ePro</b> dari https://eprdv.link/ :', { parse_mode: 'HTML' });
+  await ctx.reply('🔑 Kirim <b>API key ePro</b> dari https://eprdv.link/ :', { parse_mode: 'HTML', ...cancelKb() });
 });
 
 bot.action('adm_epro_del', async (ctx) => {
@@ -2205,7 +2233,7 @@ bot.action('adm_bonus_set', async (ctx) => {
   sessions.set(ctx.chat.id, { step: 'adm_bonus_input', data: {} });
   await ctx.reply(
     `🎁 <b>Set Bonus Topup</b>\n\nKetik dengan format:\n<code>min_topup persen</code>\nContoh: <code>50000 10</code> (topup min 50rb dapat bonus 10%)\n\nKetik <code>0 0</code> untuk menonaktifkan.`,
-    { parse_mode: 'HTML' }
+    { parse_mode: 'HTML', ...cancelKb() }
   );
 });
 
@@ -2232,7 +2260,7 @@ bot.action('adm_resset', async (ctx) => {
   sessions.set(ctx.chat.id, { step: 'adm_resset_input', data: {} });
   await ctx.reply(
     `🏪 <b>Min. Topup Otomatis Reseller</b>\n\nKetik <b>nominal rupiah</b> (angka saja).\nContoh: <code>500000</code>\n\nUser yang total topup sukses-nya mencapai nominal ini otomatis jadi Reseller.\nKetik <code>0</code> untuk menonaktifkan.`,
-    { parse_mode: 'HTML' }
+    { parse_mode: 'HTML', ...cancelKb() }
   );
 });
 
@@ -2269,7 +2297,7 @@ bot.action('adm_bcast_add', async (ctx) => {
     `➕ <b>Tambah Grup Broadcast</b>\n\nKetik <b>ID grup</b> (contoh: <code>-1001234567890</code>).\n` +
     `Cara dapat ID: tambahkan bot ke grup, lalu forward pesan dari grup ke @userinfobot.\n\n` +
     `Bot harus jadi <b>admin</b> di grup tersebut agar bisa kirim pesan.`,
-    { parse_mode: 'HTML' }
+    { parse_mode: 'HTML', ...cancelKb() }
   );
 });
 
@@ -2302,7 +2330,7 @@ bot.action('adm_bcast_send', async (ctx) => {
   await ctx.reply(
     `📝 <b>Tulis Pesan Broadcast</b>\n\nKetik pesan yang akan dikirim ke <b>${groups.length} grup</b>.\n` +
     `Mendukung format HTML sederhana (&lt;b&gt;, &lt;i&gt;, &lt;code&gt;).`,
-    { parse_mode: 'HTML' }
+    { parse_mode: 'HTML', ...cancelKb() }
   );
 });
 
@@ -2330,7 +2358,7 @@ for (const [tkey, tlabel] of [['all', 'Semua User'], ['member', 'Member'], ['res
     sessions.set(ctx.chat.id, { step: 'adm_bcu_msg', data: { target: tkey, tlabel } });
     await ctx.reply(
       `📝 <b>Tulis Pesan Broadcast</b>\n\nTarget: <b>${tlabel}</b>\n\nKetik pesan yang akan dikirim.\nMendukung format HTML sederhana (&lt;b&gt;, &lt;i&gt;, &lt;code&gt;).`,
-      { parse_mode: 'HTML' }
+      { parse_mode: 'HTML', ...cancelKb() }
     );
   });
 }
@@ -2385,7 +2413,7 @@ bot.action('adm_notifgrp', async (ctx) => {
     `Semua notifikasi (deposit, pembelian VPN/PPOB, topup) dikirim ke grup ini.\n` +
     `Bot harus jadi <b>admin</b> di grup tersebut.\n\n` +
     `Ketik <b>ID grup baru</b> (contoh: <code>-1001234567890</code>), atau kirim pesan dari grup yang sudah ada.`,
-    { parse_mode: 'HTML' }
+    { parse_mode: 'HTML', ...cancelKb() }
   );
 });
 
@@ -2424,7 +2452,7 @@ bot.action('adm_fj_channel', async (ctx) => {
     `📢 <b>Set Channel Wajib Join</b>\n\nKetik dengan format:\n<code>ID | link_undangan</code>\n` +
     `Contoh: <code>@Wendi_Channel | https://t.me/Wendi_Channel</code>\n\n` +
     `Kosongkan ID (ketik <code>-</code>) untuk menonaktifkan cek channel.`,
-    { parse_mode: 'HTML' }
+    { parse_mode: 'HTML', ...cancelKb() }
   );
 });
 
@@ -2436,7 +2464,7 @@ bot.action('adm_fj_group', async (ctx) => {
     `👥 <b>Set Grup Wajib Join</b>\n\nKetik dengan format:\n<code>ID | link_undangan</code>\n` +
     `Contoh: <code>-1001234567890 | https://t.me/Wendi_VPN</code>\n\n` +
     `Kosongkan ID (ketik <code>-</code>) untuk menonaktifkan cek grup.`,
-    { parse_mode: 'HTML' }
+    { parse_mode: 'HTML', ...cancelKb() }
   );
 });
 
