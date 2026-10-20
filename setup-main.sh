@@ -472,6 +472,10 @@ EOF
 
 function install_xray() {
     print_install "MENJALANKAN install_xray"
+    # PERINGATAN: cfg_conf_js/config.json memakai inbound legacy
+    # 'dokodemo-door' yang sudah deprecated di Xray-core. Pin v25.1.30
+    # ini aman; menaikkan pin Xray WAJIB diikuti uji inbound
+    # dokodemo-door karena inbound itu bisa dihapus di rilis mendatang.
     XRAY_VERSION="v25.1.30"
     domainSock_dir="/run/xray"
     ! [ -d "$domainSock_dir" ] && mkdir "$domainSock_dir"
@@ -695,11 +699,20 @@ function ins_vnstat(){
        print_error "Interface jaringan tidak terdeteksi, menggunakan fallback: $NET"
     fi
     print_ok "Interface jaringan yang digunakan: $NET"
-    vnstat -u -i "$NET" || print_ok "Gagal menginisialisasi database vnstat untuk $NET (mungkin sudah ada)."
+    # Inisialisasi database sadar generasi vnStat:
+    # - vnStat 1.x: 'vnstat -u -i <iface>' yang membuat database.
+    # - vnStat 2.x (Debian 11+/Ubuntu 22.04+): opsi -u sudah tidak ada;
+    #   database dikelola daemon, interface didaftarkan via --add.
+    if [[ "${VNSTAT_VERSION%%.*}" == "1" ]]; then
+        vnstat -u -i "$NET" || print_ok "Gagal menginisialisasi database vnstat untuk $NET (mungkin sudah ada)."
+    else
+        vnstat --add -i "$NET" >/dev/null 2>&1 || true
+        print_ok "vnStat ${VNSTAT_VERSION}: database interface $NET dikelola daemon vnstat."
+    fi
     sed -i "s/Interface \"eth0\"/Interface \"$NET\"/g" /etc/vnstat.conf
     chown vnstat:vnstat /var/lib/vnstat -R || print_error "Gagal mengatur ownership untuk /var/lib/vnstat."
-    systemctl enable vnstat || print_error "Gagal mengaktifkan layanan vnstat."
-    systemctl restart vnstat || print_error "Gagal merestart layanan vnstat."
+    compat_service enable vnstat || print_error "Gagal mengaktifkan layanan vnstat."
+    compat_service restart vnstat || print_error "Gagal merestart layanan vnstat."
     print_success "Vnstat"
     print_ok "ins_vnstat SELESAI"
 }
