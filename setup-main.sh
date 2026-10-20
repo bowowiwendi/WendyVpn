@@ -61,10 +61,27 @@ fi
 
 OS_ID=$(grep -w ID /etc/os-release | cut -d'=' -f2 | tr -d '"')
 OS_NAME=$(grep -w PRETTY_NAME /etc/os-release | cut -d'=' -f2 | tr -d '"')
-if [[ "$OS_ID" == "ubuntu" ]] || [[ "$OS_ID" == "debian" ]]; then
+OS_VER=$(grep -w VERSION_ID /etc/os-release | cut -d'=' -f2 | tr -d '"')
+# Gerbang versi: hanya Ubuntu >= 20.04 dan Debian >= 10 yang didukung.
+# Di bawah itu komponen kunci (OpenVPN 2.4, HAProxy 1.8, Python lama)
+# berbeda terlalu jauh sehingga layanan TIDAK dijamin berfungsi,
+# jadi installer berhenti di sini dengan pesan yang jelas.
+os_version_ge() {
+    # os_version_ge <versi-minimum> <versi-os> -> sukses bila versi-os >= minimum
+    [ "$(printf '%s\n%s\n' "$1" "$2" | sort -V | head -n1)" = "$1" ]
+}
+OS_SUPPORTED=0
+if [[ "$OS_ID" == "ubuntu" ]] && os_version_ge "20.04" "$OS_VER"; then
+    OS_SUPPORTED=1
+elif [[ "$OS_ID" == "debian" ]] && os_version_ge "10" "$OS_VER"; then
+    OS_SUPPORTED=1
+fi
+if [[ "$OS_SUPPORTED" -eq 1 ]]; then
     print_ok "Your OS Is Supported ( ${green}$OS_NAME${NC} )"
 else
     print_error "Your OS Is Not Supported ( ${YELLOW}$OS_NAME${NC} )"
+    print_error "OS yang didukung: Ubuntu 20.04+ dan Debian 10+."
+    print_error "Silakan gunakan salah satu versi tersebut, lalu jalankan ulang installer."
     exit 1
 fi
 
@@ -149,6 +166,41 @@ elif [ -f ./universal_compat.sh ]; then
     . ./universal_compat.sh
 else
     wget -q -O /tmp/universal_compat.sh "${REPO}universal_compat.sh" 2>/dev/null && . /tmp/universal_compat.sh || true
+fi
+# Fallback bila compat layer gagal dimuat (mis. unduhan gagal): sediakan
+# implementasi minimal agar titik install utama tetap bisa memakai
+# compat_apt_install / compat_apt_try / compat_service.
+if ! command -v compat_apt_install >/dev/null 2>&1; then
+    compat_apt_install() {
+        DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends "$@" \
+            || DEBIAN_FRONTEND=noninteractive apt-get install -y "$@"
+    }
+fi
+if ! command -v compat_apt_try >/dev/null 2>&1; then
+    compat_apt_try() {
+        local p
+        for p in "$@"; do
+            if apt-cache show "$p" >/dev/null 2>&1 && compat_apt_install "$p" >/dev/null 2>&1; then
+                return 0
+            fi
+        done
+        return 1
+    }
+fi
+if ! command -v compat_service >/dev/null 2>&1; then
+    compat_service() {
+        local action="$1" name="$2"
+        if command -v systemctl >/dev/null 2>&1 && [ -d /run/systemd/system ]; then
+            systemctl "$action" "$name" 2>/dev/null && return 0
+        fi
+        if command -v service >/dev/null 2>&1; then
+            service "$name" "$action" 2>/dev/null && return 0
+        fi
+        if [ -x "/etc/init.d/$name" ]; then
+            "/etc/init.d/$name" "$action" 2>/dev/null && return 0
+        fi
+        return 1
+    }
 fi
 start=$(date +%s)
 secs_to_human() {
@@ -270,7 +322,7 @@ function first_setup() {
 function nginx_install() {
     print_install "MENJALANKAN nginx_install"
     print_install "Setup nginx For OS Is $OS_NAME"
-    apt install -y nginx || print_error "Gagal menginstal nginx."
+    compat_apt_install nginx || print_error "Gagal menginstal nginx."
     print_success "Nginx Installation"
     print_ok "nginx_install SELESAI"
 }

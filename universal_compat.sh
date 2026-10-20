@@ -28,11 +28,19 @@ run_python_bot() {
     fi
 }
 
-# 3. Alias untuk perintah deprecated agar skrip lama tetap jalan
+# 3. Shim untuk perintah deprecated agar skrip lama tetap jalan
+#    CATATAN: alias shell TIDAK ter-expand di script non-interaktif,
+#    jadi di sini dipakai fungsi yang di-export (terbawa ke child bash).
+#    Fungsi hanya dipasang bila biner aslinya tidak ada (net-tools
+#    biasanya sudah dipasang oleh check_net_tools di atas).
 setup_compat_aliases() {
-    if command -v ip &> /dev/null; then
-        alias ifconfig='ip addr' 2>/dev/null
-        alias route='ip route' 2>/dev/null
+    if ! command -v ifconfig >/dev/null 2>&1 && command -v ip >/dev/null 2>&1; then
+        ifconfig() { ip addr "$@"; }
+        export -f ifconfig 2>/dev/null || true
+    fi
+    if ! command -v route >/dev/null 2>&1 && command -v ip >/dev/null 2>&1; then
+        route() { ip route "$@"; }
+        export -f route 2>/dev/null || true
     fi
 }
 
