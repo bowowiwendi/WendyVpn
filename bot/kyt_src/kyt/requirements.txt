@@ -1,0 +1,5 @@
+telethon>=1.28.0
+requests>=2.25.1
+paramiko>=3.0.0
+qrcode>=7.4.2
+Pillow>=10.0.0
