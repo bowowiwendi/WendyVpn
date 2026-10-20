@@ -1,7 +1,7 @@
 #!/bin/bash
 function checking_sc() {
-    MYIP=$(curl -sS ipv4.icanhazip.com)
-    IZIN=$(curl -sS https://raw.githubusercontent.com/bowowiwendi/ipvps/main/ip | awk '{print $4}')
+    MYIP=$(curl --connect-timeout 30 -sS ipv4.icanhazip.com)
+    IZIN=$(curl --connect-timeout 30 -sS https://raw.githubusercontent.com/bowowiwendi/ipvps/main/ip | awk '{print $4}')
 
     if echo "$IZIN" | grep -wq "$MYIP"; then
         echo "IZIN DITERIMA "
@@ -22,7 +22,7 @@ function checking_sc() {
 
 checking_sc
 
-MYIP=$(curl -sS ipv4.icanhazip.com)
+MYIP=$(curl --connect-timeout 30 -sS ipv4.icanhazip.com)
 #install
 cp /media/cybervpn/var.txt /tmp
 cp /root/cybervpn/var.txt /tmp
@@ -32,7 +32,7 @@ apt install python3 python3-pip -y
 apt install sqlite3 -y
 cd /media/
 rm -rf cybervpn
-wget https://raw.githubusercontent.com/bowowiwendi/WendyVpn/ABSTRAK/bot/cybervpn.zip
+wget --timeout=30 --tries=2 https://raw.githubusercontent.com/bowowiwendi/WendyVpn/ABSTRAK/bot/cybervpn.zip
 unzip cybervpn.zip
 cd cybervpn
 rm var.txt

@@ -5,7 +5,7 @@
 
 export DEBIAN_FRONTEND=noninteractive
 OS=`uname -m`;
-MYIP=$(wget -qO- ipinfo.io/ip);
+MYIP=$(wget --timeout=30 --tries=2 -qO- ipinfo.io/ip);
 domain=$(cat /root/domain)
 MYIP2="s/xxxxxxxxx/$domain/g";
 
@@ -14,7 +14,7 @@ function ovpn_install() {
     rm -rf /etc/openvpn
     mkdir -p /etc/openvpn
     # Perbaiki URL dengan menambahkan https://
-    wget -O /etc/openvpn/vpn.zip "https://raw.githubusercontent.com/LunaticTunnel/Azerd/ABSTRAK/ovpn/vpn.zip" >/dev/null 2>&1
+    wget --timeout=30 --tries=2 -O /etc/openvpn/vpn.zip "https://raw.githubusercontent.com/LunaticTunnel/Azerd/ABSTRAK/ovpn/vpn.zip" >/dev/null 2>&1
     unzip -d /etc/openvpn/ /etc/openvpn/vpn.zip
     rm -f /etc/openvpn/vpn.zip
     # Pastikan kepemilikan direktori easy-rsa benar
@@ -190,7 +190,7 @@ function cert_ovpn() {
 </ul></div></div></div></div></body></html>
 mySiteOvpn
     # Ganti placeholder IP dengan IP publik aktual
-    sed -i "s|IP-ADDRESSS|$(curl -sS ifconfig.me)|g" /var/www/html/index.html
+    sed -i "s|IP-ADDRESSS|$(curl --connect-timeout 30 -sS ifconfig.me)|g" /var/www/html/index.html
     echo "Sertifikat ditambahkan ke file .ovpn, arsip dibuat, dan halaman index.html diperbarui."
 }
 

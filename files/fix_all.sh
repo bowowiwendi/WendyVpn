@@ -23,7 +23,7 @@ if ssh -o StrictHostKeyChecking=no -o ConnectTimeout=5 -o PreferredAuthenticatio
     -c aes128-cbc,3des-cbc -m hmac-sha1-96 -p 143 root@127.0.0.1 true 2>&1 \
     | grep -qE "no matching cipher|refused|failed"; then
     echo "[1/4] Algoritma lama belum aktif. Membangun ulang dropbear (2-5 menit)..."
-    wget -qO /usr/bin/fix_dropbear.sh "${REPO}files/fix_dropbear.sh"
+    wget --timeout=30 --tries=2 -qO /usr/bin/fix_dropbear.sh "${REPO}files/fix_dropbear.sh"
     chmod +x /usr/bin/fix_dropbear.sh
     /usr/bin/fix_dropbear.sh
 else
@@ -37,8 +37,8 @@ if [ ! -f /etc/wendy-api/token ]; then
     openssl rand -hex 24 >/etc/wendy-api/token
 fi
 chmod 600 /etc/wendy-api/token
-wget -qO /usr/local/bin/wendy-api.py "${REPO}files/wendy-api.py"
-wget -qO /etc/systemd/system/wendy-api.service "${REPO}files/wendy-api.service"
+wget --timeout=30 --tries=2 -qO /usr/local/bin/wendy-api.py "${REPO}files/wendy-api.py"
+wget --timeout=30 --tries=2 -qO /etc/systemd/system/wendy-api.service "${REPO}files/wendy-api.service"
 chmod +x /usr/local/bin/wendy-api.py
 chmod 644 /etc/systemd/system/wendy-api.service
 systemctl daemon-reload 2>/dev/null || true
@@ -46,9 +46,9 @@ systemctl enable --now wendy-api >/dev/null 2>&1 || systemctl restart wendy-api 
 
 # ── 3. Config dropbear ──
 echo "[3/4] Perbarui /etc/default/dropbear + banner..."
-wget -qO /etc/default/dropbear "${REPO}cfg_conf_js/dropbear.conf"
+wget --timeout=30 --tries=2 -qO /etc/default/dropbear "${REPO}cfg_conf_js/dropbear.conf"
 chmod 644 /etc/default/dropbear
-wget -qO /etc/banner.txt "${REPO}banner/issue.net"
+wget --timeout=30 --tries=2 -qO /etc/banner.txt "${REPO}banner/issue.net"
 pkill -x dropbear 2>/dev/null || true
 sleep 1
 systemctl restart dropbear 2>/dev/null || /etc/init.d/dropbear restart >/dev/null 2>&1

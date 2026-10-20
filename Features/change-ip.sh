@@ -20,15 +20,15 @@ clear
 # Create and prepare the ipvps directory
 rm -rf /root/ipvps
 mkdir -p /root/ipvps
-wget -q -O /root/ipvps/ip "${Repo1}" &> /dev/null
+wget --timeout=30 --tries=2 -q -O /root/ipvps/ip "${Repo1}" &> /dev/null
 
 # Prompt for old and new IP
 read -p "  Input IP Lama/Old: " ip1
 read -p "  Input IP Baru/New: " ip2
 
 # Extract name and expiration date from the old IP
-name=$(curl -sS ${Repo1} | grep $ip1 | awk '{print $2}')
-exp=$(curl -sS ${Repo1} | grep $ip1 | awk '{print $3}')
+name=$(curl --connect-timeout 30 -sS ${Repo1} | grep $ip1 | awk '{print $2}')
+exp=$(curl --connect-timeout 30 -sS ${Repo1} | grep $ip1 | awk '{print $3}')
 
 # Replace the old IP with the new one
 sed -i "s/^### $name $exp $ip1/### $name $exp $ip2/g" /root/ipvps/ip

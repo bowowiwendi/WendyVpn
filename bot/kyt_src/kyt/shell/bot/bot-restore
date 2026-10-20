@@ -50,16 +50,16 @@ function restore() {
     if echo "$url" | grep -q "drive.google.com"; then
         FILE_ID=$(echo "$url" | grep -oP '(?<=/d/)[^/]+|(?<=id=)[^&]+')
         if [[ -n "$FILE_ID" ]]; then
-            wget -q --show-progress --load-cookies /tmp/cookies.txt \
+            wget --timeout=30 --tries=2 -q --show-progress --load-cookies /tmp/cookies.txt \
                 "https://docs.google.com/uc?export=download&confirm=t&id=$FILE_ID" -O backup.zip 2>/dev/null || \
-            wget -q --show-progress "https://docs.google.com/uc?export=download&id=$FILE_ID" -O backup.zip || {
+            wget --timeout=30 --tries=2 -q --show-progress "https://docs.google.com/uc?export=download&id=$FILE_ID" -O backup.zip || {
                 echo -e "${RED}Gagal download dari Google Drive${NC}"
                 read -n 1 -s -r -p "Press [ Enter ] to back"
                 menu
                 return
             }
         else
-            wget -q --show-progress -O backup.zip "$url" || {
+            wget --timeout=30 --tries=2 -q --show-progress -O backup.zip "$url" || {
                 echo -e "${RED}Gagal download backup${NC}"
                 read -n 1 -s -r -p "Press [ Enter ] to back"
                 menu
@@ -67,7 +67,7 @@ function restore() {
             }
         fi
     else
-        wget -q --show-progress -O backup.zip "$url" || {
+        wget --timeout=30 --tries=2 -q --show-progress -O backup.zip "$url" || {
             echo -e "${RED}Gagal download backup${NC}"
             read -n 1 -s -r -p "Press [ Enter ] to back"
             menu
@@ -135,9 +135,9 @@ function restore() {
             apt update -y
             apt install -y python3 python3-pip git
             cd /usr/bin
-            wget -q https://raw.githubusercontent.com/bowowiwendi/WendyVpn/ABSTRAK/bot/bot.zip && \
+            wget --timeout=30 --tries=2 -q https://raw.githubusercontent.com/bowowiwendi/WendyVpn/ABSTRAK/bot/bot.zip && \
                 unzip -o bot.zip && mv bot/* . 2>/dev/null && chmod +x * && rm -rf bot bot.zip
-            wget -q https://raw.githubusercontent.com/bowowiwendi/WendyVpn/ABSTRAK/bot/kyt.zip && \
+            wget --timeout=30 --tries=2 -q https://raw.githubusercontent.com/bowowiwendi/WendyVpn/ABSTRAK/bot/kyt.zip && \
                 unzip -o kyt.zip && pip3 install -r kyt/requirements.txt 2>/dev/null
             apt install -y python3-telethon 2>/dev/null
             rm -rf kyt.zip

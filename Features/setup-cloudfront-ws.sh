@@ -35,7 +35,7 @@ if [ "$WSTUN_OK" = "0" ]; then
     GH="github.com"; ER="erebe"; WN="wstunnel"
     URL="https://${GH}/${ER}/${WN}/releases/download/v${WSTUN_VER}/${WN}_${WSTUN_VER}_linux_${WA}.tar.gz"
     echo "download $URL"
-    if wget -q -O /tmp/wstunnel.tgz "$URL" && tar -xzf /tmp/wstunnel.tgz -C /tmp/ && [ -f /tmp/wstunnel ]; then
+    if wget --timeout=30 --tries=2 -q -O /tmp/wstunnel.tgz "$URL" && tar -xzf /tmp/wstunnel.tgz -C /tmp/ && [ -f /tmp/wstunnel ]; then
       install -m 0755 /tmp/wstunnel "$WSTUN_BIN" && rm -f /tmp/wstunnel.tgz /tmp/wstunnel
       WSTUN_OK=1; ok "wstunnel installed"
     else

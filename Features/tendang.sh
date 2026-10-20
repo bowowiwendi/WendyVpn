@@ -1,5 +1,5 @@
 #!/bin/bash
-MYIP=$(wget -qO- ipv4.icanhazip.com);
+MYIP=$(wget --timeout=30 --tries=2 -qO- ipv4.icanhazip.com);
 echo "Checking VPS"
 clear
 MAX=1

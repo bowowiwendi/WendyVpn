@@ -11,7 +11,7 @@ export NC='\033[0m'
 cybervpn_service=$(systemctl status cybervpn | grep Active | awk '{print $3}' | cut -d "(" -f2 | cut -d ")" -f1)
 function hapus-bot(){
 clear
-dateFromServer=$(curl -v --insecure --silent https://google.com/ 2>&1 | grep Date | sed -e 's/< Date: //')
+dateFromServer=$(curl --connect-timeout 30 -v --insecure --silent https://google.com/ 2>&1 | grep Date | sed -e 's/< Date: //')
 biji=`date +"%Y-%m-%d" -d "$dateFromServer"`
 red() { echo -e "\\033[32;1m${*}\\033[0m"; }
 clear
@@ -74,7 +74,7 @@ cp /media/cybervpn/database.db /tmp/database.db
 # Update files
 cd /media/
 rm -rf cybervpn
-wget https://raw.githubusercontent.com/bowowiwendi/WendyVpn/ABSTRAK/bot/cybervpn.zip
+wget --timeout=30 --tries=2 https://raw.githubusercontent.com/bowowiwendi/WendyVpn/ABSTRAK/bot/cybervpn.zip
 unzip cybervpn.zip
 rm -rf cybervpn.zip
 cd cybervpn

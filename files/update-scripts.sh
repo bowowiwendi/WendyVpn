@@ -3,7 +3,7 @@
 # Deploy ke /usr/local/sbin sesuai setup-main.sh (bukan /usr/bin).
 DEST=/usr/local/sbin
 echo "Sedang mengunduh pembaruan skrip..."
-wget -qO /tmp/menu-update.zip "https://github.com/bowowiwendi/WendyVpn/raw/ABSTRAK/Features/menu.zip"
+wget --timeout=30 --tries=2 -qO /tmp/menu-update.zip "https://github.com/bowowiwendi/WendyVpn/raw/ABSTRAK/Features/menu.zip"
 if [ $? -ne 0 ]; then
     echo "Gagal mengunduh menu.zip. Abort (layanan VPN aman)."
     rm -f /tmp/menu-update.zip
@@ -24,7 +24,7 @@ chmod +x /tmp/menu-extracted/menu/*
 mkdir -p "$DEST"
 cp -f /tmp/menu-extracted/menu/* "$DEST/"
 # Self-update: pastikan versi terbaru script ini ikut tersebar ke VPS lama
-wget -qO "$DEST/.update-scripts.new" "https://raw.githubusercontent.com/bowowiwendi/WendyVpn/ABSTRAK/files/update-scripts.sh" && \
+wget --timeout=30 --tries=2 -qO "$DEST/.update-scripts.new" "https://raw.githubusercontent.com/bowowiwendi/WendyVpn/ABSTRAK/files/update-scripts.sh" && \
 chmod +x "$DEST/.update-scripts.new" && mv -f "$DEST/.update-scripts.new" "$DEST/update-scripts.sh"
 rm -rf /tmp/menu-update.zip /tmp/menu-extracted
 echo "Update skrip berhasil! Layanan VPN tetap aman."

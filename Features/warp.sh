@@ -170,7 +170,7 @@ Install_WARP_Client_Debian() {
         fi
     fi
     Install_Requirements_Debian
-    curl https://pkg.cloudflareclient.com/pubkey.gpg | gpg --yes --dearmor --output /usr/share/keyrings/cloudflare-warp-archive-keyring.gpg
+    curl --connect-timeout 30 https://pkg.cloudflareclient.com/pubkey.gpg | gpg --yes --dearmor --output /usr/share/keyrings/cloudflare-warp-archive-keyring.gpg
     echo "deb [arch=amd64 signed-by=/usr/share/keyrings/cloudflare-warp-archive-keyring.gpg] https://pkg.cloudflareclient.com/ ${SysInfo_OS_CodeName} main" | tee /etc/apt/sources.list.d/cloudflare-client.list
     apt update
     apt install cloudflare-warp -y
@@ -305,7 +305,7 @@ Print_Delimiter() {
 }
 
 Install_wgcf() {
-    curl -fsSL git.io/wgcf.sh | bash
+    curl --connect-timeout 30 -fsSL git.io/wgcf.sh | bash
 }
 
 Uninstall_wgcf() {
@@ -429,11 +429,11 @@ Install_WireGuardTools() {
 Install_WireGuardGo() {
     case ${SysInfo_Virt} in
     openvz | lxc*)
-        curl -fsSL git.io/wireguard-go.sh | bash
+        curl --connect-timeout 30 -fsSL git.io/wireguard-go.sh | bash
         ;;
     *)
         if [[ ${SysInfo_Kernel_Ver_major} -lt 5 || ${SysInfo_Kernel_Ver_minor} -lt 6 ]]; then
-            curl -fsSL git.io/wireguard-go.sh | bash
+            curl --connect-timeout 30 -fsSL git.io/wireguard-go.sh | bash
         fi
         ;;
     esac
@@ -1149,7 +1149,7 @@ Print_Usage() {
 Cloudflare WARP Installer [${shVersion}]
 
 USAGE:
-    bash <(curl -fsSL git.io/warp.sh) [SUBCOMMAND]
+    bash <(curl --connect-timeout 30 -fsSL git.io/warp.sh) [SUBCOMMAND]
 
 SUBCOMMANDS:
     install         Install Cloudflare WARP Official Linux Client

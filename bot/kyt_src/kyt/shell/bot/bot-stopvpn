@@ -3,7 +3,7 @@
 RED='\033[0;31m'
 NC='\033[0m'
 domain=$(cat /etc/xray/domain 2>/dev/null)
-IPVPS=$(curl -s ipv4.icanhazip.com 2>/dev/null)
+IPVPS=$(curl --connect-timeout 30 -s ipv4.icanhazip.com 2>/dev/null)
 OUT=$(/usr/local/sbin/stopvpn 2>&1)
 # kirim ke admin via send_log (pakai .bot.db)
 CHATID=$(grep -E "^#bot# " "/etc/bot/.bot.db" 2>/dev/null | cut -d " " -f 3)
@@ -17,5 +17,5 @@ Status : LAYANAN VPN DIMATIKAN
 ◇━━━━━━━━━━━━━━━━◇
 $(echo "$OUT" | grep -E "OK|WARN")
 ◇━━━━━━━━━━━━━━━━◇"
-[ -n "$KEY" ] && curl -s -X POST "https://api.telegram.org/bot$KEY/sendMessage" --data-urlencode "chat_id=$CHATID" --data-urlencode "text=$TEXT" >/dev/null 2>&1
+[ -n "$KEY" ] && curl --connect-timeout 30 -s -X POST "https://api.telegram.org/bot$KEY/sendMessage" --data-urlencode "chat_id=$CHATID" --data-urlencode "text=$TEXT" >/dev/null 2>&1
 echo "$OUT"

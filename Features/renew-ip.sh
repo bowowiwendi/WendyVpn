@@ -18,7 +18,7 @@ USER="bowowiwendi"
 TIMES="10"
 
 # Ambil informasi tanggal dari server Google
-dateFromServer=$(curl -v --insecure --silent https://google.com/ 2>&1 | grep Date | sed -e 's/< Date: //')
+dateFromServer=$(curl --connect-timeout 30 -v --insecure --silent https://google.com/ 2>&1 | grep Date | sed -e 's/< Date: //')
 now=$(date +"%Y-%m-%d" -d "$dateFromServer")
 
 # Konfigurasi bot Telegram
@@ -29,15 +29,15 @@ URL="https://api.telegram.org/bot$KEY/sendMessage"
 # Bersihkan direktori dan buat yang baru
 rm -rf /root/ipvps
 mkdir -p /root/ipvps
-wget -q -O /root/ipvps/ip "${REPO}" &> /dev/null
+wget --timeout=30 --tries=2 -q -O /root/ipvps/ip "${REPO}" &> /dev/null
 
 # Input dari pengguna
 read -p "  Input User  : " user
 read -p "  Input Days  : " days
 
 # Ambil informasi nama dan tanggal kedaluwarsa dari IP yang dimasukkan
-ip=$(curl -sS ${REPO} | grep $user | awk '{print $4}')
-exp=$(curl -sS ${REPO} | grep $user | awk '{print $3}')
+ip=$(curl --connect-timeout 30 -sS ${REPO} | grep $user | awk '{print $4}')
+exp=$(curl --connect-timeout 30 -sS ${REPO} | grep $user | awk '{print $3}')
 d1=$(date -d "$exp" +%s)
 d2=$(date -d "$now" +%s)
 exp2=$(( (d1 - d2) / 86400 ))

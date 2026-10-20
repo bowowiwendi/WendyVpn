@@ -1,10 +1,10 @@
 #!/bin/bash
-dateFromServer=$(curl -v --insecure --silent https://google.com/ 2>&1 | grep Date | sed -e 's/< Date: //')
+dateFromServer=$(curl --connect-timeout 30 -v --insecure --silent https://google.com/ 2>&1 | grep Date | sed -e 's/< Date: //')
 biji=`date +"%Y-%m-%d" -d "$dateFromServer"`
 NC="\e[0m"
 RED="\033[0;31m"
-MYIP=$(curl -sS ipv4.icanhazip.com)
-Name=$(curl -sS https://raw.githubusercontent.com/bowowiwendi/WendyVpn/ABSTRAK/REGIST | grep $MYIP | awk '{print $2}')
+MYIP=$(curl --connect-timeout 30 -sS ipv4.icanhazip.com)
+Name=$(curl --connect-timeout 30 -sS https://raw.githubusercontent.com/bowowiwendi/WendyVpn/ABSTRAK/REGIST | grep $MYIP | awk '{print $2}')
 echo $Name > /usr/local/etc/.$Name.ini
 CekOne=$(cat /usr/local/etc/.$Name.ini)
 red='\e[1;31m'

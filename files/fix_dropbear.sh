@@ -18,7 +18,7 @@ trap 'rm -rf "$TMPDIR"' EXIT
 cd "$TMPDIR"
 
 echo "[fix_dropbear] Download source Dropbear ${VERSION}..."
-wget -q "$URL" -O dropbear.tar.gz
+wget --timeout=30 --tries=2 -q "$URL" -O dropbear.tar.gz
 tar xzf dropbear.tar.gz
 cd "dropbear-DROPBEAR_${VERSION}"
 

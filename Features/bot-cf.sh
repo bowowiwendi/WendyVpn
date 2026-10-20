@@ -19,7 +19,7 @@ usage() {
 list_records() {
   wildcard=$1
   echo "Listing records matching: $wildcard"
-  curl -s -X GET "https://api.cloudflare.com/client/v4/zones/$ZONE_ID/dns_records?name=$wildcard" \
+  curl --connect-timeout 30 -s -X GET "https://api.cloudflare.com/client/v4/zones/$ZONE_ID/dns_records?name=$wildcard" \
     -H "Authorization: Bearer $API_TOKEN" \
     -H "Content-Type: application/json" | jq .
 }
@@ -29,7 +29,7 @@ add_record() {
   wildcard=$1
   ip_address=$2
   echo "Adding record: $wildcard -> $ip_address"
-  curl -s -X POST "https://api.cloudflare.com/client/v4/zones/$ZONE_ID/dns_records" \
+  curl --connect-timeout 30 -s -X POST "https://api.cloudflare.com/client/v4/zones/$ZONE_ID/dns_records" \
     -H "Authorization: Bearer $API_TOKEN" \
     -H "Content-Type: application/json" \
     --data "{\"type\":\"A\",\"name\":\"$wildcard\",\"content\":\"$ip_address\",\"ttl\":120,\"proxied\":false}" | jq .
@@ -39,13 +39,13 @@ add_record() {
 delete_record() {
   wildcard=$1
   echo "Deleting records matching: $wildcard"
-  records=$(curl -s -X GET "https://api.cloudflare.com/client/v4/zones/$ZONE_ID/dns_records?name=$wildcard" \
+  records=$(curl --connect-timeout 30 -s -X GET "https://api.cloudflare.com/client/v4/zones/$ZONE_ID/dns_records?name=$wildcard" \
     -H "Authorization: Bearer $API_TOKEN" \
     -H "Content-Type: application/json" | jq -r '.result[].id')
 
   for record_id in $records; do
     echo "Deleting record ID: $record_id"
-    curl -s -X DELETE "https://api.cloudflare.com/client/v4/zones/$ZONE_ID/dns_records/$record_id" \
+    curl --connect-timeout 30 -s -X DELETE "https://api.cloudflare.com/client/v4/zones/$ZONE_ID/dns_records/$record_id" \
       -H "Authorization: Bearer $API_TOKEN" \
       -H "Content-Type: application/json" | jq .
   done

@@ -13,7 +13,7 @@ BGX="\033[42m"
 END='\e[0m'
 
 # Mengambil tanggal dari server
-dateFromServer=$(curl -v --insecure --silent https://google.com/ 2>&1 | grep Date | sed -e 's/< Date: //')
+dateFromServer=$(curl --connect-timeout 30 -v --insecure --silent https://google.com/ 2>&1 | grep Date | sed -e 's/< Date: //')
 date_list=$(date +"%Y-%m-%d" -d "$dateFromServer")
 
 # Konfigurasi repo dan variabel
@@ -31,7 +31,7 @@ URL="https://api.telegram.org/bot$KEY/sendMessage"
 # Membersihkan dan membuat direktori
 rm -rf /root/ipvps
 mkdir -p /root/ipvps
-wget -q -O /root/ipvps/ip "${REPO2}" &> /dev/null || { echo "Failed to download IP list"; exit 1; }
+wget --timeout=30 --tries=2 -q -O /root/ipvps/ip "${REPO2}" &> /dev/null || { echo "Failed to download IP list"; exit 1; }
 
 # Meminta input dari pengguna
 read -p "   Input User : " name

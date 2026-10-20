@@ -9,7 +9,7 @@ LIGHT='\033[0;37m'
 ISPVPS=$(cat /etc/xray/isp 2>/dev/null)
 CITY=$(cat /etc/xray/city 2>/dev/null)
 RAM=$(free -m | awk '/^Mem:/ {print $2}')
-IP=$(curl -sS ipv4.icanhazip.com) || { echo "Gagal mendapatkan IP"; exit 1; }
+IP=$(curl --connect-timeout 30 -sS ipv4.icanhazip.com) || { echo "Gagal mendapatkan IP"; exit 1; }
 domain=$(cat /etc/xray/domain 2>/dev/null)
 date=$(date +"%Y-%m-%d")
 
@@ -31,7 +31,7 @@ function send_log(){
 ◇━━━━━━━━━━━━━━━━◇
 Back to >>> /menu
 "
-    curl -s -X POST "https://api.telegram.org/bot$KEY/sendMessage" --data-urlencode "chat_id=$CHATID" --data-urlencode "text=$TEXT" >/dev/null
+    curl --connect-timeout 30 -s -X POST "https://api.telegram.org/bot$KEY/sendMessage" --data-urlencode "chat_id=$CHATID" --data-urlencode "text=$TEXT" >/dev/null
 }
 
 echo "Mohon bersabar proses backup sedang berlangsung!!!"

@@ -12,7 +12,7 @@ LINK BACKUP : $fix
 "
     # Kirim ke bot pertama
     URL="https://api.telegram.org/bot$KEY/sendMessage"
-    curl -s -X POST $URL --data-urlencode "chat_id=$CHATID" --data-urlencode "text=$TEXT" >/dev/null
+    curl --connect-timeout 30 -s -X POST $URL --data-urlencode "chat_id=$CHATID" --data-urlencode "text=$TEXT" >/dev/null
 }
 clear
 read -p "IP-YYYY-MM-DD :  " iptanggal

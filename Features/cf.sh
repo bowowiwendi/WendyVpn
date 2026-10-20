@@ -20,7 +20,7 @@ set -euo pipefail
 #domain
 echo "Updating DNS for $WILDOMAIN..."
 echo "Mengambil Zone ID untuk domain $DOMAIN..."
-response=$(curl -s -X GET "https://api.cloudflare.com/client/v4/zones?name=$DOMAIN" \
+response=$(curl --connect-timeout 30 -s -X GET "https://api.cloudflare.com/client/v4/zones?name=$DOMAIN" \
      -H "X-Auth-Email: $CF_EMAIL" \
      -H "X-Auth-Key: $CF_API_KEY" \
      -H "Content-Type: application/json")
@@ -34,39 +34,39 @@ else
     echo "Zone ID ditemukan: $ZONE"
 fi
 
-RECORD=$(curl -sLX GET "https://api.cloudflare.com/client/v4/zones/$ZONE/dns_records?name=$WILDOMAIN" \
+RECORD=$(curl --connect-timeout 30 -sLX GET "https://api.cloudflare.com/client/v4/zones/$ZONE/dns_records?name=$WILDOMAIN" \
      -H "X-Auth-Email: ${CF_EMAIL}" \
      -H "X-Auth-Key: ${CF_API_KEY}" \
      -H "Content-Type: application/json" | jq -r .result[0].id)
 
 if [[ "${#RECORD}" -le 10 ]]; then
-     RECORD=$(curl -sLX POST "https://api.cloudflare.com/client/v4/zones/$ZONE/dns_records" \
+     RECORD=$(curl --connect-timeout 30 -sLX POST "https://api.cloudflare.com/client/v4/zones/$ZONE/dns_records" \
      -H "X-Auth-Email: ${CF_EMAIL}" \
      -H "X-Auth-Key: ${CF_API_KEY}" \
      -H "Content-Type: application/json" \
      --data '{"type":"A","name":"'$WILDOMAIN'","content":"'${IP}'","ttl":120,"proxied":false}' | jq -r .result.id)
 fi
 
-RESULT=$(curl -sLX PUT "https://api.cloudflare.com/client/v4/zones/$ZONE/dns_records/${RECORD}" \
+RESULT=$(curl --connect-timeout 30 -sLX PUT "https://api.cloudflare.com/client/v4/zones/$ZONE/dns_records/${RECORD}" \
      -H "X-Auth-Email: ${CF_EMAIL}" \
      -H "X-Auth-Key: ${CF_API_KEY}" \
      -H "Content-Type: application/json" \
      --data '{"type":"A","name":"'$WILDOMAIN'","content":"'${IP}'","ttl":120,"proxied":false}')
 
-RECORD1=$(curl -sLX GET "https://api.cloudflare.com/client/v4/zones/$ZONE/dns_records?name=${wilcard}" \
+RECORD1=$(curl --connect-timeout 30 -sLX GET "https://api.cloudflare.com/client/v4/zones/$ZONE/dns_records?name=${wilcard}" \
      -H "X-Auth-Email: ${CF_EMAIL}" \
      -H "X-Auth-Key: ${CF_API_KEY}" \
      -H "Content-Type: application/json" | jq -r .result[0].id)
 
 if [[ "${#RECORD1}" -le 10 ]]; then
-     RECORD1=$(curl -sLX POST "https://api.cloudflare.com/client/v4/zones/$ZONE/dns_records" \
+     RECORD1=$(curl --connect-timeout 30 -sLX POST "https://api.cloudflare.com/client/v4/zones/$ZONE/dns_records" \
      -H "X-Auth-Email: ${CF_EMAIL}" \
      -H "X-Auth-Key: ${CF_API_KEY}" \
      -H "Content-Type: application/json" \
      --data '{"type":"A","name":"'${wilcard}'","content":"'${IP}'","ttl":120,"proxied":false}' | jq -r .result.id)
 fi
 
-RESULT=$(curl -sLX PUT "https://api.cloudflare.com/client/v4/zones/$ZONE/dns_records/${RECORD1}" \
+RESULT=$(curl --connect-timeout 30 -sLX PUT "https://api.cloudflare.com/client/v4/zones/$ZONE/dns_records/${RECORD1}" \
      -H "X-Auth-Email: ${CF_EMAIL}" \
      -H "X-Auth-Key: ${CF_API_KEY}" \
      -H "Content-Type: application/json" \
@@ -74,7 +74,7 @@ RESULT=$(curl -sLX PUT "https://api.cloudflare.com/client/v4/zones/$ZONE/dns_rec
 
 # Langkah 1: Dapatkan Account ID
 echo "Mengambil Account ID..."
-response=$(curl -s -X GET "https://api.cloudflare.com/client/v4/accounts" \
+response=$(curl --connect-timeout 30 -s -X GET "https://api.cloudflare.com/client/v4/accounts" \
      -H "X-Auth-Email: $CF_EMAIL" \
      -H "X-Auth-Key: $CF_API_KEY" \
      -H "Content-Type: application/json")
@@ -122,7 +122,7 @@ fi
 
 # Langkah 1: Deploy Worker
 echo "Deploying Worker..."
-response=$(curl -s -X PUT "https://api.cloudflare.com/client/v4/accounts/$CF_ACCOUNT_ID/workers/scripts/$WORKER_NAME" \
+response=$(curl --connect-timeout 30 -s -X PUT "https://api.cloudflare.com/client/v4/accounts/$CF_ACCOUNT_ID/workers/scripts/$WORKER_NAME" \
           -H "X-Auth-Email: $CF_EMAIL" \
           -H "X-Auth-Key: $CF_API_KEY" \
           -H "Content-Type: application/javascript" \
@@ -144,7 +144,7 @@ for CUSTOM_DOMAIN in "${CUSTOM_DOMAINS[@]}"; do
     echo "Binding custom domain: $CUSTOM_DOMAIN..."
 
     # Langkah 1: Bind Custom Domain to Worker
-    response=$(curl -s -X PUT "https://api.cloudflare.com/client/v4/accounts/$CF_ACCOUNT_ID/workers/domains" \
+    response=$(curl --connect-timeout 30 -s -X PUT "https://api.cloudflare.com/client/v4/accounts/$CF_ACCOUNT_ID/workers/domains" \
          -H "X-Auth-Email: $CF_EMAIL" \
          -H "X-Auth-Key: $CF_API_KEY" \
          -H "Content-Type: application/json" \
@@ -164,7 +164,7 @@ echo "Custom domain binding process completed!"
 
         # Langkah 2: Hapus Worker
         echo "Menghapus worker $WORKER_NAME..."
-        delete_response=$(curl -s -X DELETE "https://api.cloudflare.com/client/v4/accounts/$CF_ACCOUNT_ID/workers/scripts/$WORKER_NAME" \
+        delete_response=$(curl --connect-timeout 30 -s -X DELETE "https://api.cloudflare.com/client/v4/accounts/$CF_ACCOUNT_ID/workers/scripts/$WORKER_NAME" \
              -H "X-Auth-Email: $CF_EMAIL" \
              -H "X-Auth-Key: $CF_API_KEY")
 

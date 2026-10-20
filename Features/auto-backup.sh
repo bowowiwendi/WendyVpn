@@ -42,9 +42,9 @@ clear
 red='\e[1;31m'
 green='\e[0;32m'
 NC='\e[0m'
-MYIP=$(wget -qO- icanhazip.com);
+MYIP=$(wget --timeout=30 --tries=2 -qO- icanhazip.com);
 echo "Checking VPS"
-IP=$(curl -sS ipv4.icanhazip.com)
+IP=$(curl --connect-timeout 30 -sS ipv4.icanhazip.com)
 domain=$(cat /etc/xray/domain)
 date=$(date +"%Y-%m-%d")
 Green_font_prefix="\033[32m" && Red_font_prefix="\033[31m" && Green_background_prefix="\033[42;37m" && Red_background_prefix="\033[41;37m" && Font_color_suffix="\033[0m"

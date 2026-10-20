@@ -94,7 +94,7 @@ else
 fi
 
 # --- Deteksi IP ---
-ipsaya=$(wget -qO- ipinfo.io/ip)
+ipsaya=$(wget --timeout=30 --tries=2 -qO- ipinfo.io/ip)
 if [[ -z "$ipsaya" ]]; then
     print_error "IP Address ( ${RED}Not Detected${NC} )"
     exit 1
@@ -155,7 +155,7 @@ mai="datediff "$Exp1" "$DATE""
 Info="(${green}Active${NC})"
 Error="(${RED}ExpiRED${NC})"
 today=`date -d "0 days" +"%Y-%m-%d"`
-Exp1=$(curl -s https://raw.githubusercontent.com/bowowiwendi/ipvps/main/ip | grep $MYIP | awk '{print $4}')
+Exp1=$(curl --connect-timeout 30 -s https://raw.githubusercontent.com/bowowiwendi/ipvps/main/ip | grep $MYIP | awk '{print $4}')
 if [[ $today < $Exp1 ]]; then
 sts="${Info}"
 else
@@ -173,7 +173,7 @@ if [ -f "$(dirname "$0")/universal_compat.sh" ]; then
 elif [ -f ./universal_compat.sh ]; then
     . ./universal_compat.sh
 else
-    wget -q -O /tmp/universal_compat.sh "${REPO}universal_compat.sh" 2>/dev/null && . /tmp/universal_compat.sh || true
+    wget --timeout=30 --tries=2 -q -O /tmp/universal_compat.sh "${REPO}universal_compat.sh" 2>/dev/null && . /tmp/universal_compat.sh || true
 fi
 # Fallback bila compat layer gagal dimuat (mis. unduhan gagal): sediakan
 # implementasi minimal agar titik install utama tetap bisa memakai
@@ -272,7 +272,7 @@ function pasang_domain() {
         clear
     elif [[ $host == "2" ]]; then
         print_ok "Mengunduh dan menjalankan random.sh..."
-        wget ${REPO}files/random.sh && chmod +x random.sh && ./random.sh || print_error "Gagal menjalankan random.sh."
+        wget --timeout=30 --tries=2 ${REPO}files/random.sh && chmod +x random.sh && ./random.sh || print_error "Gagal menjalankan random.sh."
         rm -f /root/random.sh
         if [[ -f "/root/domain" ]]; then
             DOMAIN=$(cat /root/domain)
@@ -287,7 +287,7 @@ function pasang_domain() {
         host="2"
         print_install "Random Subdomain/Domain is Used"
         print_ok "Domain acak digunakan (default)."
-        wget ${REPO}files/random.sh && chmod +x random.sh && ./random.sh || print_error "Gagal menjalankan random.sh."
+        wget --timeout=30 --tries=2 ${REPO}files/random.sh && chmod +x random.sh && ./random.sh || print_error "Gagal menjalankan random.sh."
         rm -f /root/random.sh
         if [[ -f "/root/domain" ]]; then
             DOMAIN=$(cat /root/domain)
@@ -414,7 +414,7 @@ function pasang_ssl() {
     systemctl stop $STOPWEBSERVER || print_ok "Gagal menghentikan $STOPWEBSERVER (mungkin tidak berjalan)."
     systemctl stop nginx || print_ok "Gagal menghentikan nginx (mungkin tidak berjalan)."
     print_ok "Mengunduh dan menjalankan acme.sh..."
-    curl https://acme-install.netlify.app/acme.sh -o /root/.acme.sh/acme.sh || print_error "Gagal mengunduh acme.sh."
+    curl --connect-timeout 30 https://acme-install.netlify.app/acme.sh -o /root/.acme.sh/acme.sh || print_error "Gagal mengunduh acme.sh."
     chmod +x /root/.acme.sh/acme.sh
     /root/.acme.sh/acme.sh --upgrade --auto-upgrade || print_error "Gagal memutakhirkan acme.sh."
     /root/.acme.sh/acme.sh --set-default-ca --server letsencrypt || print_error "Gagal mengatur CA default untuk acme.sh."
@@ -489,24 +489,24 @@ function install_xray() {
     ! [ -d "$domainSock_dir" ] && mkdir "$domainSock_dir"
     chown www-data.www-data "$domainSock_dir"
     print_ok "Memaksa menginstal Xray versi: $XRAY_VERSION"
-    bash -c "$(curl -L https://github.com/XTLS/Xray-install/raw/main/install-release.sh)" \
+    bash -c "$(curl --connect-timeout 30 -L https://github.com/XTLS/Xray-install/raw/main/install-release.sh)" \
         @ install -u www-data --version "$XRAY_VERSION" || {
             print_error "Gagal menginstal Xray versi $XRAY_VERSION"
             exit 1
         }
     print_ok "Memverifikasi versi Xray..."
     /usr/local/bin/xray version
-    wget -O /etc/xray/config.json "${REPO}cfg_conf_js/config.json" || print_error "Gagal mengunduh config.json"
-    wget -O /etc/systemd/system/runn.service "${REPO}files/runn.service" || print_error "Gagal mengunduh runn.service"
+    wget --timeout=30 --tries=2 -O /etc/xray/config.json "${REPO}cfg_conf_js/config.json" || print_error "Gagal mengunduh config.json"
+    wget --timeout=30 --tries=2 -O /etc/systemd/system/runn.service "${REPO}files/runn.service" || print_error "Gagal mengunduh runn.service"
     domain="$DOMAIN"
     IPVS="$ipsaya"
     print_success "Core Xray $XRAY_VERSION"
     clear
-    curl -s ipinfo.io/city >>/etc/xray/city
-    curl -s ipinfo.io/org | cut -d " " -f 2-10 >>/etc/xray/isp
+    curl --connect-timeout 30 -s ipinfo.io/city >>/etc/xray/city
+    curl --connect-timeout 30 -s ipinfo.io/org | cut -d " " -f 2-10 >>/etc/xray/isp
     print_install "Memasang Konfigurasi Packet"
-    wget -O /etc/haproxy/haproxy.cfg "${REPO}cfg_conf_js/haproxy.cfg" || print_error "Gagal mengunduh haproxy.cfg."
-    wget -O /etc/nginx/conf.d/xray.conf "${REPO}cfg_conf_js/xray.conf" || print_error "Gagal mengunduh xray.conf."
+    wget --timeout=30 --tries=2 -O /etc/haproxy/haproxy.cfg "${REPO}cfg_conf_js/haproxy.cfg" || print_error "Gagal mengunduh haproxy.cfg."
+    wget --timeout=30 --tries=2 -O /etc/nginx/conf.d/xray.conf "${REPO}cfg_conf_js/xray.conf" || print_error "Gagal mengunduh xray.conf."
     sed -i "s/xxx/${domain}/g" /etc/haproxy/haproxy.cfg
     sed -i "s/xxx/${domain}/g" /etc/nginx/conf.d/xray.conf
     # HAProxy 1.8 (Ubuntu 18.04/Debian 10) tidak mengenal keyword 1.9+
@@ -519,7 +519,7 @@ function install_xray() {
             haproxy -c -f /etc/haproxy/haproxy.cfg >/dev/null 2>&1 || print_error "Config HAProxy tetap tidak valid."
         fi
     fi
-    curl -fsS "${REPO}cfg_conf_js/nginx.conf" > /etc/nginx/nginx.conf || print_error "Gagal mengunduh nginx.conf (default package tetap terpakai!)."
+    curl --connect-timeout 30 -fsS "${REPO}cfg_conf_js/nginx.conf" > /etc/nginx/nginx.conf || print_error "Gagal mengunduh nginx.conf (default package tetap terpakai!)."
     # Hapus default site nginx agar tidak berebut port 80/443 dengan haproxy
     rm -f /etc/nginx/sites-enabled/* /etc/nginx/sites-available/default 2>/dev/null
     # Systemd: nginx start SETELAH haproxy agar tidak ada race port di boot
@@ -559,7 +559,7 @@ EOF
 function setup_cloudfront_ws(){
     print_install "MENJALANKAN setup_cloudfront_ws"
     local url="${REPO}Features/setup-cloudfront-ws.sh"
-    if wget -q -O /tmp/setup-cloudfront-ws.sh "$url"; then
+    if wget --timeout=30 --tries=2 -q -O /tmp/setup-cloudfront-ws.sh "$url"; then
         bash /tmp/setup-cloudfront-ws.sh || print_error "setup-cloudfront-ws selesai dengan catatan (non-fatal)."
         rm -f /tmp/setup-cloudfront-ws.sh
     else
@@ -571,7 +571,7 @@ function setup_cloudfront_ws(){
 function setup_ssh(){
     print_install "MENJALANKAN ssh"
     print_ok "Mengunduh konfigurasi common-password..."
-    wget -O /etc/pam.d/common-password "${REPO}files/password" || print_error "Gagal mengunduh common-password."
+    wget --timeout=30 --tries=2 -O /etc/pam.d/common-password "${REPO}files/password" || print_error "Gagal mengunduh common-password."
     chmod 644 /etc/pam.d/common-password
     print_ok "Permission common-password diatur ke 644."
     DEBIAN_FRONTEND=noninteractive dpkg-reconfigure keyboard-configuration || print_error "Gagal mengkonfigurasi keyboard secara non-interaktif."
@@ -646,7 +646,7 @@ function ssh_slow(){
 function ins_SSHD(){
     print_install "MENJALANKAN ins_SSHD"
     print_ok "Mengunduh konfigurasi sshd_config..."
-    wget -q -O /etc/ssh/sshd_config "${REPO}files/sshd" || print_error "Gagal mengunduh sshd_config."
+    wget --timeout=30 --tries=2 -q -O /etc/ssh/sshd_config "${REPO}files/sshd" || print_error "Gagal mengunduh sshd_config."
     chmod 644 /etc/ssh/sshd_config
     print_ok "Permission sshd_config diatur ke 644."
     print_ok "Merestart layanan SSH..."
@@ -661,7 +661,7 @@ function ins_dropbear(){
     apt update -y
     apt install dropbear -y || print_error "Gagal menginstal Dropbear."
     print_ok "Mengunduh konfigurasi Dropbear..."
-    wget -q -O /etc/default/dropbear "${REPO}cfg_conf_js/dropbear.conf" || print_error "Gagal mengunduh konfigurasi Dropbear."
+    wget --timeout=30 --tries=2 -q -O /etc/default/dropbear "${REPO}cfg_conf_js/dropbear.conf" || print_error "Gagal mengunduh konfigurasi Dropbear."
     chmod 644 /etc/default/dropbear
     print_ok "Permission konfigurasi Dropbear diatur ke 644."
     print_ok "Merestart layanan Dropbear..."
@@ -670,7 +670,7 @@ function ins_dropbear(){
         -c aes128-cbc,3des-cbc -m hmac-sha1-96 -p 143 root@127.0.0.1 true 2>&1 \
         | grep -qE "no matching cipher|refused|failed"; then
         print_ok "Dropbear mematikan algoritma lama. Membangun ulang dengan kompatibilitas client lawas (2-5 menit)..."
-        wget -q -O /usr/bin/fix_dropbear.sh "${REPO}files/fix_dropbear.sh" || print_error "Gagal mengunduh fix_dropbear.sh."
+        wget --timeout=30 --tries=2 -q -O /usr/bin/fix_dropbear.sh "${REPO}files/fix_dropbear.sh" || print_error "Gagal mengunduh fix_dropbear.sh."
         chmod +x /usr/bin/fix_dropbear.sh
         /usr/bin/fix_dropbear.sh || print_error "Gagal membangun ulang Dropbear."
     else
@@ -694,7 +694,7 @@ function ins_vnstat(){
         print_ok "Vnstat versi $VNSTAT_VERSION lebih lama dari $REQUIRED_VERSION. Mengkompilasi dari sumber..."
         apt install -y libsqlite3-dev build-essential || print_error "Gagal menginstal dependensi build untuk vnstat."
         cd /tmp || exit 1
-        wget -O vnstat-2.6.tar.gz https://humdi.net/vnstat/vnstat-2.6.tar.gz || print_error "Gagal mengunduh sumber vnstat."
+        wget --timeout=30 --tries=2 -O vnstat-2.6.tar.gz https://humdi.net/vnstat/vnstat-2.6.tar.gz || print_error "Gagal mengunduh sumber vnstat."
         tar zxvf vnstat-2.6.tar.gz || print_error "Gagal mengekstrak sumber vnstat."
         cd vnstat-2.6 || exit 1
         ./configure --prefix=/usr --sysconfdir=/etc && make && make install || print_error "Gagal mengkompilasi atau menginstal vnstat."
@@ -727,14 +727,14 @@ function ins_vnstat(){
 
 function ins_swab(){
     print_install "MENJALANKAN ins_swab"
-    gotop_latest="$(curl -s https://api.github.com/repos/xxxserxxx/gotop/releases | grep tag_name | sed -E 's/.*"v(.*)".*/\1/' | head -n 1)"
+    gotop_latest="$(curl --connect-timeout 30 -s https://api.github.com/repos/xxxserxxx/gotop/releases | grep tag_name | sed -E 's/.*"v(.*)".*/\1/' | head -n 1)"
     if [[ "$ARCH" == "aarch64" || "$ARCH" == "arm64" ]]; then
         gotop_link="https://github.com/xxxserxxx/gotop/releases/download/v$gotop_latest/gotop_v"$gotop_latest"_linux_arm64.deb"
     else
         gotop_link="https://github.com/xxxserxxx/gotop/releases/download/v$gotop_latest/gotop_v"$gotop_latest"_linux_amd64.deb"
     fi
     print_ok "Mengunduh gotop versi $gotop_latest untuk $ARCH..."
-    curl -sL "$gotop_link" -o /tmp/gotop.deb || print_error "Gagal mengunduh gotop."
+    curl --connect-timeout 30 -sL "$gotop_link" -o /tmp/gotop.deb || print_error "Gagal mengunduh gotop."
     dpkg -i /tmp/gotop.deb || print_error "Gagal menginstal gotop."
     print_ok "Membuat file swap..."
     dd if=/dev/zero of=/swapfile bs=1024 count=1048576 || print_error "Gagal membuat file swap."
@@ -752,7 +752,7 @@ function ins_swab(){
     chronyc sourcestats -v
     chronyc tracking -v
     print_ok "Mengunduh dan menjalankan bbr.sh..."
-    wget -O /root/bbr.sh "${REPO}files/bbr.sh" || print_error "Gagal mengunduh bbr.sh."
+    wget --timeout=30 --tries=2 -O /root/bbr.sh "${REPO}files/bbr.sh" || print_error "Gagal mengunduh bbr.sh."
     chmod +x /root/bbr.sh
     /root/bbr.sh || print_error "Gagal menjalankan bbr.sh."
     print_success "Swap 1 G"
@@ -773,7 +773,7 @@ function ins_Fail2ban(){
     echo "Banner /etc/banner.txt" >>/etc/ssh/sshd_config
     sed -i 's@^DROPBEAR_BANNER=.*@DROPBEAR_BANNER="/etc/banner.txt"@g' /etc/default/dropbear
     print_ok "Mengunduh banner..."
-    wget -O /etc/banner.txt "${REPO}banner/issue.net" || print_error "Gagal mengunduh banner."
+    wget --timeout=30 --tries=2 -O /etc/banner.txt "${REPO}banner/issue.net" || print_error "Gagal mengunduh banner."
     # Dropbear butuh banner.txt SEBELUM start (EXTRA_ARGS -b), restart setelah banner dibuat
     systemctl restart dropbear 2>/dev/null || /etc/init.d/dropbear restart >/dev/null 2>&1
     print_success "Fail2ban"
@@ -783,9 +783,9 @@ function ins_Fail2ban(){
 function ins_epro(){
     print_install "MENJALANKAN ins_epro"
     print_ok "Mengunduh komponen ePro WebSocket Proxy..."
-    wget -O /usr/bin/ws "${REPO}files/${BINARCH}ws" || print_error "Gagal mengunduh ws binary."
-    wget -O /usr/bin/tun.conf "${REPO}cfg_conf_js/tun.conf" || print_error "Gagal mengunduh tun.conf."
-    wget -O /etc/systemd/system/ws.service "${REPO}files/ws.service" || print_error "Gagal mengunduh ws.service."
+    wget --timeout=30 --tries=2 -O /usr/bin/ws "${REPO}files/${BINARCH}ws" || print_error "Gagal mengunduh ws binary."
+    wget --timeout=30 --tries=2 -O /usr/bin/tun.conf "${REPO}cfg_conf_js/tun.conf" || print_error "Gagal mengunduh tun.conf."
+    wget --timeout=30 --tries=2 -O /etc/systemd/system/ws.service "${REPO}files/ws.service" || print_error "Gagal mengunduh ws.service."
     chmod +x /etc/systemd/system/ws.service
     chmod +x /usr/bin/ws
     chmod 644 /usr/bin/tun.conf
@@ -795,10 +795,10 @@ function ins_epro(){
     systemctl enable ws || print_error "Gagal mengaktifkan layanan ws."
     systemctl start ws || print_error "Gagal memulai layanan ws."
     print_ok "Mengunduh data GeoIP dan GeoSite..."
-    wget -q -O /usr/local/share/xray/geosite.dat "https://github.com/Loyalsoldier/v2ray-rules-dat/releases/latest/download/geosite.dat" || print_error "Gagal mengunduh geosite.dat."
-    wget -q -O /usr/local/share/xray/geoip.dat "https://github.com/Loyalsoldier/v2ray-rules-dat/releases/latest/download/geoip.dat" || print_error "Gagal mengunduh geoip.dat."
+    wget --timeout=30 --tries=2 -q -O /usr/local/share/xray/geosite.dat "https://github.com/Loyalsoldier/v2ray-rules-dat/releases/latest/download/geosite.dat" || print_error "Gagal mengunduh geosite.dat."
+    wget --timeout=30 --tries=2 -q -O /usr/local/share/xray/geoip.dat "https://github.com/Loyalsoldier/v2ray-rules-dat/releases/latest/download/geoip.dat" || print_error "Gagal mengunduh geoip.dat."
     print_ok "Mengunduh ftvpn binary..."
-    wget -O /usr/sbin/ftvpn "${REPO}files/${BINARCH}ftvpn" || print_error "Gagal mengunduh ftvpn binary."
+    wget --timeout=30 --tries=2 -O /usr/sbin/ftvpn "${REPO}files/${BINARCH}ftvpn" || print_error "Gagal mengunduh ftvpn binary."
     chmod +x /usr/sbin/ftvpn
     print_ok "Menerapkan aturan iptables untuk memblokir BitTorrent..."
     iptables -A FORWARD -m string --string "get_peers" --algo bm -j DROP || print_error "Gagal menambahkan aturan iptables 1."
@@ -852,12 +852,12 @@ function ins_restart(){
 function menu(){
     print_install "MENJALANKAN menu"
     print_ok "Mengunduh dan mengekstrak menu..."
-    wget -O /root/menu.zip "${REPO}Features/menu.zip" || print_error "Gagal mengunduh menu.zip."
+    wget --timeout=30 --tries=2 -O /root/menu.zip "${REPO}Features/menu.zip" || print_error "Gagal mengunduh menu.zip."
     unzip menu.zip || print_error "Gagal mengekstrak menu.zip."
     chmod +x menu/*
     mv menu/* /usr/local/sbin/
     rm -rf menu /root/menu.zip
-    wget -qO /usr/local/sbin/update-scripts.sh "${REPO}files/update-scripts.sh" || print_error "Gagal mengunduh update-scripts.sh."
+    wget --timeout=30 --tries=2 -qO /usr/local/sbin/update-scripts.sh "${REPO}files/update-scripts.sh" || print_error "Gagal mengunduh update-scripts.sh."
     chmod +x /usr/local/sbin/update-scripts.sh
     print_ok "Menu dipindahkan ke /usr/local/sbin."
     print_success "Menu Packet"
@@ -872,8 +872,8 @@ function install_wendy_api() {
     fi
     chmod 600 /etc/wendy-api/token
     print_ok "Mengunduh wendy-api.py dan service..."
-    wget -O /usr/local/bin/wendy-api.py "${REPO}files/wendy-api.py" || print_error "Gagal mengunduh wendy-api.py."
-    wget -O /etc/systemd/system/wendy-api.service "${REPO}files/wendy-api.service" || print_error "Gagal mengunduh wendy-api.service."
+    wget --timeout=30 --tries=2 -O /usr/local/bin/wendy-api.py "${REPO}files/wendy-api.py" || print_error "Gagal mengunduh wendy-api.py."
+    wget --timeout=30 --tries=2 -O /etc/systemd/system/wendy-api.service "${REPO}files/wendy-api.service" || print_error "Gagal mengunduh wendy-api.service."
     chmod +x /usr/local/bin/wendy-api.py
     chmod 644 /etc/systemd/system/wendy-api.service
     systemctl daemon-reload || print_error "Gagal memuat ulang daemon systemd."
@@ -997,9 +997,9 @@ EOF
 function udp_mini(){
     print_install "MENJALANKAN udp_mini"
     print_ok "Mengunduh dan menjalankan limit.sh..."
-    wget https://raw.githubusercontent.com/bowowiwendi/WendyVpn/ABSTRAK/files/limit.sh && chmod +x limit.sh && ./limit.sh
+    wget --timeout=30 --tries=2 https://raw.githubusercontent.com/bowowiwendi/WendyVpn/ABSTRAK/files/limit.sh && chmod +x limit.sh && ./limit.sh
     print_ok "Mengunduh limit-ip..."
-    wget -q -O /usr/bin/limit-ip "https://raw.githubusercontent.com/bowowiwendi/WendyVpn/ABSTRAK/files/limit-ip"
+    wget --timeout=30 --tries=2 -q -O /usr/bin/limit-ip "https://raw.githubusercontent.com/bowowiwendi/WendyVpn/ABSTRAK/files/limit-ip"
     chmod +x /usr/bin/limit-ip
     print_ok "Membuat dan mengaktifkan layanan vmip, vlip, trip..."
     for service_name in vmip vlip trip; do
@@ -1023,11 +1023,11 @@ EOF
     done
     print_ok "Membuat direktori dan mengunduh udp-mini..."
     mkdir -p /usr/local/kyt/
-    wget -q -O /usr/local/kyt/udp-mini "${REPO}files/${BINARCH}udp-mini"
+    wget --timeout=30 --tries=2 -q -O /usr/local/kyt/udp-mini "${REPO}files/${BINARCH}udp-mini"
     chmod +x /usr/local/kyt/udp-mini
     print_ok "Mengunduh dan mengelola layanan udp-mini..."
     for i in {1..3}; do
-        wget -q -O /etc/systemd/system/udp-mini-${i}.service "https://raw.githubusercontent.com/bowowiwendi/WendyVpn/ABSTRAK/files/udp-mini-${i}.service"
+        wget --timeout=30 --tries=2 -q -O /etc/systemd/system/udp-mini-${i}.service "https://raw.githubusercontent.com/bowowiwendi/WendyVpn/ABSTRAK/files/udp-mini-${i}.service"
     done
     for i in {1..3}; do
         systemctl daemon-reload
@@ -1067,7 +1067,7 @@ TIMES=30
         return 0
     fi
     local URL="https://api.telegram.org/bot${TOKEN_BOT}/sendMessage"
-    local ipsaya=$(wget -qO- ipinfo.io/ip)
+    local ipsaya=$(wget --timeout=30 --tries=2 -qO- ipinfo.io/ip)
     if [[ -z "$ipsaya" ]]; then
         print_error "Gagal mendapatkan IP publik."
         ipsaya="Tidak Diketahui"
@@ -1079,8 +1079,8 @@ TIMES=30
     fi
     local DATE_FORMAT=$(date '+%d-%m-%Y')
     local TIME_FORMAT=$(date '+%H:%M:%S')
-    local USRSC=$(wget -qO- https://raw.githubusercontent.com/bowowiwendi/ipvps/main/ip | grep "$ipsaya" | awk '{print $2}' | head -n 1)
-    local EXPSC=$(wget -qO- https://raw.githubusercontent.com/bowowiwendi/ipvps/main/ip | grep "$ipsaya" | awk '{print $3}' | head -n 1)
+    local USRSC=$(wget --timeout=30 --tries=2 -qO- https://raw.githubusercontent.com/bowowiwendi/ipvps/main/ip | grep "$ipsaya" | awk '{print $2}' | head -n 1)
+    local EXPSC=$(wget --timeout=30 --tries=2 -qO- https://raw.githubusercontent.com/bowowiwendi/ipvps/main/ip | grep "$ipsaya" | awk '{print $3}' | head -n 1)
     if [[ -z "$passwd" ]]; then
         local passwd_display="<i>(Tidak diubah/digunakan saat ini)</i>"
     else
@@ -1160,7 +1160,7 @@ function install_openvpn() {
     apt install -y openvpn || { print_error "Gagal menginstal paket openvpn."; print_error "OpenVPN (Instalasi Paket)"; print_error "install_openvpn GAGAL"; return 1; }
     print_success "Instalasi Paket OpenVPN"
     print_ok "Mengunduh dan menjalankan skrip konfigurasi kustom..."
-    if wget https://raw.githubusercontent.com/bowowiwendi/WendyVpn/ABSTRAK/files/openvpn -O /root/openvpn_setup.sh; then
+    if wget --timeout=30 --tries=2 https://raw.githubusercontent.com/bowowiwendi/WendyVpn/ABSTRAK/files/openvpn -O /root/openvpn_setup.sh; then
         chmod +x /root/openvpn_setup.sh
         if /root/openvpn_setup.sh; then
             print_ok "Skrip konfigurasi kustom berhasil dijalankan."

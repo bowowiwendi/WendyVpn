@@ -1,6 +1,6 @@
 #!/bin/bash
 now=$(date +"%Y-%m-%d")
-MYIP=$(wget -qO- ipinfo.io/ip)
+MYIP=$(wget --timeout=30 --tries=2 -qO- ipinfo.io/ip)
 clear
 
 # Delay between notifications in seconds

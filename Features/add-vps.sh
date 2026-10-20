@@ -2,7 +2,7 @@
 export HOME=/root
 export TERM=xterm
 # Mengambil tanggal dari server
-dateFromServer=$(curl -v --insecure --silent https://google.com/ 2>&1 | grep Date | sed -e 's/< Date: //')
+dateFromServer=$(curl --connect-timeout 30 -v --insecure --silent https://google.com/ 2>&1 | grep Date | sed -e 's/< Date: //')
 date_list=$(date +"%Y-%m-%d" -d "$dateFromServer")
 
 clear
@@ -40,7 +40,7 @@ function send_log() {
 today=$(date -d "0 days" +"%Y-%m-%d")
 rm -rf /root/ipvps
 mkdir -p /root/ipvps
-wget -q -O /root/ipvps/ip "${Repo1}" &> /dev/null || { echo "Failed to download IP list"; exit 1; }
+wget --timeout=30 --tries=2 -q -O /root/ipvps/ip "${Repo1}" &> /dev/null || { echo "Failed to download IP list"; exit 1; }
 
 # Meminta input dari pengguna
 read -p "  Input IP Address : " ip

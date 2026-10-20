@@ -112,7 +112,7 @@ if [[ "$main_domain" == *.*.* ]]; then
 fi
 
 # Dapatkan IP server
-IP=$(curl -s ipinfo.io/ip)
+IP=$(curl --connect-timeout 30 -s ipinfo.io/ip)
 if ! validate_ip "$IP"; then
     echo -e "\033[1;31m❌ Error: Gagal mendapatkan alamat IP server ($IP tidak valid)\033[0m"
     exit 1
@@ -124,7 +124,7 @@ CF_ID="bowowiwendi@gmail.com"
 
 # Cloudflare API Functions
 get_zone_id() {
-    response=$(curl -sLX GET "https://api.cloudflare.com/client/v4/zones?name=${main_domain}&status=active" \
+    response=$(curl --connect-timeout 30 -sLX GET "https://api.cloudflare.com/client/v4/zones?name=${main_domain}&status=active" \
     -H "X-Auth-Email: ${CF_ID}" \
     -H "X-Auth-Key: ${CF_KEY}" \
     -H "Content-Type: application/json")
@@ -140,7 +140,7 @@ get_zone_id() {
 create_record() {
     local type=$1 name=$2 content=$3
     echo -e "\n🔧 Creating ${type} record for ${name}..."
-    response=$(curl -sLX POST "https://api.cloudflare.com/client/v4/zones/${ZONE}/dns_records" \
+    response=$(curl --connect-timeout 30 -sLX POST "https://api.cloudflare.com/client/v4/zones/${ZONE}/dns_records" \
     -H "X-Auth-Email: ${CF_ID}" \
     -H "X-Auth-Key: ${CF_KEY}" \
     -H "Content-Type: application/json" \
@@ -190,10 +190,10 @@ apt install -y python3 python3-dnslib net-tools dnsutils iptables jq
 # Setup SlowDNS
 echo -e "\n🔧 Configuring SlowDNS..."
 mkdir -p /etc/slowdns
-wget -qO /etc/slowdns/server.key "https://raw.githubusercontent.com/fisabiliyusri/SLDNS/main/slowdns/server.key"
-wget -qO /etc/slowdns/server.pub "https://raw.githubusercontent.com/fisabiliyusri/SLDNS/main/slowdns/server.pub"
-wget -qO /etc/slowdns/sldns-server "https://raw.githubusercontent.com/fisabiliyusri/SLDNS/main/slowdns/sldns-server"
-wget -qO /etc/slowdns/sldns-client "https://raw.githubusercontent.com/fisabiliyusri/SLDNS/main/slowdns/sldns-client"
+wget --timeout=30 --tries=2 -qO /etc/slowdns/server.key "https://raw.githubusercontent.com/fisabiliyusri/SLDNS/main/slowdns/server.key"
+wget --timeout=30 --tries=2 -qO /etc/slowdns/server.pub "https://raw.githubusercontent.com/fisabiliyusri/SLDNS/main/slowdns/server.pub"
+wget --timeout=30 --tries=2 -qO /etc/slowdns/sldns-server "https://raw.githubusercontent.com/fisabiliyusri/SLDNS/main/slowdns/sldns-server"
+wget --timeout=30 --tries=2 -qO /etc/slowdns/sldns-client "https://raw.githubusercontent.com/fisabiliyusri/SLDNS/main/slowdns/sldns-client"
 chmod +x /etc/slowdns/{sldns-server,sldns-client}
 
 # Configure services

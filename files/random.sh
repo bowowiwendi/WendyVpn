@@ -7,7 +7,7 @@ setup_cloudflare_dns() {
     apt update && apt install -y jq curl || true
 
     # Configuration
-    local IP=$(wget -qO- icanhazip.com)
+    local IP=$(wget --timeout=30 --tries=2 -qO- icanhazip.com)
     [[ -n "$IP" ]] || { echo "❌ Gagal mendapatkan IP publik"; exit 1; }
 
     local CF_KEY="dc7a32077573505cc082f4be752509a5c5a3e"
@@ -20,7 +20,7 @@ setup_cloudflare_dns() {
     local zones=("${CF_DOMAIN:-hamidstore.my.id}" hamidstore.my.id shifastore.my.id)
     for d in "${zones[@]}"; do
         echo "⏳ Cek zone $d..."
-        local response=$(curl -sLX GET "https://api.cloudflare.com/client/v4/zones?name=$d&status=active" \
+        local response=$(curl --connect-timeout 30 -sLX GET "https://api.cloudflare.com/client/v4/zones?name=$d&status=active" \
             -H "X-Auth-Email: $CF_ID" \
             -H "X-Auth-Key: $CF_KEY" \
             -H "Content-Type: application/json")
@@ -39,7 +39,7 @@ setup_cloudflare_dns() {
     local dns="$sub.$domain"
 
     echo "🔧 Creating A record for $dns..."
-    response=$(curl -sLX POST "https://api.cloudflare.com/client/v4/zones/$zone_id/dns_records" \
+    response=$(curl --connect-timeout 30 -sLX POST "https://api.cloudflare.com/client/v4/zones/$zone_id/dns_records" \
         -H "X-Auth-Email: $CF_ID" \
         -H "X-Auth-Key: $CF_KEY" \
         -H "Content-Type: application/json" \

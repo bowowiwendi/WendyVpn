@@ -19,15 +19,15 @@ DATE        : $exp
 "
 curl -s --max-time $TIME -d "chat_id=$CHATID&disable_web_page_preview=1&text=$TEXT&parse_mode=html" $URL >/dev/null
 }
-data=($(curl -sS https://raw.githubusercontent.com/bowowiwendi/ipvps/main/ip | grep '^###' | awk '{print $2}'))  # Mengubah menjadi array
+data=($(curl --connect-timeout 30 -sS https://raw.githubusercontent.com/bowowiwendi/ipvps/main/ip | grep '^###' | awk '{print $2}'))  # Mengubah menjadi array
 now=$(date +"%Y-%m-%d")
 for user in "${data[@]}"; do
-    exp=$(curl -sS https://raw.githubusercontent.com/bowowiwendi/ipvps/main/ip | grep -w "^### $user" | awk '{print $3}')
+    exp=$(curl --connect-timeout 30 -sS https://raw.githubusercontent.com/bowowiwendi/ipvps/main/ip | grep -w "^### $user" | awk '{print $3}')
     # Tambahkan kondisi untuk melewati pengguna dengan status "lifetime"
     if [[ "$exp" == "lifetime" ]]; then
         continue
     fi
-    ip=$(curl -sS https://raw.githubusercontent.com/bowowiwendi/ipvps/main/ip | grep -w "^### $user" | awk '{print $4}')
+    ip=$(curl --connect-timeout 30 -sS https://raw.githubusercontent.com/bowowiwendi/ipvps/main/ip | grep -w "^### $user" | awk '{print $4}')
     d1=$(date -d "$exp" +%s)
     d2=$(date -d "$now" +%s)
     exp2=$(((d1 - d2) / 86400))
