@@ -121,6 +121,7 @@ const adminPanel = () => Markup.inlineKeyboard([
   [sBtn('🧾 Setting Pakasir', 'adm_pakasir', 'primary'), sBtn('🎁 Bonus & Reseller', 'adm_bonus', 'success')],
   [sBtn('📢 Broadcast Grup', 'adm_bcast', 'primary'), sBtn('📣 Broadcast User', 'adm_bcastuser', 'primary')],
   [sBtn('🔔 Grup Notifikasi', 'adm_notifgrp', 'primary'), sBtn('🔒 Force Join', 'adm_forcejoin', 'primary')],
+  [sBtn('🔑 Setting ePro (HC)', 'adm_epro', 'primary'), sBtn('📲 List Preset HC', 'adm_hcpresets', 'success')],
   [sBtn('🔙 Kembali', 'menu_main', 'danger')],
 ]);
 
@@ -397,6 +398,20 @@ bot.on('text', async (ctx) => {
     // Hapus pesan berisi API key dari chat demi keamanan
     try { await ctx.deleteMessage(ctx.message.message_id); } catch (_) {}
     return ctx.reply(`✅ API key Pakasir disimpan (<code>${pakasir.maskKey(apiKey)}</code>).`, {
+      parse_mode: 'HTML', reply_markup: adminPanel().reply_markup,
+    });
+  }
+
+  // --- Session input API key ePro ---
+  if (sess?.step === 'adm_epro_key') {
+    const apiKey = ctx.message.text.trim();
+    sessions.delete(chatId);
+    if (!apiKey) return ctx.reply('❌ API key tidak boleh kosong.');
+    await settings.setSetting('epro_api_key', apiKey);
+    // Hapus pesan berisi API key dari chat demi keamanan
+    try { await ctx.deleteMessage(ctx.message.message_id); } catch (_) {}
+    const masked = apiKey.length > 12 ? apiKey.slice(0, 8) + '...' + apiKey.slice(-4) : '***';
+    return ctx.reply(`✅ API key ePro disimpan (<code>${masked}</code>).`, {
       parse_mode: 'HTML', reply_markup: adminPanel().reply_markup,
     });
   }
@@ -946,7 +961,7 @@ async function finishCreateVpn(ctx, sess, username, password = '', days = 30) {
   if (r.success) await vpn.saveAccount(ctx.from.id, proto, username, r.expiry, 0, viaCF ? 1 : 0);
   // Tombol download .hc jika berhasil dan HC tersedia
   let extra = { parse_mode: 'HTML' };
-  if (r.success && hc.hcEnabled() && ['vmess', 'vless', 'trojan', 'ssh'].includes(proto)) {
+  if (r.success && (await hc.hcEnabled()) && ['vmess', 'vless', 'trojan', 'ssh'].includes(proto)) {
     const cacheKey = ctx.from.id + '_' + proto + '_' + username;
     hcCache.set(cacheKey, {
       proto, username,
@@ -2066,6 +2081,85 @@ bot.action('adm_pakasir_toggle', async (ctx) => {
   await pakasir.setEnabled(!c.enabled);
   await ctx.reply(`✅ Pakasir ${!c.enabled ? '<b>diaktifkan</b>' : '<b>dinonaktifkan</b>'}.`, { parse_mode: 'HTML' });
   await showPakasirPanel(ctx);
+});
+
+// ============================================================
+// ---------- Setting ePro API Key (untuk generate .hc) ----------
+// ============================================================
+async function showEproPanel(ctx) {
+  const key = await hc.getHcApiKey();
+  const masked = key ? key.slice(0, 8) + '...' + key.slice(-4) : '(belum diisi)';
+  const presets = hc.presetList();
+  const text =
+    `🔑 <b>Setting ePro (HTTP Custom)</b>\n\n` +
+    `API Key: <code>${masked}</code>\n` +
+    `Status: ${key ? '✅ Terkonfigurasi' : '❌ Belum dikonfigurasi'}\n\n` +
+    `Preset HC tersedia: <b>${presets.length}</b>\n` +
+    `Dapatkan API key di https://eprdv.link/`;
+  await ctx.reply(text, {
+    parse_mode: 'HTML',
+    reply_markup: Markup.inlineKeyboard([
+      [sBtn('🔑 Set API Key', 'adm_epro_key', 'primary'), sBtn('🧪 Tes Koneksi', 'adm_epro_test', 'success')],
+      [sBtn('🗑️ Hapus Key', 'adm_epro_del', 'danger'), sBtn('🔙 Kembali', 'menu_admin', 'primary')],
+    ]).reply_markup,
+  });
+}
+
+bot.action('adm_epro', async (ctx) => {
+  if (!await admin.hasAdminAccess(ctx)) { await safeCb(ctx); return; }
+  await safeCb(ctx);
+  await showEproPanel(ctx);
+});
+
+bot.action('adm_epro_key', async (ctx) => {
+  if (!await admin.hasAdminAccess(ctx)) { await safeCb(ctx); return; }
+  await safeCb(ctx);
+  sessions.set(ctx.chat.id, { step: 'adm_epro_key' });
+  await ctx.reply('🔑 Kirim <b>API key ePro</b> dari https://eprdv.link/ :', { parse_mode: 'HTML' });
+});
+
+bot.action('adm_epro_del', async (ctx) => {
+  if (!await admin.hasAdminAccess(ctx)) { await safeCb(ctx); return; }
+  await safeCb(ctx);
+  await settings.setSetting('epro_api_key', '');
+  await ctx.reply('✅ API key ePro dihapus.');
+  await showEproPanel(ctx);
+});
+
+bot.action('adm_epro_test', async (ctx) => {
+  if (!await admin.hasAdminAccess(ctx)) { await safeCb(ctx); return; }
+  await safeCb(ctx);
+  const key = await hc.getHcApiKey();
+  if (!key) return ctx.reply('❌ API key belum diisi.');
+  await ctx.reply('⏳ Mengetes koneksi ke ePro API...');
+  try {
+    const axios = require('axios');
+    const resp = await axios.get('https://api.eprodev.org/v1/configs/hc', {
+      headers: { 'Authorization': 'Bearer ' + key },
+      timeout: 15000,
+      validateStatus: () => true,
+    });
+    if (resp.status === 200 || resp.status === 404 || resp.status === 405) {
+      await ctx.reply('✅ Koneksi ke ePro API <b>berhasil</b> (key valid).', { parse_mode: 'HTML' });
+    } else if (resp.status === 401 || resp.status === 403) {
+      await ctx.reply('❌ API key <b>tidak valid</b>.', { parse_mode: 'HTML' });
+    } else {
+      await ctx.reply(`⚠️ Respon tak terduga: HTTP ${resp.status}`, { parse_mode: 'HTML' });
+    }
+  } catch (e) {
+    await ctx.reply('❌ Gagal konek: ' + e.message);
+  }
+});
+
+bot.action('adm_hcpresets', async (ctx) => {
+  if (!await admin.hasAdminAccess(ctx)) { await safeCb(ctx); return; }
+  await safeCb(ctx);
+  const presets = hc.presetList();
+  const lines = presets.map((p, i) => `${i + 1}. <b>${p.label}</b> (<code>${p.id}</code>)`);
+  await ctx.reply(
+    `📲 <b>Preset HC (${presets.length})</b>\n\n${lines.join('\n')}`,
+    { parse_mode: 'HTML' }
+  );
 });
 
 // ============================================================
