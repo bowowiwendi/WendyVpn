@@ -1,13 +1,16 @@
 # Biner Bawaan — Identitas, Sumber, dan Cara Build
 
-Dokumen ini mencatat asal-usul dan cara membangun ulang tiga biner bawaan
-di direktori ini: `ws`, `ftvpn`, dan `udp-mini`. Installer memilih biner
+Dokumen ini mencatat asal-usul dan cara membangun ulang biner bawaan
+di direktori ini: `ws`, `ftvpn`, `udp-mini`, dan pasangan SlowDNS
+`slowdns`/`slowdns-client`. Installer memilih biner
 berdasarkan arsitektur mesin (`BINARCH` di `setup-main.sh` dan
 `files/update.sh`):
 
-- Mesin `x86_64` → `files/ws`, `files/ftvpn`, `files/udp-mini`
+- Mesin `x86_64` → `files/ws`, `files/ftvpn`, `files/udp-mini`,
+  `files/slowdns`, `files/slowdns-client`
 - Mesin `aarch64`/`arm64` → `files/arm64/ws`, `files/arm64/ftvpn`,
-  `files/arm64/udp-mini`
+  `files/arm64/udp-mini`, `files/arm64/slowdns`,
+  `files/arm64/slowdns-client`
 
 ## ftvpn — HAProxy
 
@@ -71,3 +74,42 @@ berdasarkan arsitektur mesin (`BINARCH` di `setup-main.sh` dan
   Debian 10 (glibc 2.28) agar biner hasil tidak menuntut glibc yang
   lebih baru dari OS target tertua (Debian 10/Ubuntu 20.04).
 - Semua biner hasil build sudah di-strip.
+
+## slowdns & slowdns-client — dnstt (SlowDNS)
+
+- **Identitas:** "SlowDNS" di panel ini adalah **dnstt** (DNS tunnel)
+  karya David Fifield (bamsoftware) — protokol yang sama dengan pakem
+  SlowDNS yang beredar (khaledagn, fisabiliyusri/SLDNS).
+  `files/slowdns` adalah **dnstt-server**; `files/slowdns-client`
+  adalah **dnstt-client**.
+- **Kenapa dibangun dari source:** repo `khaledagn/SlowDNS` sudah tidak
+  ada di GitHub (404 saat dicek 2026-10-21), dan repo
+  `fisabiliyusri/SLDNS` hanya membagikan biner jadi plus **sepasang
+  kunci server yang sama untuk semua pemasang** (`server.key`/
+  `server.pub` publik di repo) — tidak aman dipakai. Karena itu biner
+  dibangun dari source resmi dnstt, dan installer **membuat keypair
+  baru di setiap VPS** (kunci privat tidak pernah masuk repo).
+- **Versi & build:** dnstt **v1.20260501.0** (commit `0c5c52a`) dari
+  `https://www.bamsoftware.com/git/dnstt.git`, diaudit singkat (tanpa
+  `os/exec`/telemetri; `net/http` hanya untuk mode DoH/DoT client),
+  dibangun statis penuh (`CGO_ENABLED=0`, `-trimpath -ldflags '-s -w'`)
+  untuk amd64 dan arm64 dengan Go 1.27.3:
+  ```bash
+  git clone https://www.bamsoftware.com/git/dnstt.git
+  cd dnstt
+  CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags '-s -w' -o files/slowdns ./dnstt-server/
+  CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags '-s -w' -o files/slowdns-client ./dnstt-client/
+  CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -trimpath -ldflags '-s -w' -o files/arm64/slowdns ./dnstt-server/
+  CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -trimpath -ldflags '-s -w' -o files/arm64/slowdns-client ./dnstt-client/
+  ```
+- **Pemakaian (`ssh_slow()` di `setup-main.sh`):** biner dipasang
+  sebagai `/etc/slowdns/sldns-server` dan `/etc/slowdns/sldns-client`;
+  unit `server-sldns.service` (UDP 5300, backend SSH `127.0.0.1:22`)
+  dan `client-sldns.service` (dengar lokal `127.0.0.1:2222`); publik
+  masuk lewat iptables REDIRECT UDP 53 → 5300. Domain NS disimpan di
+  `/root/nsdomain` (dibaca semua menu pembuat akun), public key di
+  `/etc/slowdns/server.pub`.
+- **Verifikasi:** uji tunnel lokal di VM build terhalang sandbox
+  (UDP `sendto: operation not permitted`); pembuktian ujung-ke-ujung
+  dilakukan di VPS uji (loopback via client-sldns + leg publik dari
+  server lain) — lihat catatan rilis commit SlowDNS.
