@@ -41,8 +41,18 @@ Trojan_WS=$(systemctl status haproxy | grep active | awk '{print $3}' | sed 's/(
 Shadowsocks_WS=$(systemctl status haproxy | grep active | awk '{print $3}' | sed 's/(//g' | sed 's/)//g')
 Shadowsocks_gRPC=$(systemctl status haproxy | grep active | awk '{print $3}' | sed 's/(//g' | sed 's/)//g')
 Iptables=$(systemctl status netfilter-persistent | grep active | awk '{print $3}' | sed 's/(//g' | sed 's/)//g')
-Squid=$(systemctl status squid | grep active | awk '{print $3}' | sed 's/(//g' | sed 's/)//g')
-BadVPN=$(systemctl status badvpn3 | grep active | awk '{print $3}' | sed 's/(//g' | sed 's/)//g')
+# squid & badvpn tidak dipasang installer utama — status hanya dicek
+# bila unitnya benar-benar terpasang di sistem ini
+if systemctl cat squid >/dev/null 2>&1; then
+    Squid=$(systemctl status squid | grep active | awk '{print $3}' | sed 's/(//g' | sed 's/)//g')
+else
+    Squid="not installed"
+fi
+if systemctl cat badvpn3 >/dev/null 2>&1; then
+    BadVPN=$(systemctl status badvpn3 | grep active | awk '{print $3}' | sed 's/(//g' | sed 's/)//g')
+else
+    BadVPN="not installed"
+fi
 RClocal=$(systemctl status rc-local | grep active | awk '{print $3}' | sed 's/(//g' | sed 's/)//g')
 Autorebot=$(systemctl status rc-local | grep active | awk '{print $3}' | sed 's/(//g' | sed 's/)//g')
 OSSSS=$(cat /etc/os-release | grep -w PRETTY_NAME | head -n1 | sed 's/=//g' | sed 's/"//g' | sed 's/PRETTY_NAME//g')

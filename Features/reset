@@ -64,12 +64,19 @@ res12() {
     systemctl restart netfilter-persistent
 }
 res13() {
-    systemctl restart squid
+    # squid tidak dipasang installer utama — restart hanya bila unitnya terpasang
+    if systemctl cat squid >/dev/null 2>&1; then
+        systemctl restart squid
+    fi
 }
 res14() {
-    systemctl restart badvpn1
-    systemctl restart badvpn2
-    systemctl restart badvpn3
+    # badvpn juga tidak dipasang installer utama — restart kondisional per unit
+    local u
+    for u in badvpn1 badvpn2 badvpn3; do
+        if systemctl cat "$u" >/dev/null 2>&1; then
+            systemctl restart "$u"
+        fi
+    done
 }
 netfilter-persistent
 clear
