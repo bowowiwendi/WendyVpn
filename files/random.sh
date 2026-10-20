@@ -10,8 +10,17 @@ setup_cloudflare_dns() {
     local IP=$(wget --timeout=30 --tries=2 -qO- icanhazip.com)
     [[ -n "$IP" ]] || { echo "❌ Gagal mendapatkan IP publik"; exit 1; }
 
-    local CF_KEY="dc7a32077573505cc082f4be752509a5c5a3e"
-    local CF_ID="bowowiwendi@gmail.com"
+    # Kredensial Cloudflare TIDAK ditulis lagi di dalam script ini.
+    # WAJIB diisi oleh pemilik VPS sendiri sebelum memakai fitur DNS/Cloudflare:
+    # buat file /root/.cf_key berisi dua baris:
+    #   CF_ID=email-akun-cloudflare-kamu
+    #   CF_KEY=global-api-key-kamu
+    # Alternatif: ekspor variabel CF_ID dan CF_KEY dari lingkungan (environment).
+    local CF_ID="${CF_ID:-}"
+    local CF_KEY="${CF_KEY:-}"
+    if [ -f /root/.cf_key ]; then
+        . /root/.cf_key
+    fi
     local sub=$(</dev/urandom tr -dc a-z0-9 | head -c5)
 
     # Pilih zone aktif pertama dari daftar (bisa dioverride via CF_DOMAIN)
