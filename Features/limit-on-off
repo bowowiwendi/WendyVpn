@@ -89,21 +89,51 @@ case $menu in
         # Fungsi untuk menyalakan limit IP
         clear ;
         cat >/etc/systemd/system/vmip.service << END
-        # ... (script untuk menyalakan vmip)
+        [Unit]
+        Description=My vmip Service
+        After=network.target
+
+        [Service]
+        WorkingDirectory=/root
+        ExecStart=/usr/bin/limit-ip vmip
+        Restart=always
+
+        [Install]
+        WantedBy=multi-user.target
 END
         systemctl daemon-reload
         systemctl restart vmip
         systemctl enable vmip
 
         cat >/etc/systemd/system/vlip.service << END
-        # ... (script untuk menyalakan vlip)
+        [Unit]
+        Description=My vlip Service
+        After=network.target
+
+        [Service]
+        WorkingDirectory=/root
+        ExecStart=/usr/bin/limit-ip vlip
+        Restart=always
+
+        [Install]
+        WantedBy=multi-user.target
 END
         systemctl daemon-reload
         systemctl restart vlip
         systemctl enable vlip
 
         cat >/etc/systemd/system/trip.service << END
-        # ... (script untuk menyalakan trip)
+        [Unit]
+        Description=My trip Service
+        After=network.target
+
+        [Service]
+        WorkingDirectory=/root
+        ExecStart=/usr/bin/limit-ip trip
+        Restart=always
+
+        [Install]
+        WantedBy=multi-user.target
 END
         systemctl daemon-reload
         systemctl restart trip
