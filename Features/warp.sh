@@ -154,22 +154,20 @@ Install_Requirements_Debian() {
 }
 
 Install_WARP_Client_Debian() {
+    # Gerbang berbasis RILIS MINIMUM (bukan whitelist codename kaku):
+    # Ubuntu >= 18.04 dan Debian >= 10 diterima, termasuk noble (24.04),
+    # trixie (13) dan rilis yang lebih baru. Codename tetap dipakai untuk
+    # baris repo Cloudflare di bawah.
     if [[ ${SysInfo_OS_Name_lowercase} = ubuntu ]]; then
-        case ${SysInfo_OS_CodeName} in
-        bionic | focal | jammy) ;;
-        *)
-            log ERROR "This operating system is not supported."
+        if [[ "$(printf '%s\n%s\n' "18.04" "${VERSION_ID:-0}" | sort -V | head -n1)" != "18.04" ]]; then
+            log ERROR "This operating system is not supported (Ubuntu ${VERSION_ID:-?} < 18.04)."
             return 1
-            ;;
-        esac
+        fi
     elif [[ ${SysInfo_OS_Name_lowercase} = debian ]]; then
-        case ${SysInfo_OS_CodeName} in
-        bookworm | buster | bullseye) ;;
-        *)
-            log ERROR "This operating system is not supported."
+        if [[ "${SysInfo_OS_Ver_major:-0}" -lt 10 ]]; then
+            log ERROR "This operating system is not supported (Debian ${VERSION_ID:-?} < 10)."
             return 1
-            ;;
-        esac
+        fi
     fi
     Install_Requirements_Debian
     curl https://pkg.cloudflareclient.com/pubkey.gpg | gpg --yes --dearmor --output /usr/share/keyrings/cloudflare-warp-archive-keyring.gpg
@@ -361,8 +359,11 @@ Load_WGCF_Profile() {
 Install_WireGuardTools_Debian() {
     case ${SysInfo_OS_Ver_major} in
     10)
+        # Khusus Debian 10 (buster): buster-backports hanya ada di
+        # archive.debian.org (deb.debian.org sudah 404 untuk buster).
+        # check-valid-until=no karena Release file arsip sudah kedaluwarsa.
         if [[ -z $(grep "^deb.*buster-backports.*main" /etc/apt/sources.list{,.d/*}) ]]; then
-            echo "deb http://deb.debian.org/debian buster-backports main" | tee /etc/apt/sources.list.d/backports.list
+            echo "deb [check-valid-until=no] http://archive.debian.org/debian buster-backports main" | tee /etc/apt/sources.list.d/backports.list
         fi
         ;;
     *)
