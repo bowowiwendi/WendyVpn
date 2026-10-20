@@ -1,13 +1,85 @@
 #!/bin/bash
 # Decrypted by LT | FUSCATOR
-# Github- https://github.com/LunaticTunnel/Absurd  
-# Disesuaikan untuk Ubuntu 24.04
+# Github- https://github.com/LunaticTunnel/Absurd
+# Lintas versi: Ubuntu 20.04+ & Debian 10+ (unit & layout OpenVPN
+# menyesuaikan otomatis lewat compat_openvpn_unit di bawah)
 
 export DEBIAN_FRONTEND=noninteractive
 OS=`uname -m`;
 MYIP=$(wget -qO- ipinfo.io/ip);
 domain=$(cat /root/domain)
 MYIP2="s/xxxxxxxxx/$domain/g";
+
+# --- Compat layer: pilih unit OpenVPN sesuai versi OS ---
+# Debian <=10 memakai unit openvpn@ + layout config /etc/openvpn/*.conf,
+# Debian 11+/Ubuntu 20.04+ memakai openvpn-server@ + /etc/openvpn/server/.
+# Coba muat universal_compat.sh; bila tidak ada, pakai definisi inline
+# yang identik agar script tetap bisa jalan mandiri.
+for _compat_candidate in "$(dirname "$0")/universal_compat.sh" "./universal_compat.sh" "/tmp/universal_compat.sh"; do
+    if [ -f "$_compat_candidate" ]; then
+        . "$_compat_candidate" >/dev/null 2>&1 || true
+        break
+    fi
+done
+if ! command -v compat_openvpn_unit >/dev/null 2>&1; then
+    compat_openvpn_unit() {
+        local inst="$1"
+        if [ -f /lib/systemd/system/openvpn-server@.service ] || [ -f /etc/systemd/system/openvpn-server@.service ]; then
+            echo "openvpn-server@${inst}"
+        else
+            echo "openvpn@${inst}"
+        fi
+    }
+fi
+OVPN_TCP_UNIT=$(compat_openvpn_unit server-tcp)
+OVPN_UDP_UNIT=$(compat_openvpn_unit server-udp)
+
+function ovpn_compat_config() {
+    # Direktif cipher dibuat kondisional mengikuti versi OpenVPN:
+    # - OpenVPN >= 2.5: data-ciphers dipertahankan (negosiasi modern).
+    # - OpenVPN 2.4 (Ubuntu 20.04/Debian 10): data-ciphers TIDAK dikenal
+    #   dan membuat server gagal start -> buang barisnya dan sisakan
+    #   'cipher' klasik sebagai fallback. Pola yang sama seperti
+    #   penyesuaian config HAProxy di setup-main.sh.
+    local ver major_minor conf
+    ver=$(openvpn --version 2>/dev/null | awk 'NR==1 {print $2}')
+    [ -n "$ver" ] || return 0
+    major_minor=$(echo "$ver" | cut -d. -f1-2)
+    if [ "$(printf '%s\n%s\n' "2.5" "$major_minor" | sort -V | head -n1)" = "2.5" ]; then
+        echo "OpenVPN $ver terdeteksi (>= 2.5): data-ciphers dipertahankan."
+        return 0
+    fi
+    echo "OpenVPN $ver terdeteksi (< 2.5): membuang data-ciphers dari config server..."
+    for conf in /etc/openvpn/server/server-tcp.conf /etc/openvpn/server/server-udp.conf; do
+        [ -f "$conf" ] || continue
+        sed -i '/^data-ciphers/d' "$conf"
+        # Pastikan fallback cipher klasik tersedia
+        grep -q '^cipher ' "$conf" || sed -i '/^compress/a cipher AES-256-GCM' "$conf"
+    done
+}
+
+function ovpn_legacy_layout() {
+    # Layout lama (unit openvpn@, Debian <=10): unit membaca config dari
+    # /etc/openvpn/<nama>.conf, sedangkan vpn.zip menaruh config di
+    # /etc/openvpn/server/. Salin config ke lokasi datar dan buat symlink
+    # file data (sertifikat dll.) yang dirujuk config secara relatif.
+    case "$OVPN_TCP_UNIT" in
+        openvpn@*) ;;
+        *) return 0 ;;
+    esac
+    echo "Layout OpenVPN lama terdeteksi ($OVPN_TCP_UNIT): menyiapkan config datar di /etc/openvpn/..."
+    local f name
+    for f in ca.crt server.crt server.key dh2048.pem crl.pem tc.key ipp.txt; do
+        if [ -e "/etc/openvpn/server/$f" ]; then
+            ln -sf "/etc/openvpn/server/$f" "/etc/openvpn/$f"
+        fi
+    done
+    for name in server-tcp server-udp; do
+        if [ -f "/etc/openvpn/server/$name.conf" ]; then
+            cp "/etc/openvpn/server/$name.conf" "/etc/openvpn/$name.conf"
+        fi
+    done
+}
 
 function ovpn_install() {
     echo "Menginstal dan mengekstrak konfigurasi OpenVPN..."
@@ -17,6 +89,10 @@ function ovpn_install() {
     wget -O /etc/openvpn/vpn.zip "https://raw.githubusercontent.com/bowowiwendi/WendyVpn/refs/heads/ABSTRAK/ovpn/vpn.zip" >/dev/null 2>&1
     unzip -d /etc/openvpn/ /etc/openvpn/vpn.zip
     rm -f /etc/openvpn/vpn.zip
+    # Sesuaikan direktif cipher dengan versi OpenVPN terpasang (2.4 vs >=2.5)
+    ovpn_compat_config
+    # Siapkan layout config datar untuk unit lama openvpn@ (Debian <=10)
+    ovpn_legacy_layout
     # Pastikan kepemilikan direktori easy-rsa benar
     if [ -d "/etc/openvpn/server/easy-rsa/" ]; then
         chown -R root:root /etc/openvpn/server/easy-rsa/
@@ -49,23 +125,20 @@ function config_easy() {
     sed -i 's/#AUTOSTART="all"/AUTOSTART="all"/g' /etc/default/openvpn
     echo "Konfigurasi /etc/default/openvpn diperbarui."
 
-    # Aktifkan dan mulai instance server spesifik
-    # Pastikan server-tcp.conf dan server-udp.conf ada di /etc/openvpn/server/
-    # Kita asumsikan nama file konfigurasinya adalah server-tcp.conf dan server-udp.conf
-    echo "Mengaktifkan dan memulai layanan openvpn-server@server-tcp..."
-    systemctl enable --now openvpn-server@server-tcp || echo "Peringatan: Gagal mengaktifkan/memulai openvpn-server@server-tcp"
-    
-    echo "Mengaktifkan dan memulai layanan openvpn-server@server-udp..."
-    systemctl enable --now openvpn-server@server-udp || echo "Peringatan: Gagal mengaktifkan/memulai openvpn-server@server-udp"
-    
-    # Ganti /etc/init.d/openvpn restart dengan systemctl
+    # Aktifkan dan mulai instance server spesifik.
+    # Nama unit dipilih compat_openvpn_unit: openvpn-server@... untuk
+    # layout /etc/openvpn/server/, openvpn@... untuk layout datar lama.
+    echo "Mengaktifkan dan memulai layanan $OVPN_TCP_UNIT..."
+    systemctl enable --now "$OVPN_TCP_UNIT" || echo "Peringatan: Gagal mengaktifkan/memulai $OVPN_TCP_UNIT"
+
+    echo "Mengaktifkan dan memulai layanan $OVPN_UDP_UNIT..."
+    systemctl enable --now "$OVPN_UDP_UNIT" || echo "Peringatan: Gagal mengaktifkan/memulai $OVPN_UDP_UNIT"
+
     # Merestart instance spesifik yang telah diaktifkan:
     echo "Merestart layanan OpenVPN server..."
-    systemctl restart openvpn-server@server-tcp || echo "Peringatan: Gagal merestart openvpn-server@server-tcp"
-    systemctl restart openvpn-server@server-udp || echo "Peringatan: Gagal merestart openvpn-server@server-udp"
-    # Atau, alternatifnya, restart semua instance server:
-    # systemctl restart 'openvpn-server@*' || echo "Peringatan: Gagal merestart beberapa atau semua instance openvpn-server@*"
-    
+    systemctl restart "$OVPN_TCP_UNIT" || echo "Peringatan: Gagal merestart $OVPN_TCP_UNIT"
+    systemctl restart "$OVPN_UDP_UNIT" || echo "Peringatan: Gagal merestart $OVPN_UDP_UNIT"
+
     echo "Konfigurasi OpenVPN selesai."
 }
 
@@ -203,16 +276,15 @@ function install_ovpn() {
     # make_follow
     cert_ovpn
 
-    # HAPUS atau komentari baris-baris berikut yang tidak sesuai dan redundan:
-    systemctl enable openvpn # Tidak sesuai untuk instance spesifik
-    systemctl start openvpn   # Tidak sesuai untuk instance spesifik
-    systemctl restart openvpn
-    # /etc/init.d/openvpn restart # Diganti dengan systemctl
+    # CATATAN: unit generik 'openvpn' sengaja TIDAK dipanggil — di sistem
+    # modern unit generik tidak mengelola instance server sama sekali
+    # (hanya menimbulkan peringatan). Instance dikelola lewat
+    # $OVPN_TCP_UNIT / $OVPN_UDP_UNIT hasil compat_openvpn_unit.
 
     # Restart layanan (seharusnya sudah dilakukan di config_easy, tapi tambahkan sebagai jaga-jaga)
     echo "Merestart layanan OpenVPN untuk memastikan..."
-    systemctl restart openvpn-server@server-tcp || echo "Peringatan: Gagal merestart openvpn-server@server-tcp"
-    systemctl restart openvpn-server@server-udp || echo "Peringatan: Gagal merestart openvpn-server@server-udp"
+    systemctl restart "$OVPN_TCP_UNIT" || echo "Peringatan: Gagal merestart $OVPN_TCP_UNIT"
+    systemctl restart "$OVPN_UDP_UNIT" || echo "Peringatan: Gagal merestart $OVPN_UDP_UNIT"
     echo "========== install_ovpn SELESAI =========="
 }
 
