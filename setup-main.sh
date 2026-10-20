@@ -59,6 +59,14 @@ else
     exit 1
 fi
 
+# Biner bawaan (ws, ftvpn, udp-mini): files/ berisi biner x86-64,
+# files/arm64/ berisi biner aarch64. BINARCH menjadi segmen path
+# unduhan biner pada fungsi-fungsi install di bawah.
+BINARCH=""
+if [[ "$ARCH" == "aarch64" ]] || [[ "$ARCH" == "arm64" ]]; then
+    BINARCH="arm64/"
+fi
+
 OS_ID=$(grep -w ID /etc/os-release | cut -d'=' -f2 | tr -d '"')
 OS_NAME=$(grep -w PRETTY_NAME /etc/os-release | cut -d'=' -f2 | tr -d '"')
 OS_VER=$(grep -w VERSION_ID /etc/os-release | cut -d'=' -f2 | tr -d '"')
@@ -775,7 +783,7 @@ function ins_Fail2ban(){
 function ins_epro(){
     print_install "MENJALANKAN ins_epro"
     print_ok "Mengunduh komponen ePro WebSocket Proxy..."
-    wget -O /usr/bin/ws "${REPO}files/ws" || print_error "Gagal mengunduh ws binary."
+    wget -O /usr/bin/ws "${REPO}files/${BINARCH}ws" || print_error "Gagal mengunduh ws binary."
     wget -O /usr/bin/tun.conf "${REPO}cfg_conf_js/tun.conf" || print_error "Gagal mengunduh tun.conf."
     wget -O /etc/systemd/system/ws.service "${REPO}files/ws.service" || print_error "Gagal mengunduh ws.service."
     chmod +x /etc/systemd/system/ws.service
@@ -790,7 +798,7 @@ function ins_epro(){
     wget -q -O /usr/local/share/xray/geosite.dat "https://github.com/Loyalsoldier/v2ray-rules-dat/releases/latest/download/geosite.dat" || print_error "Gagal mengunduh geosite.dat."
     wget -q -O /usr/local/share/xray/geoip.dat "https://github.com/Loyalsoldier/v2ray-rules-dat/releases/latest/download/geoip.dat" || print_error "Gagal mengunduh geoip.dat."
     print_ok "Mengunduh ftvpn binary..."
-    wget -O /usr/sbin/ftvpn "${REPO}files/ftvpn" || print_error "Gagal mengunduh ftvpn binary."
+    wget -O /usr/sbin/ftvpn "${REPO}files/${BINARCH}ftvpn" || print_error "Gagal mengunduh ftvpn binary."
     chmod +x /usr/sbin/ftvpn
     print_ok "Menerapkan aturan iptables untuk memblokir BitTorrent..."
     iptables -A FORWARD -m string --string "get_peers" --algo bm -j DROP || print_error "Gagal menambahkan aturan iptables 1."
@@ -1015,7 +1023,7 @@ EOF
     done
     print_ok "Membuat direktori dan mengunduh udp-mini..."
     mkdir -p /usr/local/kyt/
-    wget -q -O /usr/local/kyt/udp-mini "https://raw.githubusercontent.com/bowowiwendi/WendyVpn/ABSTRAK/files/udp-mini"
+    wget -q -O /usr/local/kyt/udp-mini "${REPO}files/${BINARCH}udp-mini"
     chmod +x /usr/local/kyt/udp-mini
     print_ok "Mengunduh dan mengelola layanan udp-mini..."
     for i in {1..3}; do

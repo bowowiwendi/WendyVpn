@@ -5,6 +5,11 @@ echo -e " \e[1;97;101m             UPDATE SCRIPT              \e[0m"
 echo -e "\033[1;36m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m"
 
 REPO="https://raw.githubusercontent.com/bowowiwendi/WendyVpn/ABSTRAK/"
+# Biner bawaan per arsitektur: files/ = x86-64, files/arm64/ = aarch64
+BINARCH=""
+case "$(uname -m)" in
+    aarch64|arm64) BINARCH="arm64/" ;;
+esac
 BK=/root/backup-config
 mkdir -p "$BK"
 
@@ -91,7 +96,7 @@ else
 fi
 
 # ws tunnel + service
-wget -q -O /usr/local/sbin/ws "${REPO}files/ws" 2>/dev/null && chmod +x /usr/local/sbin/ws
+wget -q -O /usr/local/sbin/ws "${REPO}files/${BINARCH}ws" 2>/dev/null && chmod +x /usr/local/sbin/ws
 wget -q -O /usr/local/sbin/tun.conf "${REPO}cfg_conf_js/tun.conf" 2>/dev/null || cp "$BK/tun.conf.bak" /usr/local/sbin/tun.conf 2>/dev/null
 wget -q -O /etc/systemd/system/ws.service "${REPO}files/ws.service" 2>/dev/null && chmod +x /etc/systemd/system/ws.service
 wget -q -O /etc/systemd/system/runn.service "${REPO}files/runn.service" 2>/dev/null && chmod +x /etc/systemd/system/runn.service
