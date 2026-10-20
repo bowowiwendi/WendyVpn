@@ -38,9 +38,9 @@ cd cybervpn
 rm var.txt
 rm database.db
 (pip3 install -r requirements.txt 2>/dev/null || pip3 install --break-system-packages -r requirements.txt 2>/dev/null || true)
-pip install pillow
-pip3 install aiohttp
-pip3 install paramiko
+# Pola pip yang sama seperti di atas: fallback --break-system-packages
+# untuk sistem PEP 668 (Debian 12+/Ubuntu 23.04+)
+(pip3 install pillow aiohttp paramiko 2>/dev/null || pip3 install --break-system-packages pillow aiohttp paramiko 2>/dev/null || true)
 #isi data
 nsdom=$(cat /root/nsdomain)
 domain=$(cat /etc/xray/domain)
