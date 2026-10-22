@@ -497,13 +497,18 @@ function install_xray() {
     print_ok "Memverifikasi versi Xray..."
     /usr/local/bin/xray version
     wget --timeout=30 --tries=2 -O /etc/xray/config.json "${REPO}cfg_conf_js/config.json" || print_error "Gagal mengunduh config.json"
+    for _m in '#vmess' '#vless' '#trojan' '#ssws' '#vmessgrpc' '#vlessgrpc' '#trojangrpc'; do
+        grep -q "$_m" /etc/xray/config.json || print_error "Marker Xray hilang dari config.json: $_m"
+    done
     wget --timeout=30 --tries=2 -O /etc/systemd/system/runn.service "${REPO}files/runn.service" || print_error "Gagal mengunduh runn.service"
     domain="$DOMAIN"
     IPVS="$ipsaya"
     print_success "Core Xray $XRAY_VERSION"
     clear
-    curl --connect-timeout 30 -s ipinfo.io/city >>/etc/xray/city
-    curl --connect-timeout 30 -s ipinfo.io/org | cut -d " " -f 2-10 >>/etc/xray/isp
+    _city=$(curl --connect-timeout 30 -s ipinfo.io/city); [ -n "$_city" ] || _city="Unknown"
+    printf '%s' "$_city" > /etc/xray/city
+    _isp=$(curl --connect-timeout 30 -s ipinfo.io/org | cut -d " " -f 2-10); [ -n "$_isp" ] || _isp="Unknown"
+    printf '%s' "$_isp" > /etc/xray/isp
     print_install "Memasang Konfigurasi Packet"
     wget --timeout=30 --tries=2 -O /etc/haproxy/haproxy.cfg "${REPO}cfg_conf_js/haproxy.cfg" || print_error "Gagal mengunduh haproxy.cfg."
     wget --timeout=30 --tries=2 -O /etc/nginx/conf.d/xray.conf "${REPO}cfg_conf_js/xray.conf" || print_error "Gagal mengunduh xray.conf."
