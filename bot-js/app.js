@@ -143,11 +143,25 @@ const adminPanel = () => Markup.inlineKeyboard([
   [sBtn('📦 Backup DB', 'adm_backupdb', 'success'), sBtn('♻️ Restore DB', 'adm_restoredb', 'danger')],
   [sBtn('🧾 Setting Pakasir', 'adm_pakasir', 'primary'), sBtn('🎁 Bonus & Reseller', 'adm_bonus', 'success')],
   [sBtn('💰 Min. Deposit/Role', 'adm_mindep', 'primary'), sBtn('📈 Margin PPOB', 'adm_margin', 'success')],
+  [sBtn('📊 Jumlah Akun', 'adm_akun', 'primary')],
   [sBtn('📢 Broadcast Grup', 'adm_bcast', 'primary'), sBtn('📣 Broadcast User', 'adm_bcastuser', 'primary')],
   [sBtn('🔔 Grup Notifikasi', 'adm_notifgrp', 'primary'), sBtn('🔒 Force Join', 'adm_forcejoin', 'primary')],
   [sBtn('🔑 Setting ePro (HC)', 'adm_epro', 'primary'), sBtn('📲 List Preset HC', 'adm_hcpresets', 'success')],
   [sBtn('🔙 Kembali', 'menu_main', 'danger')],
 ]);
+
+// Teks panel admin + jumlah akun (tampil otomatis saat panel dibuka).
+async function adminPanelText() {
+  try {
+    const c = vpn.countAccounts();
+    return '🛠️ <b>PANEL ADMIN</b>\n\n📊 <b>Jumlah Akun VPS ini:</b>\n' +
+      `SSH: <b>${c.ssh}</b> | VMess: <b>${c.vmess}</b> | VLess: <b>${c.vless}</b>\n` +
+      `Trojan: <b>${c.trojan}</b> | Shadowsocks: <b>${c.shadowsocks}</b> | Total: <b>${c.total}</b>\n\nPilih menu:`;
+  } catch (_) {
+    return '🛠️ <b>PANEL ADMIN</b>';
+  }
+}
+
 
 // Helper: ambil daftar server
 async function getServers() {
@@ -1763,14 +1777,20 @@ bot.command('addsaldo', async (ctx) => {
 bot.action('adm_open', async (ctx) => {
   if (!await admin.hasAdminAccess(ctx)) { await safeCb(ctx); return; }
   await safeCb(ctx);
-  await sendMenuPhoto(ctx, 'menu-utama.png', '🛠️ <b>PANEL ADMIN</b>\n\nPilih menu:', adminPanel());
+  await sendMenuPhoto(ctx, 'menu-utama.png', await adminPanelText(), adminPanel());
+});
+
+bot.action('adm_akun', async (ctx) => {
+  if (!await admin.hasAdminAccess(ctx)) { await safeCb(ctx); return; }
+  await safeCb(ctx);
+  await ctx.reply(await adminPanelText(), { parse_mode: 'HTML', reply_markup: adminPanel().reply_markup });
 });
 
 bot.command('admin', async (ctx) => {
   if (!await admin.hasAdminAccess(ctx)) return ctx.reply('❌ Khusus admin.');
   await safeCb(ctx).catch(() => {});
   await sendMenuPhoto(ctx, 'menu-utama.png',
-    '🛠️ <b>PANEL ADMIN</b>\n\nPilih menu:',
+    await adminPanelText(),
     adminPanel());
 });
 
@@ -1900,11 +1920,11 @@ bot.action('adm_back', async (ctx) => {
   if (!await admin.hasAdminAccess(ctx)) { await safeCb(ctx); return; }
   await safeCb(ctx);
   try {
-    await ctx.editMessageText('🛠️ <b>PANEL ADMIN</b>\n\nPilih menu:', {
+    await ctx.editMessageText(await adminPanelText(), {
       parse_mode: 'HTML', reply_markup: adminPanel().reply_markup,
     });
   } catch (e) {
-    await ctx.reply('🛠️ <b>PANEL ADMIN</b>\n\nPilih menu:', { parse_mode: 'HTML', reply_markup: adminPanel().reply_markup });
+    await ctx.reply(await adminPanelText(), { parse_mode: 'HTML', reply_markup: adminPanel().reply_markup });
   }
 });
 

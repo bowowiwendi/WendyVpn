@@ -380,7 +380,70 @@ async function listVpnPrices() {
     .catch(() => all('SELECT product_key, role, price FROM vpn_prices ORDER BY product_key, role'));
 }
 
+
+// ---------- Jumlah akun per layanan (hanya angka, tanpa data akun) ----------
+// Definisi sama dengan CLI cek-akun: SSH = username unik di .ssh.db yang masih
+// ada sebagai user sistem (UID>=1000); Xray = username/email client unik per
+// protokol (WS dan gRPC digabung per nama); entri template tanpa nama tidak dihitung.
+// config.json Xray bukan JSON murni (baris marker #...), jadi marker dibuang dulu.
+function countAccounts() {
+  const fs = require("fs");
+  const counts = { ssh: 0, vmess: 0, vless: 0, trojan: 0, shadowsocks: 0, total: 0 };
+  try {
+    const sys = new Set();
+    try {
+      for (const line of fs.readFileSync("/etc/passwd", "utf8").split("\n")) {
+        const p = line.split(":");
+        if (p.length >= 3 && p[0] !== "nobody") {
+          const uid = parseInt(p[2], 10);
+          if (!isNaN(uid) && uid >= 1000) sys.add(p[0]);
+        }
+      }
+    } catch {}
+    try {
+      const names = new Set();
+      for (const raw of fs.readFileSync("/etc/ssh/.ssh.db", "utf8").split("\n")) {
+        const t = raw.trim();
+        if (t.startsWith("###") || t.startsWith("#ssh#")) {
+          const parts = t.split(/\s+/);
+          if (parts.length >= 2 && sys.has(parts[1])) names.add(parts[1]);
+        }
+      }
+      counts.ssh = names.size;
+    } catch {}
+    try {
+      const lines = fs.readFileSync("/etc/xray/config.json", "utf8").split("\n");
+      const sets = { vmess: new Set(), vless: new Set(), trojan: new Set(), shadowsocks: new Set() };
+      try {
+        const clean = lines.filter((l) => !l.trim().startsWith("#")).join("\n");
+        const parsed = JSON.parse(clean);
+        for (const ib of parsed.inbounds || []) {
+          if (sets[ib.protocol]) {
+            for (const cl of (ib.settings && ib.settings.clients) || []) {
+              if (cl.email) sets[ib.protocol].add(cl.email);
+            }
+          }
+        }
+      } catch {}
+      const protoRe = /"protocol"\s*:\s*"(vmess|vless|trojan|shadowsocks)"/;
+      const markerRe = /^\s*#{1,3}[!&]*\s+(\S+)\s+\d{4}-\d{2}-\d{2}/;
+      let proto = null;
+      for (const line of lines) {
+        const m = protoRe.exec(line);
+        if (m) { proto = m[1]; continue; }
+        if (!proto) continue;
+        const mm = markerRe.exec(line);
+        if (mm) sets[proto].add(mm[1]);
+      }
+      for (const p of Object.keys(sets)) counts[p] = sets[p].size;
+    } catch {}
+  } catch {}
+  counts.total = counts.ssh + counts.vmess + counts.vless + counts.trojan + counts.shadowsocks;
+  return counts;
+}
+
 module.exports = {
+  countAccounts,
   createSSH, cfSSHInfo, createVMess, createVLess, createTrojan, createShadowsocks, createZivpn, fancyBox,
   renewAccount, deleteAccount, saveAccount, myAccounts, validUser, expiryDate,
   VPN_PRODUCTS, DEFAULT_VPN_PRICE, seedVpnPrices, getVpnPrice, setVpnPrice, listVpnPrices,
