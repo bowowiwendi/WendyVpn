@@ -24,6 +24,99 @@ function expiryDate(days) {
   return d.toISOString().slice(0, 10);
 }
 
+// ---------- Format tampilan kotak (fancy) hasil pembuatan akun ----------
+// Port yang ditampilkan hanya yang terverifikasi sebagai layanan VPN:
+// TLS 443, HTTP 80, OpenSSH 22, Dropbear 109/143. Port contoh lain
+// (8443, 8080, 2086, 8880, UDPSSH 1-65535, DNS 53, BadVPN 7300) sengaja
+// TIDAK ditampilkan: 8443 tidak mendengarkan di Aji02, 53/7300 hanya
+// localhost, dan servis 8080/2086/8880 tidak terverifikasi sebagai
+// layanan VPN. Save-account TIDAK ditampilkan: API bot tidak menulis
+// file /var/www/html/*.txt (file itu hanya ditulis menu server), jadi
+// link :81 akan mati (404) untuk akun buatan bot.
+const FANCY_TOP = '╭━━━━━━━━━━━━━━━━━━━━━━╮';
+const FANCY_BOT = '╰━━━━━━━━━━━━━━━━━━━━━━╯';
+const FANCY_SEP = '━━━━━━━━━━━━━━━━━━━━━━';
+const FANCY_TITLES = {
+  ssh: '🚀 ꜱꜱʜ ᴀᴄᴄᴏᴜɴᴛ',
+  vmess: '🚀 ᴠᴍᴇꜱꜱ ᴀᴄᴄᴏᴜɴᴛ',
+  vless: '🚀 ᴠʟᴇꜱꜱ ᴀᴄᴄᴏᴜɴᴛ',
+  trojan: '🚀 ᴛʀᴏᴊᴀɴ ᴀᴄᴄᴏᴜɴᴛ',
+};
+
+function fancyBox(d) {
+  const lines = [];
+  lines.push(FANCY_TOP);
+  lines.push((FANCY_TITLES[d.proto] || '🚀 ᴀᴄᴄᴏᴜɴᴛ') + (d.viaCF ? ' ☁️' : ''));
+  lines.push(FANCY_BOT);
+  lines.push('');
+  const info = [
+    '┌〔 📄 ᴀᴄᴄᴏᴜɴᴛ ɪɴꜰᴏ 〕',
+    `├ 👤 Username : <code>${esc(d.username)}</code>`,
+    `├ ${d.secretIcon} ${d.secretLabel} : <code>${esc(d.secret)}</code>`,
+    `├ 📅 Expired : <code>${esc(d.exp)}</code>`,
+  ];
+  if (d.proto === 'ssh') info.push(`├ 🌐 IP Limit : ${d.ipLimit} IP`);
+  info.push('└ 🟢 Status : ACTIVE');
+  lines.push(info.join('\n'));
+  lines.push('');
+  lines.push(FANCY_SEP);
+  lines.push('');
+  const srv = [
+    '┌〔 🌍 ꜱᴇʀᴠᴇʀ 〕',
+    `├ 🌐 Domain : <code>${esc(d.origin)}</code>`,
+  ];
+  if (d.cfDomain) srv.push(`└ ☁️ CloudFront : <code>${esc(d.cfDomain)}</code>`);
+  else srv[srv.length - 1] = srv[srv.length - 1].replace('├', '└');
+  lines.push(srv.join('\n'));
+  lines.push('');
+  lines.push(FANCY_SEP);
+  lines.push('');
+  if (d.proto === 'ssh') {
+    const ports = d.viaCF
+      ? ['┌〔 🔌 ᴘᴏʀᴛ 〕', '└ 🔐 TLS : 443']
+      : ['┌〔 🔌 ᴘᴏʀᴛ 〕', '├ 🔐 TLS : 443', '├ 🌐 HTTP : 80', '├ ⚡ OpenSSH : 22', '└ 📡 Dropbear : 109, 143'];
+    lines.push(ports.join('\n'));
+    lines.push('');
+    lines.push(FANCY_SEP);
+    lines.push('');
+    lines.push('📡 ʜᴛᴛᴘ ᴄᴜꜱᴛᴏᴍ');
+    lines.push('');
+    for (const hc of d.httpCustom) lines.push(`<code>${esc(hc.host)}:${hc.port}@${esc(hc.user)}:${esc(hc.pass)}</code>\n`);
+    lines.push(FANCY_SEP);
+    lines.push('');
+    lines.push('📄 ᴘᴀʏʟᴏᴀᴅ');
+    lines.push('');
+    lines.push(`<code>${d.payload}</code>`);
+  } else {
+    lines.push('┌〔 🔌 ᴘᴏʀᴛ 〕');
+    lines.push('└ 🔐 TLS : 443');
+    lines.push('');
+    lines.push(FANCY_SEP);
+    lines.push('');
+    lines.push('🔗 ʟɪɴᴋ');
+    lines.push('');
+    lines.push(`<code>${d.link}</code>`);
+    lines.push('');
+    lines.push(FANCY_SEP);
+    lines.push('');
+    lines.push('┌〔 🌐 ᴡꜱ ᴅᴇᴛᴀɪʟ 〕');
+    lines.push(`├ 🌐 Host : <code>${esc(d.host)}</code>`);
+    lines.push('├ 🔐 Port TLS : 443');
+    lines.push(`├ 🛣️ Path : <code>${esc(d.wsPath)}</code>`);
+    lines.push(`└ 🔑 SNI : <code>${esc(d.host)}</code>`);
+  }
+  lines.push('');
+  lines.push(FANCY_SEP);
+  lines.push('');
+  lines.push('🎉 ᴀᴋᴜɴ ʙᴇʀʜᴀꜱɪʟ ᴅɪʙᴜᴀᴛ');
+  lines.push('');
+  lines.push('🤝 ᴛᴇʀɪᴍᴀ ᴋᴀꜱɪʜ');
+  lines.push('ꜱᴇʟᴀᴍᴀᴛ ᴍᴇɴɢɢᴜɴᴀᴋᴀɴ');
+  lines.push('ʟᴀʏᴀɴᴀɴ ᴋᴀᴍɪ. ❤️');
+  return lines.join('\n');
+}
+
+
 // ---------- SSH ----------
 async function createSSH(username, password, days, ipLimit = 1) {
   if (!validUser(username)) return { success: false, message: '❌ Username 3-20 karakter, huruf/angka saja.' };
@@ -34,12 +127,7 @@ async function createSSH(username, password, days, ipLimit = 1) {
   const exp = expiryDate(days);
   return {
     success: true,
-    message:
-      `✅ <b>SSH Account</b>\n<blockquote>` +
-      `👤 Username: <code>${username}</code>\n` +
-      `🔑 Password: <code>${password}</code>\n` +
-      `🌐 Host: <code>${domain}</code>\n` +
-      `📅 Expired: <code>${exp}</code></blockquote>`,
+    message: fancyBox({ proto: 'ssh', viaCF: false, username, secretIcon: '🔑', secretLabel: 'Password', secret: password, exp, ipLimit, origin: domain, host: domain, cfDomain: cf.domain || '', httpCustom: [{ host: domain, port: 80, user: username, pass: password }, { host: domain, port: 443, user: username, pass: password }], payload: `GET wss://[host]/ HTTP/1.1[crlf]Host: ${domain}[crlf]Upgrade: websocket[crlf][crlf]` }),
     expiry: exp,
     password,
   };
@@ -52,16 +140,7 @@ function cfSSHInfo(username, password, days) {
   const exp = expiryDate(days);
   const p = cf.paths.ssh;
   // Format untuk HTTP Custom / aplikasi SSH WS
-  const message =
-    `✅ <b>SSH via CloudFront</b>\n<blockquote>` +
-    `👤 Username: <code>${username}</code>\n` +
-    `🔑 Password: <code>${password}</code>\n` +
-    `🌐 Host: <code>${cf.domain}</code>\n` +
-    `🔌 Port: <code>443</code> (TLS)\n` +
-    `🛣️ Path: <code>${p}</code>\n` +
-    `📅 Expired: <code>${exp}</code></blockquote>\n\n` +
-    `<i>Payload HTTP Custom:</i>\n` +
-    `<code>GET ${p} HTTP/1.1[crlf]Host: ${cf.domain}[crlf]Upgrade: websocket[crlf][crlf]</code>`;
+  const message = fancyBox({ proto: 'ssh', viaCF: true, username, secretIcon: '🔑', secretLabel: 'Password', secret: password, exp, ipLimit: 1, origin: domain, host: cf.domain, cfDomain: cf.domain || '', httpCustom: [{ host: cf.domain, port: 443, user: username, pass: password }], payload: `GET ${p} HTTP/1.1[crlf]Host: ${cf.domain}[crlf]Upgrade: websocket[crlf][crlf]` });
   return { success: true, message, expiry: exp, password };
 }
 
@@ -94,11 +173,7 @@ async function createVMess(username, days, viaCF = false) {
   const exp = expiryDate(days);
   return {
     success: true,
-    message:
-      `✅ <b>VMess${viaCF ? ' via CloudFront' : ''}</b>\n<blockquote>` +
-      `👤 Username: <code>${username}</code>\n` +
-      `📅 Expired: <code>${exp}</code></blockquote>\n\n` +
-      `<code>${link}</code>`,
+    message: fancyBox({ proto: 'vmess', viaCF, username, secretIcon: '🆔', secretLabel: 'UUID', secret: useUuid, exp, origin: domain, host, cfDomain: cf.domain || '', link, wsPath: path }),
     expiry: exp, link, uuid: useUuid,
   };
 }
@@ -118,11 +193,7 @@ async function createVLess(username, days, viaCF = false) {
   const exp = expiryDate(days);
   return {
     success: true,
-    message:
-      `✅ <b>VLess${viaCF ? ' via CloudFront' : ''}</b>\n<blockquote>` +
-      `👤 Username: <code>${username}</code>\n` +
-      `📅 Expired: <code>${exp}</code></blockquote>\n\n` +
-      `<code>${link}</code>`,
+    message: fancyBox({ proto: 'vless', viaCF, username, secretIcon: '🆔', secretLabel: 'UUID', secret: useUuid, exp, origin: domain, host, cfDomain: cf.domain || '', link, wsPath: viaCF ? cf.paths.vless : `/vless-${username}` }),
     expiry: exp, link, uuid: useUuid,
   };
 }
@@ -142,11 +213,7 @@ async function createTrojan(username, days, viaCF = false) {
   const exp = expiryDate(days);
   return {
     success: true,
-    message:
-      `✅ <b>Trojan${viaCF ? ' via CloudFront' : ''}</b>\n<blockquote>` +
-      `👤 Username: <code>${username}</code>\n` +
-      `📅 Expired: <code>${exp}</code></blockquote>\n\n` +
-      `<code>${link}</code>`,
+    message: fancyBox({ proto: 'trojan', viaCF, username, secretIcon: '🔑', secretLabel: 'Password', secret: usePass, exp, origin: domain, host, cfDomain: cf.domain || '', link, wsPath: viaCF ? cf.paths.trojan : `/trojan-${username}` }),
     expiry: exp, link, password: usePass,
   };
 }
@@ -314,7 +381,7 @@ async function listVpnPrices() {
 }
 
 module.exports = {
-  createSSH, cfSSHInfo, createVMess, createVLess, createTrojan, createShadowsocks, createZivpn,
+  createSSH, cfSSHInfo, createVMess, createVLess, createTrojan, createShadowsocks, createZivpn, fancyBox,
   renewAccount, deleteAccount, saveAccount, myAccounts, validUser, expiryDate,
   VPN_PRODUCTS, DEFAULT_VPN_PRICE, seedVpnPrices, getVpnPrice, setVpnPrice, listVpnPrices,
 };
