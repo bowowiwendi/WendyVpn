@@ -8,6 +8,7 @@ const config = require('../src/config');
 const digi = require('../src/digiflazz');
 const { esc } = require('../src/format');
 const { run, get, all, products: dbProducts } = require('../src/db');
+const settings = require('./settings');
 
 // Harga jual = harga dasar Digiflazz (field `price`) + margin % dari config.
 // (API Digiflazz TIDAK punya field `price_sell` — kode lama membaca field yang
@@ -15,6 +16,23 @@ const { run, get, all, products: dbProducts } = require('../src/db');
 function sellPriceOf(prod) {
   const base = Number(prod?.price || 0);
   const margin = Number(config.digiflazz?.margin || 0);
+  return Math.ceil(base * (1 + margin / 100));
+}
+
+// Margin aktif: setting admin (ppob_margin) bila pernah diset, kalau belum
+// fallback ke PPOB_MARGIN/.env (perilaku lama). Jalur inilah yang dipakai
+// productList -> price_sell -> buyProduct, jadi harga tampil = harga potong.
+async function getActiveMargin() {
+  try {
+    const m = await settings.getPpobMargin();
+    if (m !== null && m !== undefined) return m;
+  } catch (_) {}
+  return Number(config.digiflazz?.margin || 0);
+}
+
+async function sellPriceOfAsync(prod) {
+  const base = Number(prod?.price || 0);
+  const margin = await getActiveMargin();
   return Math.ceil(base * (1 + margin / 100));
 }
 
@@ -442,8 +460,8 @@ async function productList(group, page = 1, opts = {}) {
       const nb = String(b.product_name || '').toLowerCase();
       return na < nb ? -1 : na > nb ? 1 : 0;
     })
-    .slice(0, 100)
-    .map((p) => { p.price_sell = sellPriceOf(p); return p; });
+    .slice(0, 100);
+  items = await Promise.all(items.map(async (p) => { p.price_sell = await sellPriceOfAsync(p); return p; }));
   if (!items.length) return { success: false, message: '❌ Produk tidak ditemukan.' };
   const total = items.length;
   const pages = Math.max(1, Math.ceil(total / PROD_PER_PAGE));
@@ -601,4 +619,4 @@ async function getHistory(telegramId, limit = 10) {
   };
 }
 
-module.exports = { getSaldo, addSaldo, deductSaldo, createDeposit, buyProduct, checkOrder, productList, productKeyboard, providerKeyboard, refId, getHistory, getRole, setRole, VALID_ROLES, getBonusConfig, setBonusConfig, applyTopupBonus, CATEGORY_GROUPS, CATEGORY_ORDER, CATEGORY_LABELS, searchItems, hasProviders, getProviderNames, getProviderDefs, filterByProvider };
+module.exports = { getSaldo, addSaldo, deductSaldo, createDeposit, buyProduct, checkOrder, productList, productKeyboard, providerKeyboard, refId, getHistory, getRole, setRole, VALID_ROLES, getBonusConfig, setBonusConfig, applyTopupBonus, CATEGORY_GROUPS, CATEGORY_ORDER, CATEGORY_LABELS, searchItems, hasProviders, getProviderNames, getProviderDefs, filterByProvider, getActiveMargin, sellPriceOfAsync };

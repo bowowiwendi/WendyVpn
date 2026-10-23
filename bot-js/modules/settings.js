@@ -37,6 +37,42 @@ async function getNotifGroup() {
   return getSetting('notif_group_id', '');
 }
 
+// ---------- Minimal deposit per role (transaksi) ----------
+// BEDA dengan reseller_min_topup di bawah: ini batas bawah nominal SEKALI
+// deposit, per role. Default 10000 (perilaku lama). 0 = tanpa minimal.
+async function getMinDeposit(role) {
+  const r = String(role || 'member').toLowerCase();
+  const key = r === 'reseller' ? 'min_deposit_reseller' : 'min_deposit_member';
+  const v = Number(await getSetting(key, '10000'));
+  return Number.isFinite(v) && v >= 0 ? v : 10000;
+}
+
+async function setMinDeposit(role, amount) {
+  const r = String(role || 'member').toLowerCase();
+  const key = r === 'reseller' ? 'min_deposit_reseller' : 'min_deposit_member';
+  const n = Number(amount);
+  const val = Number.isFinite(n) && n >= 0 ? Math.floor(n) : 10000;
+  await setSetting(key, String(val));
+  return val;
+}
+
+// ---------- Margin PPOB (diatur admin, persen) ----------
+// Bila pernah diset admin (termasuk 0), dipakai. Bila belum pernah diset
+// (null), pemakai fallback ke PPOB_MARGIN/.env atau 0 (perilaku lama).
+async function getPpobMargin() {
+  const v = await getSetting('ppob_margin', '');
+  if (v === '' || v === null || v === undefined) return null;
+  const n = Number(String(v).replace(',', '.'));
+  return Number.isFinite(n) && n >= 0 ? n : null;
+}
+
+async function setPpobMargin(pct) {
+  const n = Number(String(pct).replace(',', '.'));
+  const val = Number.isFinite(n) && n >= 0 ? n : 0;
+  await setSetting('ppob_margin', String(val));
+  return val;
+}
+
 // ---------- Minimal topup agar otomatis jadi reseller ----------
 async function getResellerMinTopup() {
   return Number(await getSetting('reseller_min_topup', '0')) || 0;
@@ -68,6 +104,7 @@ async function delBroadcastGroup(id) {
 module.exports = {
   getSetting, setSetting,
   getForceJoin, getNotifGroup, getResellerMinTopup,
+  getMinDeposit, setMinDeposit, getPpobMargin, setPpobMargin,
   ROLE_BADGE, ROLE_LABEL, roleBadge,
   listBroadcastGroups, addBroadcastGroup, delBroadcastGroup,
 };

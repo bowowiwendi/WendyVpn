@@ -142,6 +142,7 @@ const adminPanel = () => Markup.inlineKeyboard([
   [sBtn('📊 Hasil Penjualan', 'adm_sales', 'primary'), sBtn('📑 Log Topup', 'adm_topuplog', 'primary')],
   [sBtn('📦 Backup DB', 'adm_backupdb', 'success'), sBtn('♻️ Restore DB', 'adm_restoredb', 'danger')],
   [sBtn('🧾 Setting Pakasir', 'adm_pakasir', 'primary'), sBtn('🎁 Bonus & Reseller', 'adm_bonus', 'success')],
+  [sBtn('💰 Min. Deposit/Role', 'adm_mindep', 'primary'), sBtn('📈 Margin PPOB', 'adm_margin', 'success')],
   [sBtn('📢 Broadcast Grup', 'adm_bcast', 'primary'), sBtn('📣 Broadcast User', 'adm_bcastuser', 'primary')],
   [sBtn('🔔 Grup Notifikasi', 'adm_notifgrp', 'primary'), sBtn('🔒 Force Join', 'adm_forcejoin', 'primary')],
   [sBtn('🔑 Setting ePro (HC)', 'adm_epro', 'primary'), sBtn('📲 List Preset HC', 'adm_hcpresets', 'success')],
@@ -477,6 +478,39 @@ bot.on('text', async (ctx) => {
       nominal > 0
         ? `✅ Min. topup otomatis reseller: <b>${digi.rp(nominal)}</b>\n\nUser yang total topup-nya mencapai nominal ini otomatis jadi 🏪 Reseller.`
         : `✅ Fitur otomatis reseller <b>dinonaktifkan</b>.`,
+      { parse_mode: 'HTML', reply_markup: adminPanel().reply_markup }
+    );
+  }
+
+  // --- Session admin: set minimal deposit per role ---
+  if (sess?.step === 'adm_mindep_input') {
+    if (!await admin.hasAdminAccess(ctx)) { sessions.delete(chatId); return ctx.reply('❌ Khusus admin.'); }
+    const role = sess.data?.role === 'reseller' ? 'reseller' : 'member';
+    const nominal = Number(ctx.message.text.replace(/\D/g, ''));
+    sessions.delete(chatId);
+    const val = await settings.setMinDeposit(role, nominal || 0);
+    return ctx.reply(
+      val > 0
+        ? `✅ Min. deposit ${role === 'reseller' ? 'Reseller' : 'Member'}: <b>${digi.rp(val)}</b>`
+        : `✅ Min. deposit ${role === 'reseller' ? 'Reseller' : 'Member'}: <b>tanpa minimal</b> (nominal tetap harus > 0).`,
+      { parse_mode: 'HTML', reply_markup: adminPanel().reply_markup }
+    );
+  }
+
+  // --- Session admin: set margin PPOB ---
+  if (sess?.step === 'adm_margin_input') {
+    if (!await admin.hasAdminAccess(ctx)) { sessions.delete(chatId); return ctx.reply('❌ Khusus admin.'); }
+    const raw = ctx.message.text.trim().replace('%', '').replace(',', '.');
+    const pct = Number(raw);
+    sessions.delete(chatId);
+    if (!Number.isFinite(pct) || pct < 0 || pct > 100) {
+      return ctx.reply('❌ Persen tidak valid. Ketik angka 0–100, contoh: <code>5</code> atau <code>2.5</code>', { parse_mode: 'HTML' });
+    }
+    const val = await settings.setPpobMargin(pct);
+    return ctx.reply(
+      val > 0
+        ? `✅ Margin PPOB: <b>${val}%</b>\n\nHarga jual produk = harga dasar Digiflazz + ${val}% (dibulatkan ke atas).`
+        : `✅ Margin PPOB: <b>0% (tanpa margin)</b>\n\nHarga jual = harga dasar Digiflazz.`,
       { parse_mode: 'HTML', reply_markup: adminPanel().reply_markup }
     );
   }
@@ -928,7 +962,17 @@ bot.on('text', async (ctx) => {
   // --- Session deposit nominal ---
   if (sess?.step === 'deposit_nominal') {
     const nominal = parseInt(ctx.message.text.replace(/\D/g, ''), 10);
-    if (!nominal || nominal < 10000) { sessions.delete(chatId); return ctx.reply('❌ Nominal minimal Rp10.000'); }
+    const depRole = await ppob.getRole(ctx.from.id).catch(() => 'member');
+    const minDep = depRole === 'admin' ? 0 : await settings.getMinDeposit(depRole).catch(() => 10000);
+    if (!nominal || (minDep > 0 && nominal < minDep)) {
+      sessions.delete(chatId);
+      return ctx.reply(
+        minDep > 0
+          ? `❌ Nominal minimal deposit ${depRole === 'reseller' ? 'Reseller' : 'Member'}: <b>${digi.rp(minDep)}</b>`
+          : '❌ Nominal deposit harus lebih dari 0.',
+        { parse_mode: 'HTML' }
+      );
+    }
     // Jika Pakasir aktif → user pilih metode bayar dulu
     const pakasirReady = await pakasir.isReady().catch(() => false);
     if (pakasirReady) {
@@ -1443,7 +1487,10 @@ bot.action('ppob_deposit', async (ctx) => {
   const bonusTxt = bonus?.enabled
     ? `\n🎁 <b>Bonus ${bonus.bonus_percent}%</b> untuk topup min. <b>${digi.rp(bonus.min_topup)}</b>!`
     : '';
-  await ctx.reply(`💰 Kirim <b>nominal deposit</b> (min Rp10.000):${bonusTxt}`, { parse_mode: 'HTML', ...cancelKb() });
+  const depRole0 = await ppob.getRole(ctx.from.id).catch(() => 'member');
+  const minDep0 = depRole0 === 'admin' ? 0 : await settings.getMinDeposit(depRole0).catch(() => 10000);
+  const minDepTxt = depRole0 === 'admin' ? '(tanpa minimal, khusus admin)' : minDep0 > 0 ? `(min ${digi.rp(minDep0)})` : '(tanpa minimal)';
+  await ctx.reply(`💰 Kirim <b>nominal deposit</b> ${minDepTxt}:${bonusTxt}`, { parse_mode: 'HTML', ...cancelKb() });
 });
 
 // User pilih metode deposit: GoPay QRIS (gateway sendiri)
@@ -2300,6 +2347,75 @@ bot.action('adm_resset', async (ctx) => {
   sessions.set(ctx.chat.id, { step: 'adm_resset_input', data: {} });
   await ctx.reply(
     `🏪 <b>Min. Topup Otomatis Reseller</b>\n\nKetik <b>nominal rupiah</b> (angka saja).\nContoh: <code>500000</code>\n\nUser yang total topup sukses-nya mencapai nominal ini otomatis jadi Reseller.\nKetik <code>0</code> untuk menonaktifkan.`,
+    { parse_mode: 'HTML', ...cancelKb() }
+  );
+});
+
+// ============================================================
+// ---------- Min. Deposit per Role & Margin PPOB ----------
+// ============================================================
+async function showMinDepPanel(ctx) {
+  const m = await settings.getMinDeposit('member');
+  const r = await settings.getMinDeposit('reseller');
+  const text =
+    `💰 <b>Min. Deposit per Role</b>\n\n` +
+    `• 👤 Member: <b>${m > 0 ? digi.rp(m) : 'tanpa minimal'}</b>\n` +
+    `• 🏪 Reseller: <b>${r > 0 ? digi.rp(r) : 'tanpa minimal'}</b>\n\n` +
+    `Batas bawah nominal SEKALI deposit (beda dengan Min. Topup Otomatis Reseller).\n` +
+    `Ketik 0 untuk tanpa minimal (nominal tetap harus > 0).\n` +
+    `Admin tidak dibatasi setting ini.`;
+  const kb = Markup.inlineKeyboard([
+    [sBtn('👤 Set Min. Member', 'adm_mindep_member', 'primary'), sBtn('🏪 Set Min. Reseller', 'adm_mindep_reseller', 'success')],
+    [sBtn('🔙 Kembali', 'adm_open', 'danger')],
+  ]);
+  await ctx.reply(text, { parse_mode: 'HTML', reply_markup: kb.reply_markup });
+}
+
+bot.action('adm_mindep', async (ctx) => {
+  if (!await admin.hasAdminAccess(ctx)) { await safeCb(ctx); return; }
+  await safeCb(ctx);
+  await showMinDepPanel(ctx);
+});
+
+bot.action(/^adm_mindep_(member|reseller)$/, async (ctx) => {
+  if (!await admin.hasAdminAccess(ctx)) { await safeCb(ctx); return; }
+  await safeCb(ctx);
+  const role = ctx.match[1];
+  sessions.set(ctx.chat.id, { step: 'adm_mindep_input', data: { role } });
+  await ctx.reply(
+    `💰 <b>Set Min. Deposit ${role === 'reseller' ? 'Reseller' : 'Member'}</b>\n\nKetik <b>nominal rupiah</b> (angka saja).\nContoh: <code>5000</code>\n\nKetik <code>0</code> untuk tanpa minimal.`,
+    { parse_mode: 'HTML', ...cancelKb() }
+  );
+});
+
+async function showMarginPanel(ctx) {
+  const set = await settings.getPpobMargin();
+  const active = await ppob.getActiveMargin().catch(() => 0);
+  const text =
+    `📈 <b>Margin PPOB</b>\n\n` +
+    `• Setting admin: <b>${set === null ? '(belum pernah diset)' : set + '%'}</b>\n` +
+    `• Margin aktif: <b>${active}%</b>\n\n` +
+    `Harga jual = harga dasar Digiflazz + margin% (dibulatkan ke atas).\n` +
+    `Berlaku untuk semua produk PPOB; harga yang tampil = harga yang dipotong.`;
+  const kb = Markup.inlineKeyboard([
+    [sBtn('📈 Set Margin PPOB', 'adm_margin_set', 'success')],
+    [sBtn('🔙 Kembali', 'adm_open', 'danger')],
+  ]);
+  await ctx.reply(text, { parse_mode: 'HTML', reply_markup: kb.reply_markup });
+}
+
+bot.action('adm_margin', async (ctx) => {
+  if (!await admin.hasAdminAccess(ctx)) { await safeCb(ctx); return; }
+  await safeCb(ctx);
+  await showMarginPanel(ctx);
+});
+
+bot.action('adm_margin_set', async (ctx) => {
+  if (!await admin.hasAdminAccess(ctx)) { await safeCb(ctx); return; }
+  await safeCb(ctx);
+  sessions.set(ctx.chat.id, { step: 'adm_margin_input', data: {} });
+  await ctx.reply(
+    `📈 <b>Set Margin PPOB</b>\n\nKetik <b>persen</b> (boleh desimal).\nContoh: <code>5</code> atau <code>2.5</code>\n\nKetik <code>0</code> untuk tanpa margin.`,
     { parse_mode: 'HTML', ...cancelKb() }
   );
 });
