@@ -605,7 +605,7 @@ bot.on('text', async (ctx) => {
     sess.data = { username };
     sess.step = 'vpn_days';
     const _r1 = await ppob.getRole(ctx.from.id).catch(() => 'member');
-    const _p1 = await vpn.getVpnPrice(sess.proto, _r1);
+    const _p1 = await vpn.getVpnPrice(sess.proto, _r1, sess.viaCF);
     return ctx.reply(
       'Masukkan <b>durasi (hari)</b>\nHarga: <b>Rp' + _p1.toLocaleString('id-ID') + '/hari</b>\nSaldo kamu: <b>Rp' + (await ppob.getSaldo(ctx.from.id)).toLocaleString('id-ID') + '</b>',
       { parse_mode: 'HTML' }
@@ -618,7 +618,7 @@ bot.on('text', async (ctx) => {
     sess.data.password = password;
     sess.step = 'vpn_days';
     const _r2 = await ppob.getRole(ctx.from.id).catch(() => 'member');
-    const _p2 = await vpn.getVpnPrice(sess.proto, _r2);
+    const _p2 = await vpn.getVpnPrice(sess.proto, _r2, sess.viaCF);
     return ctx.reply(
       'Masukkan <b>durasi (hari)</b>\nHarga: <b>Rp' + _p2.toLocaleString('id-ID') + '/hari</b>\nSaldo kamu: <b>Rp' + (await ppob.getSaldo(ctx.from.id)).toLocaleString('id-ID') + '</b>',
       { parse_mode: 'HTML' }
@@ -708,17 +708,28 @@ bot.on('text', async (ctx) => {
     }
     const d = sess.data || {};
     sessions.delete(chatId);
-    await ctx.reply('⏳ Memproses pembelian...');
+    // Animasi loading: edit SATU pesan yang sama selama transaksi berjalan.
+    const loadFrames = ['⏳ Memproses pembelian...', '⌛ Memproses pembelian...', '🔄 Memproses pembelian...'];
+    let loadIdx = 0;
+    let loadMsg = null;
+    try { loadMsg = await ctx.reply(loadFrames[0]); } catch {}
+    const loadTimer = loadMsg ? setInterval(async () => {
+      loadIdx = (loadIdx + 1) % loadFrames.length;
+      try { await ctx.telegram.editMessageText(loadMsg.chat.id, loadMsg.message_id, undefined, loadFrames[loadIdx]); } catch {}
+    }, 1000) : null;
+    const stopLoading = () => { if (loadTimer) clearInterval(loadTimer); };
     let sku = d.sku, price = d.price, productName = d.productName;
     if (!sku && d.kode) {
       // Alur input kode manual: cari produk & harga dari daftar
       const list = await ppob.productList().catch(() => ({ items: [] }));
       const prod = (list.items || []).find((p) => p.buyer_sku_code.toUpperCase() === String(d.kode).toUpperCase());
-      if (!prod) return ctx.reply('❌ Kode produk tidak ditemukan. Lihat /produk');
+      if (!prod) { stopLoading(); return ctx.reply('❌ Kode produk tidak ditemukan. Lihat /produk'); }
       sku = prod.buyer_sku_code; price = prod.price_sell; productName = prod.product_name;
     }
-    if (!sku) return ctx.reply('❌ Data produk tidak lengkap. Ulangi dari menu PPOB.');
-    const r = await ppob.buyProduct(ctx.from.id, sku, tujuan, price);
+    if (!sku) { stopLoading(); return ctx.reply('❌ Data produk tidak lengkap. Ulangi dari menu PPOB.'); }
+    let r;
+    try { r = await ppob.buyProduct(ctx.from.id, sku, tujuan, price); }
+    finally { stopLoading(); }
     if (r.success) {
       const uname = ctx.from.username ? '@' + ctx.from.username : ctx.from.first_name;
       notifGrup(bot, `🛒 <b>Pembelian PPOB</b>\n👤 ${uname}\n📦 ${productName || sku}\n📱 ${tujuan}\n💰 Rp${Number(price).toLocaleString('id-ID')}`);
@@ -847,12 +858,12 @@ bot.on('text', async (ctx) => {
     if (!await admin.hasAdminAccess(ctx)) { sessions.delete(chatId); return ctx.reply('❌ Khusus admin.'); }
     const harga = parseInt(ctx.message.text.replace(/\D/g, ''), 10);
     if (!Number.isFinite(harga) || harga < 0) return ctx.reply('❌ Harga tidak valid. Ketik angka saja (contoh: 500):');
-    const { key, role } = sess.data;
+    const { key, role, viaCF } = sess.data;
     sessions.delete(chatId);
     try {
-      await vpn.setVpnPrice(key, role, harga);
+      await vpn.setVpnPrice(key, role, harga, !!viaCF);
       return ctx.reply(
-        `✅ <b>Harga diperbarui!</b>\n\n📦 Produk: <b>${esc(key)}</b>\n👤 Role: <b>${role}</b>\n💲 Harga baru: <b>Rp${harga.toLocaleString('id-ID')}/hari</b>`,
+        `✅ <b>Harga diperbarui!</b>\n\n📦 Produk: <b>${esc(key)}</b>\n👤 Role: <b>${role}</b>\n🏷️ Jenis: <b>${viaCF ? 'CloudFront' : 'Biasa'}</b>\n💲 Harga baru: <b>Rp${harga.toLocaleString('id-ID')}/hari</b>`,
         { parse_mode: 'HTML' }
       );
     } catch (e) {
@@ -948,7 +959,7 @@ async function finishCreateVpn(ctx, sess, username, password = '', days = 30) {
   const { proto, viaCF } = sess;
   // Harga VPN per role (diatur admin di tabel vpn_prices; role admin = 0/modal)
   const role = await ppob.getRole(ctx.from.id).catch(() => 'member');
-  const perDay = await vpn.getVpnPrice(proto, role);
+  const perDay = await vpn.getVpnPrice(proto, role, viaCF);
   const totalHarga = perDay * days;
   // Cek saldo
   const saldo = await ppob.getSaldo(ctx.from.id);
@@ -1031,21 +1042,29 @@ bot.action(/^hc_dl_(.+)$/, async (ctx) => {
     await ctx.reply('❌ Data akun tidak ditemukan. Buat akun baru dulu.');
     return;
   }
-  // Tanya pilih config
+  // Tanya pilih config — semua preset dari hc.presetList() (12 preset)
+  const presets = hc.presetList();
+  const keyboard = presets.map((p) => [{ text: p.label, callback_data: 'hc_go_' + p.id + '_' + cacheKey }]);
   await ctx.reply('Pilih config untuk file .hc:', {
-    reply_markup: {
-      inline_keyboard: [
-        [{ text: '📱 Default', callback_data: 'hc_go_default_' + cacheKey }],
-        [{ text: '📚 XL EDUKASI', callback_data: 'hc_go_xl_edukasi_' + cacheKey }],
-      ]
-    }
+    reply_markup: { inline_keyboard: keyboard }
   });
 });
 
-bot.action(/^hc_go_(default|xl_edukasi)_(.+)$/, async (ctx) => {
+bot.action(/^hc_go_(.+)$/, async (ctx) => {
   await safeCb(ctx);
-  const preset = ctx.match[1];
-  const cacheKey = ctx.match[2];
+  const rest = ctx.match[1];
+  // Ambil preset dari daftar presetList (id terpanjang dulu),
+  // sisanya adalah cacheKey (userId_proto_username, boleh mengandung underscore).
+  const sortedPresetIds = hc.presetList().map((p) => p.id).sort((a, b) => b.length - a.length);
+  let preset = null;
+  let cacheKey = null;
+  for (const id of sortedPresetIds) {
+    if (rest.startsWith(id + '_')) { preset = id; cacheKey = rest.slice(id.length + 1); break; }
+  }
+  if (!preset || !hc.HC_PRESETS[preset] || !cacheKey) {
+    await ctx.reply('❌ Preset .hc tidak dikenal. Pilih lagi dari menu Download .hc.');
+    return;
+  }
   const info = hcCache.get(cacheKey);
   if (!info) {
     await ctx.reply('❌ Data akun tidak ditemukan. Buat akun baru dulu.');
@@ -1318,7 +1337,7 @@ bot.action(/^renew_(\d+)$/, async (ctx) => {
   if (!acc) return ctx.reply('❌ Akun tidak ditemukan.');
   sessions.set(ctx.chat.id, { step: 'renew_days', accountId: acc.id });
   const role = await ppob.getRole(ctx.from.id).catch(() => 'member');
-  const _rpDay = await vpn.getVpnPrice(acc.proto, role);
+  const _rpDay = await vpn.getVpnPrice(acc.proto, role, !!acc.via_cf);
   await ctx.reply(
     `♻️ <b>Renew Akun</b>\n\n` +
     `F464 Username: <code>${esc(acc.username)}</code>\n` +
@@ -1335,7 +1354,7 @@ async function finishRenew(ctx, accountId, days) {
   const acc = await get('SELECT * FROM vpn_accounts WHERE id = ? AND telegram_id = ?', [accountId, ctx.from.id]);
   if (!acc) return ctx.reply('❌ Akun tidak ditemukan.');
   const role = await ppob.getRole(ctx.from.id).catch(() => 'member');
-  const totalHarga = (await vpn.getVpnPrice(acc.proto, role)) * days; // harga per role (admin = 0)
+  const totalHarga = (await vpn.getVpnPrice(acc.proto, role, !!acc.via_cf)) * days; // harga per role (admin = 0)
   const saldo = await ppob.getSaldo(ctx.from.id);
   if (saldo < totalHarga) {
     return ctx.reply(
@@ -1852,13 +1871,16 @@ bot.action('adm_vpnprices', async (ctx) => {
   const byKey = {};
   for (const r of rows) {
     byKey[r.product_key] = byKey[r.product_key] || {};
-    byKey[r.product_key][r.role] = r.price;
+    byKey[r.product_key][r.role] = r;
   }
   const rp = (n) => 'Rp' + Number(n).toLocaleString('id-ID');
+  const cfOf = (row, biasa) => (row && row.cf_price !== null && row.cf_price !== undefined && Number.isFinite(Number(row.cf_price)) ? Number(row.cf_price) : biasa);
   const lines = vpn.VPN_PRODUCTS.map((p) => {
-    const m = byKey[p.key]?.member ?? vpn.DEFAULT_VPN_PRICE.member;
-    const r = byKey[p.key]?.reseller ?? vpn.DEFAULT_VPN_PRICE.reseller;
-    return `• <b>${p.label}</b> — member: <b>${rp(m)}/hari</b>, reseller: <b>${rp(r)}/hari</b>`;
+    const mRow = byKey[p.key]?.member;
+    const rRow = byKey[p.key]?.reseller;
+    const m = mRow ? Number(mRow.price) : vpn.DEFAULT_VPN_PRICE.member;
+    const r = rRow ? Number(rRow.price) : vpn.DEFAULT_VPN_PRICE.reseller;
+    return `• <b>${p.label}</b> — member: <b>${rp(m)}/hari</b> (CF: <b>${rp(cfOf(mRow, m))}/hari</b>), reseller: <b>${rp(r)}/hari</b> (CF: <b>${rp(cfOf(rRow, r))}/hari</b>)`;
   });
   const btns = vpn.VPN_PRODUCTS.map((p) => [sBtn(`✏️ ${p.label}`, `adm_price_${p.key}`, 'primary')]);
   btns.push([sBtn('🔙 Kembali ke Panel', 'adm_back', 'danger')]);
@@ -1894,9 +1916,27 @@ bot.action(/^adm_pricerole_([a-z]+)_(member|reseller)$/, async (ctx) => {
   const key = ctx.match[1];
   const role = ctx.match[2];
   const cur = await vpn.getVpnPrice(key, role);
-  sessions.set(ctx.chat.id, { step: 'adm_price_input', data: { key, role } });
+  const curCF = await vpn.getVpnPrice(key, role, true);
   await ctx.reply(
-    `💲 <b>Ubah Harga VPN</b>\n\n📦 Produk: <b>${esc(key)}</b>\n👤 Role: <b>${role}</b>\n📌 Harga saat ini: <b>Rp${Number(cur).toLocaleString('id-ID')}/hari</b>\n\nKetik <b>harga baru per hari</b> (angka saja, contoh: 500):`,
+    `💲 <b>Ubah Harga VPN</b>\n\n📦 Produk: <b>${esc(key)}</b>\n👤 Role: <b>${role}</b>\n📌 Harga Biasa saat ini: <b>Rp${Number(cur).toLocaleString('id-ID')}/hari</b>\n📌 Harga CloudFront saat ini: <b>Rp${Number(curCF).toLocaleString('id-ID')}/hari</b>\n\nPilih jenis harga yang mau diubah:`,
+    { parse_mode: 'HTML', reply_markup: { inline_keyboard: [
+      [sBtn('💲 Harga Biasa', `adm_pricetype_${key}_${role}_biasa`, 'primary'), sBtn('☁️ Harga CloudFront', `adm_pricetype_${key}_${role}_cf`, 'success')],
+      [sBtn('🔙 Kembali', 'adm_vpnprices', 'danger')],
+    ] } }
+  );
+});
+
+
+bot.action(/^adm_pricetype_([a-z]+)_(member|reseller)_(biasa|cf)$/, async (ctx) => {
+  if (!await admin.hasAdminAccess(ctx)) { await safeCb(ctx); return; }
+  await safeCb(ctx);
+  const key = ctx.match[1];
+  const role = ctx.match[2];
+  const viaCF = ctx.match[3] === 'cf';
+  const cur = await vpn.getVpnPrice(key, role, viaCF);
+  sessions.set(ctx.chat.id, { step: 'adm_price_input', data: { key, role, viaCF } });
+  await ctx.reply(
+    `💲 <b>Ubah Harga ${viaCF ? 'CloudFront' : 'Biasa'}</b>\n\n📦 Produk: <b>${esc(key)}</b>\n👤 Role: <b>${role}</b>\n📌 Harga saat ini: <b>Rp${Number(cur).toLocaleString('id-ID')}/hari</b>\n\nKetik <b>harga baru per hari</b> (angka saja, contoh: 500):`,
     { parse_mode: 'HTML', ...cancelKb() }
   );
 });

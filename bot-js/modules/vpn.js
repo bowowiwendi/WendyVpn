@@ -41,6 +41,7 @@ async function createSSH(username, password, days, ipLimit = 1) {
       `🌐 Host: <code>${domain}</code>\n` +
       `📅 Expired: <code>${exp}</code></blockquote>`,
     expiry: exp,
+    password,
   };
 }
 
@@ -257,6 +258,8 @@ const VPN_PRODUCTS = [
 const DEFAULT_VPN_PRICE = { member: 500, reseller: 450 };
 
 async function seedVpnPrices() {
+  // Migrasi harga CF: kolom cf_price (NULL = fallback ke harga biasa).
+  await run('ALTER TABLE vpn_prices ADD COLUMN cf_price INTEGER').catch(() => {});
   for (const p of VPN_PRODUCTS) {
     for (const role of ['member', 'reseller']) {
       await run(
@@ -267,17 +270,22 @@ async function seedVpnPrices() {
   }
 }
 
-async function getVpnPrice(productKey, role) {
+async function getVpnPrice(productKey, role, viaCF = false) {
   if (role === 'admin') return 0; // harga modal untuk admin
   const row = await get(
-    'SELECT price FROM vpn_prices WHERE product_key = ? AND role = ?',
+    'SELECT price, cf_price FROM vpn_prices WHERE product_key = ? AND role = ?',
     [productKey, role]
   ).catch(() => null);
-  if (row && Number.isFinite(Number(row.price))) return Number(row.price);
-  return DEFAULT_VPN_PRICE[role] ?? DEFAULT_VPN_PRICE.member;
+  const isNum = (v) => v !== null && v !== undefined && v !== '' && Number.isFinite(Number(v));
+  const biasa = (row && isNum(row.price))
+    ? Number(row.price) : (DEFAULT_VPN_PRICE[role] ?? DEFAULT_VPN_PRICE.member);
+  // Harga CF: pakai cf_price bila terisi; bila NULL/belum diset, fallback ke harga biasa.
+  // (Number(null) = 0, jadi NULL harus dicek eksplisit, bukan via Number.isFinite saja.)
+  if (viaCF && row && isNum(row.cf_price)) return Number(row.cf_price);
+  return biasa;
 }
 
-async function setVpnPrice(productKey, role, price) {
+async function setVpnPrice(productKey, role, price, viaCF = false) {
   if (!VPN_PRODUCTS.some((p) => p.key === productKey)) {
     throw new Error('Produk tidak dikenal: ' + productKey);
   }
@@ -286,16 +294,23 @@ async function setVpnPrice(productKey, role, price) {
   }
   price = Math.round(Number(price));
   if (!Number.isFinite(price) || price < 0) throw new Error('Harga tidak valid (angka ≥ 0)');
+  // Pastikan baris ada (harga biasa = default bila baru), lalu ubah HANYA kolom yang dipilih,
+  // supaya harga Biasa dan CF tidak saling menimpa.
   await run(
-    `INSERT INTO vpn_prices (product_key, role, price) VALUES (?,?,?)
-     ON CONFLICT(product_key, role) DO UPDATE SET price = ?`,
-    [productKey, role, price, price]
+    'INSERT OR IGNORE INTO vpn_prices (product_key, role, price) VALUES (?,?,?)',
+    [productKey, role, DEFAULT_VPN_PRICE[role] ?? DEFAULT_VPN_PRICE.member]
+  ).catch(() => {});
+  const col = viaCF ? 'cf_price' : 'price';
+  await run(
+    `UPDATE vpn_prices SET ${col} = ? WHERE product_key = ? AND role = ?`,
+    [price, productKey, role]
   );
   return price;
 }
 
 async function listVpnPrices() {
-  return all('SELECT product_key, role, price FROM vpn_prices ORDER BY product_key, role');
+  return all('SELECT product_key, role, price, cf_price FROM vpn_prices ORDER BY product_key, role')
+    .catch(() => all('SELECT product_key, role, price FROM vpn_prices ORDER BY product_key, role'));
 }
 
 module.exports = {

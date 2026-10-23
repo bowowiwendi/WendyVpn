@@ -95,6 +95,7 @@ async function init() {
     product_key TEXT NOT NULL,
     role TEXT NOT NULL,
     price INTEGER NOT NULL DEFAULT 0,
+    cf_price INTEGER,
     PRIMARY KEY (product_key, role)
   )`);
 
