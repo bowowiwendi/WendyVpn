@@ -322,7 +322,20 @@ function first_setup() {
     print_ok "Setup Dependencies $OS_NAME"
     sudo apt update -y
     print_ok "Installing haproxy..."
-    apt install -y haproxy || print_error "Gagal menginstal haproxy."
+    # HAProxy DIPIN 2.0.33 (terbukti di Aji02 + vps-utama 2026-10-23): apt stok
+    # Ubuntu 24.04 memberi 2.8, di mana opsi http-tunnel fatal dan payload
+    # SSH gagal 301 lalu 400. Bila haproxy terpasang >= 2.1, build 2.0.33
+    # dari source dengan dukungan systemd, lalu ganti binary-nya.
+    if command -v haproxy >/dev/null 2>&1 && [ "$(haproxy -v 2>/dev/null | head -1 | sed 's/[^0-9.]//g' | cut -d. -f1-2)" = "2.0" ]; then
+        print_ok "HAProxy sudah 2.0, lewati instalasi."
+    elif true; then
+        print_ok "Mengganti HAProxy stok dengan 2.0.33 (build source)..."
+        apt install -y libssl-dev libpcre3-dev libsystemd-dev gcc make wget || print_error "Gagal menginstal dependensi build HAProxy."
+        systemctl stop haproxy 2>/dev/null || true
+        cp /usr/sbin/haproxy /root/haproxy-stock.bak 2>/dev/null || true
+        cd /tmp && wget -q https://www.haproxy.org/download/2.0/src/haproxy-2.0.33.tar.gz && tar xzf haproxy-2.0.33.tar.gz && cd haproxy-2.0.33 && make -j"$(nproc)" TARGET=linux-glibc USE_OPENSSL=1 USE_ZLIB=1 USE_PCRE=1 USE_SYSTEMD=1 >/dev/null 2>&1 && cp haproxy /usr/sbin/haproxy || print_error "Gagal build/install HAProxy 2.0.33."
+        cd /root || true
+    fi
     print_success "HAProxy Installation"
     print_ok "first_setup SELESAI"
 }
