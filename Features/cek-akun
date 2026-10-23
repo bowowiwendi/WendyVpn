@@ -1,0 +1,126 @@
+#!/usr/bin/env python3
+# cek-akun: hitung jumlah akun VPN per layanan (hanya angka, tanpa data akun).
+# Sumber: /etc/ssh/.ssh.db (SSH) dan /etc/xray/config.json (VMess/VLess/Trojan/Shadowsocks).
+# Definisi: SSH = username unik di .ssh.db yang masih ada sebagai user sistem (UID>=1000).
+# Xray = username/email client unik per protokol; client yang sama di WS dan gRPC
+# dihitung sekali (gabung per nama). Entri template tanpa nama/email TIDAK dihitung.
+# config.json Xray di VPS ini bukan JSON murni (ada baris marker #vmess, ### user tgl
+# di antara objek client), jadi baris marker dibuang dulu baru di-parse sebagai JSON;
+# bila parse gagal, dipakai pemindaian baris cadangan dengan definisi yang sama.
+import json
+import re
+import sys
+
+SSH_DB = "/etc/ssh/.ssh.db"
+PASSWD = "/etc/passwd"
+XRAY = "/etc/xray/config.json"
+PROTOS = ("vmess", "vless", "trojan", "shadowsocks")
+MARKER_RE = re.compile(r"^\s*#{1,3}[!&]*\s+(\S+)\s+\d{4}-\d{2}-\d{2}")
+PROTO_RE = re.compile(r'"protocol"\s*:\s*"(vmess|vless|trojan|shadowsocks)"')
+EMAIL_RE = re.compile(r'"email"\s*:\s*"([^"]+)"')
+
+
+def system_users():
+    users = set()
+    try:
+        with open(PASSWD) as f:
+            for line in f:
+                p = line.rstrip("\n").split(":")
+                if len(p) >= 3 and p[0] != "nobody":
+                    try:
+                        if int(p[2]) >= 1000:
+                            users.add(p[0])
+                    except ValueError:
+                        pass
+    except FileNotFoundError:
+        pass
+    return users
+
+
+def count_ssh():
+    try:
+        sysu = system_users()
+        names = set()
+        with open(SSH_DB) as f:
+            for line in f:
+                line = line.strip()
+                if line.startswith("###") or line.startswith("#ssh#"):
+                    parts = line.split()
+                    if len(parts) >= 2 and parts[1] in sysu:
+                        names.add(parts[1])
+        return len(names)
+    except FileNotFoundError:
+        return 0
+
+
+def count_xray_json(lines):
+    clean = [l for l in lines if not l.strip().startswith("#")]
+    d = json.loads("\n".join(clean))
+    sets = {p: set() for p in PROTOS}
+    for ib in d.get("inbounds", []):
+        p = ib.get("protocol")
+        if p in PROTOS:
+            for cl in ib.get("settings", {}).get("clients", []):
+                if cl.get("email"):
+                    sets[p].add(cl["email"])
+    return sets
+
+
+def count_xray_scan(lines):
+    sets = {p: set() for p in PROTOS}
+    proto = None
+    for line in lines:
+        m = PROTO_RE.search(line)
+        if m:
+            proto = m.group(1)
+            continue
+        if proto is None:
+            continue
+        mm = MARKER_RE.match(line)
+        if mm:
+            sets[proto].add(mm.group(1))
+            continue
+        em = EMAIL_RE.search(line)
+        if em:
+            sets[proto].add(em.group(1))
+    return sets
+
+
+def count_xray():
+    try:
+        lines = open(XRAY).read().splitlines()
+    except FileNotFoundError:
+        return {p: 0 for p in PROTOS}
+    try:
+        sets = count_xray_json(lines)
+    except Exception:
+        sets = count_xray_scan(lines)
+    else:
+        scan = count_xray_scan(lines)
+        for p in PROTOS:
+            sets[p] |= scan[p]
+    return {p: len(sets[p]) for p in PROTOS}
+
+
+def main():
+    x = count_xray()
+    counts = {
+        "ssh": count_ssh(),
+        "vmess": x["vmess"],
+        "vless": x["vless"],
+        "trojan": x["trojan"],
+        "shadowsocks": x["shadowsocks"],
+    }
+    total = sum(counts.values())
+    print("Jumlah Akun VPN")
+    print("SSH: %d" % counts["ssh"])
+    print("VMess: %d" % counts["vmess"])
+    print("VLess: %d" % counts["vless"])
+    print("Trojan: %d" % counts["trojan"])
+    print("Shadowsocks: %d" % counts["shadowsocks"])
+    print("Total: %d" % total)
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

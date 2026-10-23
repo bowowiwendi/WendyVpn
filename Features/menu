@@ -387,6 +387,21 @@ let trb=$trx/2
 ssx=$(cat /etc/xray/config.json | grep "#!!" | wc -l)
 let ssa=$ssx/2
 
+# Jumlah akun per layanan (definisi benar, dari cek-akun; tampil otomatis di info menu)
+if [ -x /usr/local/sbin/cek-akun ]; then
+  _akun_out=$(/usr/local/sbin/cek-akun 2>/dev/null)
+  AKUN_SSH=$(echo "$_akun_out" | awk '/^SSH:/ {print $2}')
+  AKUN_VMESS=$(echo "$_akun_out" | awk '/^VMess:/ {print $2}')
+  AKUN_VLESS=$(echo "$_akun_out" | awk '/^VLess:/ {print $2}')
+  AKUN_TROJAN=$(echo "$_akun_out" | awk '/^Trojan:/ {print $2}')
+  AKUN_SS=$(echo "$_akun_out" | awk '/^Shadowsocks:/ {print $2}')
+  AKUN_TOTAL=$(echo "$_akun_out" | awk '/^Total:/ {print $2}')
+else
+  AKUN_SSH=0; AKUN_VMESS=0; AKUN_VLESS=0; AKUN_TROJAN=0; AKUN_SS=0; AKUN_TOTAL=0
+fi
+AKUN_SSH=${AKUN_SSH:-0}; AKUN_VMESS=${AKUN_VMESS:-0}; AKUN_VLESS=${AKUN_VLESS:-0}
+AKUN_TROJAN=${AKUN_TROJAN:-0}; AKUN_SS=${AKUN_SS:-0}; AKUN_TOTAL=${AKUN_TOTAL:-0}
+
 
 # ACTIVATED & EXPIRED
 Info="${BIGreen}Active${NC}"
@@ -425,8 +440,9 @@ echo -e "${BICyan} │${BIWhite} SSH      : $status_ssh   ${BIWhite} NGINX    : 
 echo -e "${BICyan} │${BIWhite} WS-ePRO  : $status_ws_epro   ${BIWhite} DROPBEAR : $status_dropbear   ${BIWhite} HAPROXY  : $status_haproxy   ${BICyan} ${NC}"
 echo -e "${BICyan} ├──────────────────────────────────────────────────────────────────┤${NC}"
 echo -e "${BICyan} │${BIWhite} Traffic  : ${BIGreen}↓ $dtoday ${BIYellow}↑ $utoday ${BICyan}TOT: $ttoday${NC}"
+echo -e "${BICyan} │${BIWhite} Akun     : ${BIGreen}SSH $AKUN_SSH  VMess $AKUN_VMESS  VLess $AKUN_VLESS  Trojan $AKUN_TROJAN  SS $AKUN_SS  ${BIYellow}Total $AKUN_TOTAL${NC}"
 echo -e "${BICyan} ╰──────────────────────────────────────────────────────────────────╯${NC}"
-echo -e " ${WHITE}         SSH: $ssh1 TROJAN : $trx SS-R : $ssx VLESS : $vlx VMESS : $vmc ${NC}"
+echo -e " ${WHITE}         SSH: $AKUN_SSH TROJAN : $AKUN_TROJAN SS-R : $AKUN_SS VLESS : $AKUN_VLESS VMESS : $AKUN_VMESS TOTAL: $AKUN_TOTAL ${NC}"
 echo -e "${BICyan} ╭── ${BIWhite}Menu Options${BICyan} ──────────────────────────────────────────────────╮${NC}"
 echo -e "${BICyan} │${NC}  [${BIYellow}01${NC}] SSH & OpenVPN       [${BIYellow}06${NC}] Trial Account       [${BIYellow}11${NC}] Bac/Res  ${BICyan} ${NC}"
 echo -e "${BICyan} │${NC}  [${BIYellow}02${NC}] Vmess WS/GRPC       [${BIYellow}07${NC}] Reboot Server       [${BIYellow}12${NC}] Bot Panel       ${BICyan} ${NC}"
