@@ -176,6 +176,7 @@ const vpnMenu = (cf = false) => {
     [sBtn('⚡ VLess', `${p}mk_vless`, 'primary'), sBtn('🛡️ Trojan', `${p}mk_trojan`, 'success')],
     [sBtn('👻 Shadowsocks', `${p}mk_shadowsocks`, 'primary')],
     [sBtn('⚡ Zivpn UDP', `${p}mk_zivpn`, 'success')],
+    [sBtn('🎁 Trial 1 Jam (Gratis)', `${p}mk_trial`, 'primary')],
     [sBtn('💰 Topup Saldo', 'ppob_deposit', 'success')],
     [sBtn('🔙 Kembali', 'menu_main', 'danger')],
   ]);
@@ -398,15 +399,92 @@ for (const proto of ['ssh', 'vmess', 'vless', 'trojan', 'shadowsocks', 'zivpn'])
   bot.action(`cf_mk_${proto}`, (ctx) => handleCreate(ctx, proto, true));
 }
 
-bot.action('mk_trial', async (ctx) => {
+// ---------- Trial 1 jam, gratis, 1x/24 jam per telegram_id (biasa+CF digabung) ----------
+// Alur: tombol trial -> pilih protokol -> kirim username -> (SSH/Zivpn: password)
+// -> akun dibuat via fungsi create* yang sama dengan akun biasa, sehingga
+// akun biasa (viaCF=false) tetap pakai domain/path/kredensial biasa, dan
+// hanya akun CF (viaCF=true) yang pakai domain/path/kredensial CF.
+async function trialProtoMenu(ctx, viaCF) {
   await safeCb(ctx);
-  await ctx.reply('❌ Trial gratis sudah dinonaktifkan.');
-});
+  const p = viaCF ? 'cf_trial_proto_' : 'trial_proto_';
+  const rows = [
+    [sBtn('🖥️ SSH', `${p}ssh`, 'danger'), sBtn('📡 VMess', `${p}vmess`, 'success')],
+    [sBtn('⚡ VLess', `${p}vless`, 'primary'), sBtn('🛡️ Trojan', `${p}trojan`, 'success')],
+    [sBtn('👻 Shadowsocks', `${p}shadowsocks`, 'primary')],
+    [sBtn('⚡ Zivpn UDP', `${p}zivpn`, 'success')],
+    [sBtn('🔙 Kembali', 'menu_main', 'danger')],
+  ];
+  await ctx.reply('🎁 <b>TRIAL GRATIS 1 JAM</b>\n\nPilih protokol (1 akun, 1x per 24 jam):',
+    { parse_mode: 'HTML', reply_markup: Markup.inlineKeyboard(rows).reply_markup });
+}
+bot.action('mk_trial', (ctx) => trialProtoMenu(ctx, false));
+bot.action('cf_mk_trial', (ctx) => trialProtoMenu(ctx, true));
 
-bot.action('cf_mk_trial', async (ctx) => {
+async function trialProtoPick(ctx, proto, viaCF) {
   await safeCb(ctx);
-  await ctx.reply('❌ Trial gratis sudah dinonaktifkan.');
-});
+  if (!['ssh', 'vmess', 'vless', 'trojan', 'shadowsocks', 'zivpn'].includes(proto)) {
+    return ctx.reply('❌ Protokol trial tidak dikenal.');
+  }
+  if (!(await vpn.canClaimTrial(ctx.from.id).catch(() => false))) {
+    return ctx.reply('❌ Kamu sudah klaim trial dalam 24 jam terakhir. Coba lagi besok.');
+  }
+  sessions.set(ctx.chat.id, { step: 'vpn_username', proto, viaCF, isTrial: true });
+  await ctx.reply(
+    `🎁 <b>Trial ${PROTO_LABEL[proto]}${viaCF ? ' (CloudFront)' : ''} — Gratis 1 Jam</b>\n\n` +
+      `Kirim <b>username</b> (3-20 karakter, huruf/angka):`,
+    { parse_mode: 'HTML', ...cancelKb() }
+  );
+}
+bot.action(/^trial_proto_(.+)$/, (ctx) => trialProtoPick(ctx, ctx.match[1], false));
+bot.action(/^cf_trial_proto_(.+)$/, (ctx) => trialProtoPick(ctx, ctx.match[1], true));
+
+// Buat akun trial: tanpa cek/potong saldo, exp=1 ke API (BUKAN 0 —
+// exp=0 di API dibaca jadi 30 hari), masa trial 1 jam dicatat di
+// trial_expires_at dan ditegakkan sweeper, bukan kolom tanggal expiry.
+async function finishTrialVpn(ctx, sess, username, password = '') {
+  sessions.delete(ctx.chat.id);
+  const { proto, viaCF } = sess;
+  if (!(await vpn.canClaimTrial(ctx.from.id).catch(() => false))) {
+    return ctx.reply('❌ Kamu sudah klaim trial dalam 24 jam terakhir. Coba lagi besok.');
+  }
+  await ctx.reply('⏳ Membuat akun trial...');
+  let r;
+  try {
+    if (proto === 'ssh') {
+      r = viaCF ? vpn.cfSSHInfo(username, password, 1)
+        : await vpn.createSSH(username, password, 1, 1);
+      if (viaCF && r.success) await vpn.createSSH(username, password, 1, 1).catch(() => {});
+    } else if (proto === 'vmess') r = await vpn.createVMess(username, 1, viaCF);
+    else if (proto === 'vless') r = await vpn.createVLess(username, 1, viaCF);
+    else if (proto === 'shadowsocks') r = await vpn.createShadowsocks(username, 1, viaCF);
+    else if (proto === 'zivpn') r = await vpn.createZivpn(username, password, 1);
+    else r = await vpn.createTrojan(username, 1, viaCF);
+  } catch (e) {
+    r = { success: false, message: `❌ Error: ${esc(e.message)}` };
+  }
+  if (!r.success) return ctx.reply(r.message, { parse_mode: 'HTML' });
+  const trialEnd = vpn.trialExpiresAtISO();
+  await vpn.recordTrialClaim(ctx.from.id);
+  await vpn.saveAccount(ctx.from.id, proto, username, r.expiry, 1, viaCF ? 1 : 0, trialEnd);
+  notifGrup(bot, `🎁 <b>Trial VPN</b>\n👤 ${ctx.from.username ? '@' + ctx.from.username : ctx.from.first_name}\n📦 ${proto.toUpperCase()}${viaCF ? ' (CF)' : ''} - 1 jam (gratis)`);
+  // Pesan trial menampilkan JAM berakhir (WIB), bukan tanggal expiry.
+  const endWib = new Date(Date.now() + 3600 * 1000 + 7 * 3600 * 1000);
+  const hhmm = String(endWib.getUTCHours()).padStart(2, '0') + ':' + String(endWib.getUTCMinutes()).padStart(2, '0');
+  const msg = r.message.replace(/Expired\s*:?\s*<code>[^<]*<\/code>/, `📅 Berlaku s/d : <code>${hhmm} WIB</code> 🎁 Trial 1 jam`)
+    + `\n\n🎁 <b>TRIAL GRATIS 1 JAM</b> — berlaku s/d <b>${hhmm} WIB</b>, akun dihapus otomatis setelah habis.`;
+  let extra = { parse_mode: 'HTML' };
+  if ((await hc.hcEnabled()) && ['vmess', 'vless', 'trojan', 'ssh'].includes(proto)) {
+    const cacheKey = ctx.from.id + '_' + proto + '_' + username;
+    hcCache.set(cacheKey, {
+      proto, username,
+      uuid: r.uuid || '', password: r.password || '',
+      domain: viaCF ? config.cloudfront.domain : config.vpn.domain,
+    });
+    if (hcCache.size > 100) hcCache.delete(hcCache.keys().next().value);
+    extra.reply_markup = { inline_keyboard: [[{ text: '📱 Download .hc', callback_data: 'hc_dl_' + cacheKey }]] };
+  }
+  await ctx.reply(msg, extra);
+}
 
 // ---------- Terima input teks (session) ----------
 bot.on('text', async (ctx) => {
@@ -651,6 +729,7 @@ bot.on('text', async (ctx) => {
       return ctx.reply('Kirim <b>password</b> untuk akun SSH:', { parse_mode: 'HTML' });
     }
     sess.data = { username };
+    if (sess.isTrial) return finishTrialVpn(ctx, sess, username);
     sess.step = 'vpn_days';
     const _r1 = await ppob.getRole(ctx.from.id).catch(() => 'member');
     const _p1 = await vpn.getVpnPrice(sess.proto, _r1, sess.viaCF);
@@ -664,6 +743,7 @@ bot.on('text', async (ctx) => {
     const password = ctx.message.text.trim();
     if (password.length < 4) return ctx.reply('❌ Password minimal 4 karakter. Coba lagi:');
     sess.data.password = password;
+    if (sess.isTrial) return finishTrialVpn(ctx, sess, sess.data.username, password);
     sess.step = 'vpn_days';
     const _r2 = await ppob.getRole(ctx.from.id).catch(() => 'member');
     const _p2 = await vpn.getVpnPrice(sess.proto, _r2, sess.viaCF);
@@ -2727,7 +2807,17 @@ setInterval(async () => {
   } catch (e) {
     console.error('[cleanup] error:', e.message);
   }
-}, 24 * 60 * 60 * 1000); // tiap 24 jam
+}, 24 * 60 * 60 * 1000); // tiap 24 jam (cleanup lama, tidak diubah)
+
+// ---------- Sweeper trial 1 jam (baru, tiap 5 menit + sekali saat start) ----------
+async function sweepTrialsOnce() {
+  try {
+    const n = await vpn.sweepExpiredTrials();
+    if (n) console.log('[trial] sweeper hapus', n, 'akun trial kadaluarsa');
+  } catch (e) { console.error('[trial] sweeper error:', e.message); }
+}
+setInterval(sweepTrialsOnce, 5 * 60 * 1000);
+sweepTrialsOnce();
 
 // ---------- Poller deposit QRIS: kredit saldo otomatis tiap 30 detik ----------
 // Deposit yang sudah dibayar di gateway (status paid/success/settled/completed)

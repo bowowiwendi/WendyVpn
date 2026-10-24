@@ -46,6 +46,13 @@ async function init() {
     via_cf INTEGER DEFAULT 0,
     created_at TEXT DEFAULT (datetime('now'))
   )`);
+  await run(`ALTER TABLE vpn_accounts ADD COLUMN trial_expires_at TEXT`).catch(() => {});
+  // Batas klaim trial 1x/24 jam per telegram_id, terpisah dari vpn_accounts
+  // (baris akun dihapus saat trial habis, jadi batas tidak boleh dicek dari sana).
+  await run(`CREATE TABLE IF NOT EXISTS trial_claims (
+    telegram_id INTEGER PRIMARY KEY,
+    claimed_at TEXT DEFAULT (datetime('now'))
+  )`);
 
   await run(`CREATE TABLE IF NOT EXISTS transactions (
     id INTEGER PRIMARY KEY AUTOINCREMENT,

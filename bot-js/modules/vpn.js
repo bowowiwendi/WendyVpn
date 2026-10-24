@@ -168,8 +168,8 @@ async function createVMess(username, days, viaCF = false) {
   if (!viaCF && data?.status !== 'success')
     return { success: false, message: `❌ Gagal membuat akun: ${esc(data?.message || 'API error')}` };
   const useUuid = viaCF ? cf.vmessUuid || uuid : uuid;
-  const path = viaCF ? cf.paths.vmess : `/vmess-${username}`;
-  const link = vmessLink(useUuid, `${username}-cf`, host, viaCF ? 443 : 443, path, true);
+  const path = viaCF ? cf.paths.vmess : '/vmess';
+  const link = vmessLink(useUuid, viaCF ? `${username}-cf` : username, host, 443, path, true);
   const exp = expiryDate(days);
   return {
     success: true,
@@ -188,12 +188,12 @@ async function createVLess(username, days, viaCF = false) {
   if (!viaCF && dataVL?.status !== 'success')
     return { success: false, message: `❌ Gagal membuat akun: ${esc(dataVL?.message || 'API error')}` };
   const useUuid = viaCF ? cf.vlessUuid || uuid : uuid;
-  const path = encodeURIComponent(viaCF ? cf.paths.vless : `/vless-${username}`);
+  const path = encodeURIComponent(viaCF ? cf.paths.vless : '/vless');
   const link = `vless://${useUuid}@${host}:443?encryption=none&security=tls&sni=${host}&type=ws&path=${path}#${username}${viaCF ? '-cf' : ''}`;
   const exp = expiryDate(days);
   return {
     success: true,
-    message: fancyBox({ proto: 'vless', viaCF, username, secretIcon: '🆔', secretLabel: 'UUID', secret: useUuid, exp, origin: domain, host, cfDomain: cf.domain || '', link, wsPath: viaCF ? cf.paths.vless : `/vless-${username}` }),
+    message: fancyBox({ proto: 'vless', viaCF, username, secretIcon: '🆔', secretLabel: 'UUID', secret: useUuid, exp, origin: domain, host, cfDomain: cf.domain || '', link, wsPath: viaCF ? cf.paths.vless : '/vless' }),
     expiry: exp, link, uuid: useUuid,
   };
 }
@@ -208,12 +208,12 @@ async function createTrojan(username, days, viaCF = false) {
   if (!viaCF && dataTR?.status !== 'success')
     return { success: false, message: `❌ Gagal membuat akun: ${esc(dataTR?.message || 'API error')}` };
   const usePass = viaCF ? cf.trojanPassword || password : password;
-  const path = encodeURIComponent(viaCF ? cf.paths.trojan : `/trojan-${username}`);
+  const path = encodeURIComponent(viaCF ? cf.paths.trojan : '/trojan');
   const link = `trojan://${usePass}@${host}:443?security=tls&sni=${host}&type=ws&path=${path}#${username}${viaCF ? '-cf' : ''}`;
   const exp = expiryDate(days);
   return {
     success: true,
-    message: fancyBox({ proto: 'trojan', viaCF, username, secretIcon: '🔑', secretLabel: 'Password', secret: usePass, exp, origin: domain, host, cfDomain: cf.domain || '', link, wsPath: viaCF ? cf.paths.trojan : `/trojan-${username}` }),
+    message: fancyBox({ proto: 'trojan', viaCF, username, secretIcon: '🔑', secretLabel: 'Password', secret: usePass, exp, origin: domain, host, cfDomain: cf.domain || '', link, wsPath: viaCF ? cf.paths.trojan : '/trojan' }),
     expiry: exp, link, password: usePass,
   };
 }
@@ -277,11 +277,50 @@ async function deleteAccount(proto, username) {
   return { success: true, message: `🗑️ Akun <b>${username}</b> (${proto}) dihapus.` };
 }
 
-async function saveAccount(telegramId, proto, username, expiry, isTrial = 0, viaCF = 0) {
+async function saveAccount(telegramId, proto, username, expiry, isTrial = 0, viaCF = 0, trialExpiresAt = null) {
+  if (trialExpiresAt) {
+    await run(
+      'INSERT INTO vpn_accounts (telegram_id, proto, username, expiry, is_trial, via_cf, trial_expires_at) VALUES (?,?,?,?,?,?,?)',
+      [telegramId, proto, username, expiry, isTrial, viaCF, trialExpiresAt]
+    );
+  } else {
+    await run(
+      'INSERT INTO vpn_accounts (telegram_id, proto, username, expiry, is_trial, via_cf) VALUES (?,?,?,?,?,?)',
+      [telegramId, proto, username, expiry, isTrial, viaCF]
+    );
+  }
+}
+
+// ---------- Trial 1 jam, 1x/24 jam ----------
+// Batas per telegram_id TOTAL (biasa+CF digabung), dicatat di trial_claims
+// yang terpisah dari vpn_accounts (baris akun dihapus saat trial habis).
+// trial_expires_at disimpan UTC 'YYYY-MM-DD HH:MM:SS' agar sebanding
+// dengan datetime('now') SQLite di sweeper.
+function trialExpiresAtISO() {
+  const d = new Date(Date.now() + 3600 * 1000);
+  return d.toISOString().slice(0, 19).replace('T', ' ');
+}
+async function canClaimTrial(telegramId) {
+  const row = await get(
+    `SELECT claimed_at FROM trial_claims WHERE telegram_id = ? AND claimed_at > datetime('now', '-24 hours')`,
+    [telegramId]
+  ).catch(() => null);
+  return !row;
+}
+async function recordTrialClaim(telegramId) {
   await run(
-    'INSERT INTO vpn_accounts (telegram_id, proto, username, expiry, is_trial, via_cf) VALUES (?,?,?,?,?,?)',
-    [telegramId, proto, username, expiry, isTrial, viaCF]
-  );
+    `INSERT OR REPLACE INTO trial_claims (telegram_id, claimed_at) VALUES (?, datetime('now'))`,
+    [telegramId]
+  ).catch(() => {});
+}
+async function sweepExpiredTrials() {
+  const rows = await all(
+    `SELECT proto, username FROM vpn_accounts WHERE is_trial = 1 AND trial_expires_at IS NOT NULL AND trial_expires_at < datetime('now')`
+  ).catch(() => []);
+  for (const r of rows) {
+    try { await deleteAccount(r.proto, r.username); } catch {}
+  }
+  return rows.length;
 }
 
 async function myAccounts(telegramId) {
@@ -446,5 +485,6 @@ module.exports = {
   countAccounts,
   createSSH, cfSSHInfo, createVMess, createVLess, createTrojan, createShadowsocks, createZivpn, fancyBox,
   renewAccount, deleteAccount, saveAccount, myAccounts, validUser, expiryDate,
+  canClaimTrial, recordTrialClaim, sweepExpiredTrials, trialExpiresAtISO,
   VPN_PRODUCTS, DEFAULT_VPN_PRICE, seedVpnPrices, getVpnPrice, setVpnPrice, listVpnPrices,
 };
