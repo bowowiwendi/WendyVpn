@@ -272,7 +272,21 @@ async function renewAccount(proto, username, days) {
 }
 
 async function deleteAccount(proto, username) {
-  await api.get('/delete', { params: apiParams({ proto, user: username }) }).catch(() => {});
+  // JANGAN hapus baris DB kalau API gagal/ditolak: baris dipertahankan
+  // supaya sweeper (dan trial-killer server) mencoba lagi. Menghapus baris
+  // padahal akun masih hidup di server adalah bug trial-tidak-mati.
+  let data = {};
+  try {
+    const res = await api.get('/delete', { params: apiParams({ proto, user: username }) });
+    data = res.data || {};
+  } catch (e) {
+    console.error('[trial] delete API gagal, baris dipertahankan:', proto, username, e.message);
+    return { success: false, message: 'API delete gagal, dicoba lagi di sweep berikutnya.' };
+  }
+  if (data.status && data.status !== 'success') {
+    console.error('[trial] delete API ditolak, baris dipertahankan:', proto, username, data.message);
+    return { success: false, message: 'API delete ditolak, dicoba lagi di sweep berikutnya.' };
+  }
   await run('DELETE FROM vpn_accounts WHERE username = ? AND proto = ?', [username, proto]);
   return { success: true, message: `🗑️ Akun <b>${username}</b> (${proto}) dihapus.` };
 }
@@ -317,10 +331,11 @@ async function sweepExpiredTrials() {
   const rows = await all(
     `SELECT proto, username FROM vpn_accounts WHERE is_trial = 1 AND trial_expires_at IS NOT NULL AND trial_expires_at < datetime('now')`
   ).catch(() => []);
+  let deleted = 0;
   for (const r of rows) {
-    try { await deleteAccount(r.proto, r.username); } catch {}
+    try { const res = await deleteAccount(r.proto, r.username); if (res && res.success) deleted++; } catch {}
   }
-  return rows.length;
+  return deleted;
 }
 
 async function myAccounts(telegramId) {
