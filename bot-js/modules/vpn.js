@@ -315,6 +315,15 @@ function trialExpiresAtISO() {
   return d.toISOString().slice(0, 19).replace('T', ' ');
 }
 async function canClaimTrial(telegramId) {
+  // Admin: boleh klaim trial BERKALI-KALI, beda dengan user biasa yang
+  // dibatasi 1x/24 jam. Trial admin tetap mati 1 jam via trial_expires_at
+  // + sweeper/killer, hanya batas klaimnya yang dibuka.
+  try {
+    const admins = config.admins || (config.adminId ? [String(config.adminId)] : []);
+    if (admins.map(String).includes(String(telegramId))) return true;
+    const u = await get('SELECT role FROM users WHERE telegram_id = ?', [telegramId]).catch(() => null);
+    if (u && u.role === 'admin') return true;
+  } catch {}
   const row = await get(
     `SELECT claimed_at FROM trial_claims WHERE telegram_id = ? AND claimed_at > datetime('now', '-24 hours')`,
     [telegramId]
