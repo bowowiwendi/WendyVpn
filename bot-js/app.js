@@ -808,6 +808,45 @@ bot.on('text', async (ctx) => {
     return finishRenew(ctx, sess.accountId, days);
   }
 
+  // --- Session hapus akun ketik-nama-saja ---
+  if (sess?.step === 'hapus_nama') {
+    const nama = ctx.message.text.trim();
+    if (!vpn.validUser(nama)) {
+      return ctx.reply('❌ Nama akun 3-20 karakter, huruf/angka saja. Ketik nama lain, atau ketik batal:');
+    }
+    const { all } = require('./src/db');
+    let rows = await all('SELECT * FROM vpn_accounts WHERE username = ? AND telegram_id = ?', [nama, ctx.from.id]).catch(() => []);
+    let adminMode = false;
+    if (!rows.length && await admin.hasAdminAccess(ctx)) {
+      rows = await all('SELECT * FROM vpn_accounts WHERE username = ?', [nama]).catch(() => []);
+      adminMode = rows.length > 0;
+    }
+    if (!rows.length) {
+      return ctx.reply('❌ Akun tidak ditemukan di daftar akunmu. Ketik nama lain, atau ketik batal:');
+    }
+    sessions.delete(chatId);
+    if (rows.length === 1) {
+      const a = rows[0];
+      const cb = adminMode ? `delconfadm_${a.id}` : `delconf_${a.id}`;
+      return ctx.reply(
+        `🗑️ <b>Hapus Akun?</b>\n\n` +
+        `👤 Username: <code>${esc(a.username)}</code>\n` +
+        `📦 Protokol: <code>${esc(a.proto.toUpperCase())}</code>${a.via_cf ? ' ☁️CF' : ''}\n\n` +
+        `Akun akan dihapus dari server dan daftar akun. Tindakan ini tidak bisa dibatalkan.`,
+        { parse_mode: 'HTML', reply_markup: { inline_keyboard: [
+          [{ text: '✅ Ya, Hapus', callback_data: cb }],
+          [{ text: '❌ Batal', callback_data: 'menu_akun' }],
+        ] } }
+      );
+    }
+    const kb = rows.map((a) => [{ text: `🗑️ ${a.proto.toUpperCase()} — ${a.username}`, callback_data: `${adminMode ? 'delconfadm' : 'delconf'}_${a.id}` }]);
+    kb.push([{ text: '❌ Batal', callback_data: 'menu_akun' }]);
+    return ctx.reply(
+      `Nama <code>${esc(nama)}</code> ada di beberapa protokol. Pilih yang mau dihapus:`,
+      { parse_mode: 'HTML', reply_markup: { inline_keyboard: kb } }
+    );
+  }
+
   // --- Session cek kuota ---
   if (sess?.step === 'kuota_nomor') {
     sessions.delete(chatId);
@@ -1313,16 +1352,44 @@ bot.command('sewalist', async (ctx) => {
 
 
 // ---------- Admin: hapus akun siapa pun ----------
+// ---------- Hapus akun ketik-nama-saja ----------
+async function showHapusNamaList(ctx) {
+  const rows = await vpn.myAccounts(ctx.from.id).catch(() => []);
+  if (!rows.length) return ctx.reply('📭 Kamu belum punya akun VPN.');
+  const lines = rows.map((a, n) =>
+    `${n + 1}. <code>${esc(a.username)}</code> (${esc(a.proto.toUpperCase())})${a.via_cf ? ' ☁️CF' : ''} — Exp: ${esc(a.expiry)}`
+  );
+  sessions.set(ctx.chat.id, { step: 'hapus_nama' });
+  await ctx.reply(
+    `🗑️ <b>Hapus Akun</b>\n━━━━━━━━━━━━━━━━━━\n<blockquote>${lines.join('\n')}</blockquote>\n\n` +
+    `Ketik <b>nama akun</b> yang mau dihapus (atau ketik <b>batal</b>):`,
+    { parse_mode: 'HTML', ...cancelKb() }
+  );
+}
 bot.command('hapusakun', async (ctx) => {
-  if (!await admin.hasAdminAccess(ctx)) return ctx.reply('❌ Khusus admin.');
   const parts = (ctx.message.text || '').trim().split(/\s+/);
   const username = parts[1], proto = (parts[2] || '').toLowerCase();
-  if (!username || !['ssh', 'vmess', 'vless', 'trojan', 'shadowsocks', 'zivpn'].includes(proto))
-    return ctx.reply('Penggunaan: /hapusakun <username> <ssh|vmess|vless|trojan|shadowsocks|zivpn>');
+  if (!username) return showHapusNamaList(ctx);
+  if (!await admin.hasAdminAccess(ctx)) return ctx.reply('❌ Hapus akun orang lain khusus admin. Untuk akun sendiri, pakai /hapusakun tanpa argumen.');
+  if (!proto || !['ssh', 'vmess', 'vless', 'trojan', 'shadowsocks', 'zivpn'].includes(proto))
+    return ctx.reply('Penggunaan: /hapusakun <username> <ssh|vmess|vless|trojan|shadowsocks|zivpn>\nAtau /hapusakun saja untuk hapus akun sendiri dengan ketik nama.');
   const { get } = require('./src/db');
   const acc = await get('SELECT * FROM vpn_accounts WHERE username = ? AND proto = ?', [username, proto]).catch(() => null);
   if (!acc) return ctx.reply('❌ Akun tidak ditemukan di database bot.');
   const r = await vpn.deleteAccount(proto, username);
+  await ctx.reply(r.success ? `🗑️ ${r.message}` : `❌ Gagal: ${esc(r.message || 'API error')}`, { parse_mode: 'HTML' });
+});
+bot.action('menu_hapus_nama', async (ctx) => {
+  await safeCb(ctx);
+  await showHapusNamaList(ctx);
+});
+bot.action(/^delconfadm_(\d+)$/, async (ctx) => {
+  await safeCb(ctx);
+  if (!await admin.hasAdminAccess(ctx)) return ctx.reply('❌ Khusus admin.');
+  const { get } = require('./src/db');
+  const acc = await get('SELECT * FROM vpn_accounts WHERE id = ?', [ctx.match[1]]).catch(() => null);
+  if (!acc) return ctx.reply('❌ Akun tidak ditemukan.');
+  const r = await vpn.deleteAccount(acc.proto, acc.username);
   await ctx.reply(r.success ? `🗑️ ${r.message}` : `❌ Gagal: ${esc(r.message || 'API error')}`, { parse_mode: 'HTML' });
 });
 
@@ -1353,6 +1420,7 @@ function akunKeyboard(page, pages, slice = []) {
     }
     kb.push(r);
   }
+  kb.push([{ text: '🗑️ Hapus (Ketik Nama)', callback_data: 'menu_hapus_nama' }]);
   kb.push([{ text: '🔙 Kembali', callback_data: 'menu_main' }]);
   return { inline_keyboard: kb };
 }
