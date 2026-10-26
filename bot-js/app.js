@@ -810,40 +810,98 @@ bot.on('text', async (ctx) => {
 
   // --- Session hapus akun ketik-nama-saja ---
   if (sess?.step === 'hapus_nama') {
-    const nama = ctx.message.text.trim();
-    if (!vpn.validUser(nama)) {
-      return ctx.reply('❌ Nama akun 3-20 karakter, huruf/angka saja. Ketik nama lain, atau ketik batal:');
-    }
+    const raw = ctx.message.text.trim();
     const { all } = require('./src/db');
-    let rows = await all('SELECT * FROM vpn_accounts WHERE username = ? AND telegram_id = ?', [nama, ctx.from.id]).catch(() => []);
-    let adminMode = false;
-    if (!rows.length && await admin.hasAdminAccess(ctx)) {
-      rows = await all('SELECT * FROM vpn_accounts WHERE username = ?', [nama]).catch(() => []);
-      adminMode = rows.length > 0;
+    const PROTOS = ['ssh', 'vmess', 'vless', 'trojan', 'shadowsocks', 'zivpn'];
+    let rows = [], adminMode = false, nama = raw, protoReq = '';
+    if (raw.includes(':')) {
+      const parts = raw.split(':');
+      nama = parts[0].trim(); protoReq = (parts[1] || '').trim().toLowerCase();
+      if (!vpn.validUser(nama) || !PROTOS.includes(protoReq)) {
+        return ctx.reply('❌ Format: nama:protokol, contoh: testuser:vmess. Ketik lagi, atau ketik batal:');
+      }
+      rows = await all('SELECT * FROM vpn_accounts WHERE username = ? AND telegram_id = ? AND proto = ?', [nama, ctx.from.id, protoReq]).catch(() => []);
+      if (!rows.length && await admin.hasAdminAccess(ctx)) {
+        rows = await all('SELECT * FROM vpn_accounts WHERE username = ? AND proto = ?', [nama, protoReq]).catch(() => []);
+        adminMode = rows.length > 0;
+      }
+    } else {
+      if (!vpn.validUser(raw)) {
+        return ctx.reply('❌ Nama akun 3-20 karakter, huruf/angka saja. Ketik nama lain, atau ketik batal:');
+      }
+      rows = await all('SELECT * FROM vpn_accounts WHERE username = ? AND telegram_id = ?', [nama, ctx.from.id]).catch(() => []);
+      if (!rows.length && await admin.hasAdminAccess(ctx)) {
+        rows = await all('SELECT * FROM vpn_accounts WHERE username = ?', [nama]).catch(() => []);
+        adminMode = rows.length > 0;
+      }
     }
     if (!rows.length) {
       return ctx.reply('❌ Akun tidak ditemukan di daftar akunmu. Ketik nama lain, atau ketik batal:');
     }
-    sessions.delete(chatId);
-    if (rows.length === 1) {
-      const a = rows[0];
-      const cb = adminMode ? `delconfadm_${a.id}` : `delconf_${a.id}`;
+    if (rows.length > 1) {
+      const protos = rows.map((a) => a.proto.toUpperCase()).join(', ');
       return ctx.reply(
-        `🗑️ <b>Hapus Akun?</b>\n\n` +
-        `👤 Username: <code>${esc(a.username)}</code>\n` +
-        `📦 Protokol: <code>${esc(a.proto.toUpperCase())}</code>${a.via_cf ? ' ☁️CF' : ''}\n\n` +
-        `Akun akan dihapus dari server dan daftar akun. Tindakan ini tidak bisa dibatalkan.`,
-        { parse_mode: 'HTML', reply_markup: { inline_keyboard: [
-          [{ text: '✅ Ya, Hapus', callback_data: cb }],
-          [{ text: '❌ Batal', callback_data: 'menu_akun' }],
-        ] } }
+        `Nama <code>${esc(nama)}</code> ada di beberapa protokol: <code>${esc(protos)}</code>. ` +
+        `Ketik <b>nama:protokol</b>, contoh: <code>${esc(nama)}:${esc(rows[0].proto)}</code>, atau ketik batal:`,
+        { parse_mode: 'HTML', ...cancelKb() }
       );
     }
-    const kb = rows.map((a) => [{ text: `🗑️ ${a.proto.toUpperCase()} — ${a.username}`, callback_data: `${adminMode ? 'delconfadm' : 'delconf'}_${a.id}` }]);
-    kb.push([{ text: '❌ Batal', callback_data: 'menu_akun' }]);
+    sessions.delete(chatId);
+    const a = rows[0];
+    const cb = adminMode ? `delconfadm_${a.id}` : `delconf_${a.id}`;
     return ctx.reply(
-      `Nama <code>${esc(nama)}</code> ada di beberapa protokol. Pilih yang mau dihapus:`,
-      { parse_mode: 'HTML', reply_markup: { inline_keyboard: kb } }
+      `🗑️ <b>Hapus Akun?</b>\n\n` +
+      `👤 Username: <code>${esc(a.username)}</code>\n` +
+      `📦 Protokol: <code>${esc(a.proto.toUpperCase())}</code>${a.via_cf ? ' ☁️CF' : ''}\n\n` +
+      `Akun akan dihapus dari server dan daftar akun. Tindakan ini tidak bisa dibatalkan.`,
+      { parse_mode: 'HTML', reply_markup: { inline_keyboard: [
+        [{ text: '✅ Ya, Hapus', callback_data: cb }],
+        [{ text: '❌ Batal', callback_data: 'menu_akun' }],
+      ] } }
+    );
+  }
+
+  // --- Session renew akun ketik-nama-saja ---
+  if (sess?.step === 'renew_nama') {
+    const raw = ctx.message.text.trim();
+    const { all } = require('./src/db');
+    const PROTOS = ['ssh', 'vmess', 'vless', 'trojan', 'shadowsocks', 'zivpn'];
+    let rows = [], nama = raw, protoReq = '';
+    if (raw.includes(':')) {
+      const parts = raw.split(':');
+      nama = parts[0].trim(); protoReq = (parts[1] || '').trim().toLowerCase();
+      if (!vpn.validUser(nama) || !PROTOS.includes(protoReq)) {
+        return ctx.reply('❌ Format: nama:protokol, contoh: testuser:vmess. Ketik lagi, atau ketik batal:');
+      }
+      rows = await all('SELECT * FROM vpn_accounts WHERE username = ? AND telegram_id = ? AND proto = ?', [nama, ctx.from.id, protoReq]).catch(() => []);
+    } else {
+      if (!vpn.validUser(raw)) {
+        return ctx.reply('❌ Nama akun 3-20 karakter, huruf/angka saja. Ketik nama lain, atau ketik batal:');
+      }
+      rows = await all('SELECT * FROM vpn_accounts WHERE username = ? AND telegram_id = ?', [nama, ctx.from.id]).catch(() => []);
+    }
+    if (!rows.length) {
+      return ctx.reply('❌ Akun tidak ditemukan di daftar akunmu. Ketik nama lain, atau ketik batal:');
+    }
+    if (rows.length > 1) {
+      const protos = rows.map((a) => a.proto.toUpperCase()).join(', ');
+      return ctx.reply(
+        `Nama <code>${esc(nama)}</code> ada di beberapa protokol: <code>${esc(protos)}</code>. ` +
+        `Ketik <b>nama:protokol</b>, contoh: <code>${esc(nama)}:${esc(rows[0].proto)}</code>, atau ketik batal:`,
+        { parse_mode: 'HTML', ...cancelKb() }
+      );
+    }
+    const acc = rows[0];
+    sessions.set(ctx.chat.id, { step: 'renew_days', accountId: acc.id });
+    const role = await ppob.getRole(ctx.from.id).catch(() => 'member');
+    const _rpDay = await vpn.getVpnPrice(acc.proto, role, !!acc.via_cf);
+    return ctx.reply(
+      `♻️ <b>Renew Akun</b>\n\n` +
+      `👤 Username: <code>${esc(acc.username)}</code>\n` +
+      `📅 Exp saat ini: <code>${esc(acc.expiry)}</code>\n\n` +
+      `Harga: <b>Rp${_rpDay.toLocaleString('id-ID')}/hari</b> (${role})\n` +
+      `Kirim <b>durasi perpanjangan (hari)</b>:`,
+      { parse_mode: 'HTML', ...cancelKb() }
     );
   }
 
@@ -1394,6 +1452,29 @@ bot.action(/^delconfadm_(\d+)$/, async (ctx) => {
 });
 
 
+// ---------- Renew akun ketik-nama-saja ----------
+async function showRenewNamaList(ctx) {
+  const rows = await vpn.myAccounts(ctx.from.id).catch(() => []);
+  if (!rows.length) return ctx.reply('📭 Kamu belum punya akun VPN.');
+  const lines = rows.map((a, n) =>
+    `${n + 1}. <code>${esc(a.username)}</code> (${esc(a.proto.toUpperCase())})${a.via_cf ? ' ☁️CF' : ''} — Exp: ${esc(a.expiry)}`
+  );
+  sessions.set(ctx.chat.id, { step: 'renew_nama' });
+  await ctx.reply(
+    `♻️ <b>Renew Akun</b>\n━━━━━━━━━━━━━━━━━━\n<blockquote>${lines.join('\n')}</blockquote>\n\n` +
+    `Ketik <b>nama akun</b> yang mau diperpanjang (atau ketik <b>batal</b>):`,
+    { parse_mode: 'HTML', ...cancelKb() }
+  );
+}
+bot.command('renewakun', async (ctx) => {
+  await showRenewNamaList(ctx);
+});
+bot.action('menu_renew_nama', async (ctx) => {
+  await safeCb(ctx);
+  await showRenewNamaList(ctx);
+});
+
+
 // ---------- Akun Saya (dengan paginasi) ----------
 const AKUN_PER_PAGE = 10;
 function akunKeyboard(page, pages, slice = []) {
@@ -1402,24 +1483,7 @@ function akunKeyboard(page, pages, slice = []) {
   if (page < pages) row.push({ text: 'Next ▶️', callback_data: `akun_page_${page + 1}` });
   const kb = [];
   if (row.length) kb.push(row);
-  // Tombol renew per akun (2 kolom)
-  for (let i = 0; i < slice.length; i += 2) {
-    const r = [];
-    for (let j = i; j < Math.min(i + 2, slice.length); j++) {
-      const a = slice[j];
-      r.push({ text: `♻️ ${a.username}`.slice(0, 30), callback_data: `renew_${a.id}` });
-    }
-    kb.push(r);
-  }
-  // Tombol hapus per akun (2 kolom) — konfirmasi dulu, baru hapus server + DB
-  for (let i = 0; i < slice.length; i += 2) {
-    const r = [];
-    for (let j = i; j < Math.min(i + 2, slice.length); j++) {
-      const a = slice[j];
-      r.push({ text: `🗑️ ${a.username}`.slice(0, 30), callback_data: `del_${a.id}` });
-    }
-    kb.push(r);
-  }
+  kb.push([{ text: '♻️ Renew (Ketik Nama)', callback_data: 'menu_renew_nama' }]);
   kb.push([{ text: '🗑️ Hapus (Ketik Nama)', callback_data: 'menu_hapus_nama' }]);
   kb.push([{ text: '🔙 Kembali', callback_data: 'menu_main' }]);
   return { inline_keyboard: kb };
