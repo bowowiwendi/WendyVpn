@@ -1312,6 +1312,21 @@ bot.command('sewalist', async (ctx) => {
 });
 
 
+// ---------- Admin: hapus akun siapa pun ----------
+bot.command('hapusakun', async (ctx) => {
+  if (!await admin.hasAdminAccess(ctx)) return ctx.reply('❌ Khusus admin.');
+  const parts = (ctx.message.text || '').trim().split(/\s+/);
+  const username = parts[1], proto = (parts[2] || '').toLowerCase();
+  if (!username || !['ssh', 'vmess', 'vless', 'trojan', 'shadowsocks', 'zivpn'].includes(proto))
+    return ctx.reply('Penggunaan: /hapusakun <username> <ssh|vmess|vless|trojan|shadowsocks|zivpn>');
+  const { get } = require('./src/db');
+  const acc = await get('SELECT * FROM vpn_accounts WHERE username = ? AND proto = ?', [username, proto]).catch(() => null);
+  if (!acc) return ctx.reply('❌ Akun tidak ditemukan di database bot.');
+  const r = await vpn.deleteAccount(proto, username);
+  await ctx.reply(r.success ? `🗑️ ${r.message}` : `❌ Gagal: ${esc(r.message || 'API error')}`, { parse_mode: 'HTML' });
+});
+
+
 // ---------- Akun Saya (dengan paginasi) ----------
 const AKUN_PER_PAGE = 10;
 function akunKeyboard(page, pages, slice = []) {
@@ -1326,6 +1341,15 @@ function akunKeyboard(page, pages, slice = []) {
     for (let j = i; j < Math.min(i + 2, slice.length); j++) {
       const a = slice[j];
       r.push({ text: `♻️ ${a.username}`.slice(0, 30), callback_data: `renew_${a.id}` });
+    }
+    kb.push(r);
+  }
+  // Tombol hapus per akun (2 kolom) — konfirmasi dulu, baru hapus server + DB
+  for (let i = 0; i < slice.length; i += 2) {
+    const r = [];
+    for (let j = i; j < Math.min(i + 2, slice.length); j++) {
+      const a = slice[j];
+      r.push({ text: `🗑️ ${a.username}`.slice(0, 30), callback_data: `del_${a.id}` });
     }
     kb.push(r);
   }
@@ -1484,6 +1508,31 @@ bot.action(/^renew_(\d+)$/, async (ctx) => {
     `Kirim <b>durasi perpanjangan (hari)</b>:`,
     { parse_mode: 'HTML', ...cancelKb() }
   );
+});
+
+bot.action(/^del_(\d+)$/, async (ctx) => {
+  await safeCb(ctx);
+  const { get } = require('./src/db');
+  const acc = await get('SELECT * FROM vpn_accounts WHERE id = ? AND telegram_id = ?', [ctx.match[1], ctx.from.id]);
+  if (!acc) return ctx.reply('❌ Akun tidak ditemukan.');
+  await ctx.reply(
+    `🗑️ <b>Hapus Akun?</b>\n\n` +
+    `👤 Username: <code>${esc(acc.username)}</code>\n` +
+    `📦 Protokol: <code>${esc(acc.proto.toUpperCase())}</code>${acc.via_cf ? ' ☁️CF' : ''}\n\n` +
+    `Akun akan dihapus dari server dan daftar akunmu. Tindakan ini tidak bisa dibatalkan.`,
+    { parse_mode: 'HTML', reply_markup: { inline_keyboard: [
+      [{ text: '✅ Ya, Hapus', callback_data: `delconf_${acc.id}` }],
+      [{ text: '❌ Batal', callback_data: 'menu_akun' }],
+    ] } }
+  );
+});
+bot.action(/^delconf_(\d+)$/, async (ctx) => {
+  await safeCb(ctx);
+  const { get } = require('./src/db');
+  const acc = await get('SELECT * FROM vpn_accounts WHERE id = ? AND telegram_id = ?', [ctx.match[1], ctx.from.id]);
+  if (!acc) return ctx.reply('❌ Akun tidak ditemukan.');
+  const r = await vpn.deleteAccount(acc.proto, acc.username);
+  await ctx.reply(r.success ? `🗑️ ${r.message}` : `❌ Gagal menghapus: ${esc(r.message || 'API error')}`, { parse_mode: 'HTML' });
 });
 
 async function finishRenew(ctx, accountId, days) {
