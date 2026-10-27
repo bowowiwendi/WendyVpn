@@ -334,8 +334,6 @@ bot.action('menu_vpn_home', async (ctx) => {
 Pilih layanan VPN:`,
     Markup.inlineKeyboard([
       [sBtn('🛰️ VPN Premium', 'menu_vpn', 'success'), sBtn('☁️ VPN CloudFront', 'menu_cf', 'primary')],
-      [sBtn('📊 Cek Kuota', 'menu_kuota', 'primary'), sBtn('💰 Sewa Script', 'menu_sewa', 'success')],
-      [sBtn('📈 Statistik', 'menu_stat', 'primary')],
       [sBtn('🔙 Kembali', 'menu_main', 'danger')],
     ]));
 });
