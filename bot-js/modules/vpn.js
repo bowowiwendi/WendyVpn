@@ -163,11 +163,11 @@ async function createVMess(username, days, viaCF = false) {
   }).catch(() => ({ data: {} }));
   const host = viaCF ? cf.domain : domain;
   if (viaCF && !cf.domain) return { success: false, message: '❌ Domain CloudFront belum diset.' };
-  // Mode CF memakai UUID CF yang sudah terdaftar — aman lanjut walau API gagal.
-  // Mode biasa: akun harus terdaftar di server; gagal API = gagal jujur (jangan kasih link mati).
-  if (!viaCF && data?.status !== 'success')
+  // CF per-user (2026-10-27): link memakai UUID milik akun sendiri, bukan UUID
+  // bersama. API harus sukses di semua mode; gagal API = gagal jujur.
+  if (data?.status !== 'success')
     return { success: false, message: `❌ Gagal membuat akun: ${esc(data?.message || 'API error')}` };
-  const useUuid = viaCF ? cf.vmessUuid || uuid : uuid;
+  const useUuid = uuid;
   const path = viaCF ? cf.paths.vmess : '/vmess';
   const link = vmessLink(useUuid, viaCF ? `${username}-cf` : username, host, 443, path, true);
   const exp = expiryDate(days);
@@ -185,9 +185,10 @@ async function createVLess(username, days, viaCF = false) {
   const { data: dataVL } = await api.get('/createvless', { params: apiParams({ user: username, uuid, exp: days }) }).catch(() => ({ data: {} }));
   const host = viaCF ? cf.domain : domain;
   if (viaCF && !cf.domain) return { success: false, message: '❌ Domain CloudFront belum diset.' };
-  if (!viaCF && dataVL?.status !== 'success')
+  // CF per-user: UUID milik akun sendiri; API harus sukses di semua mode.
+  if (dataVL?.status !== 'success')
     return { success: false, message: `❌ Gagal membuat akun: ${esc(dataVL?.message || 'API error')}` };
-  const useUuid = viaCF ? cf.vlessUuid || uuid : uuid;
+  const useUuid = uuid;
   const path = encodeURIComponent(viaCF ? cf.paths.vless : '/vless');
   const link = `vless://${useUuid}@${host}:443?encryption=none&security=tls&sni=${host}&type=ws&path=${path}#${username}${viaCF ? '-cf' : ''}`;
   const exp = expiryDate(days);
@@ -205,9 +206,10 @@ async function createTrojan(username, days, viaCF = false) {
   const { data: dataTR } = await api.get('/createtrojan', { params: apiParams({ user: username, password, exp: days }) }).catch(() => ({ data: {} }));
   const host = viaCF ? cf.domain : domain;
   if (viaCF && !cf.domain) return { success: false, message: '❌ Domain CloudFront belum diset.' };
-  if (!viaCF && dataTR?.status !== 'success')
+  // CF per-user: password milik akun sendiri; API harus sukses di semua mode.
+  if (dataTR?.status !== 'success')
     return { success: false, message: `❌ Gagal membuat akun: ${esc(dataTR?.message || 'API error')}` };
-  const usePass = viaCF ? cf.trojanPassword || password : password;
+  const usePass = password;
   const path = encodeURIComponent(viaCF ? cf.paths.trojan : '/trojan');
   const link = `trojan://${usePass}@${host}:443?security=tls&sni=${host}&type=ws&path=${path}#${username}${viaCF ? '-cf' : ''}`;
   const exp = expiryDate(days);
@@ -230,7 +232,9 @@ async function createShadowsocks(username, days, viaCF = false) {
   const method = 'aes-256-gcm';
   const { data: dataSS } = await api.get('/createss', { params: apiParams({ user: username, password, exp: days }) }).catch(() => ({ data: {} }));
   const host = viaCF ? cf.domain : domain;
-  if (!viaCF && dataSS?.status !== 'success')
+  // SS CF tidak punya kredensial bersama (link sudah pakai password akun
+  // sendiri); samakan dengan mode lain: API harus sukses, gagal = gagal jujur.
+  if (dataSS?.status !== 'success')
     return { success: false, message: `❌ Gagal membuat akun: ${esc(dataSS?.message || 'API error')}` };
   if (viaCF && !cf.domain) return { success: false, message: '\u274c Domain CloudFront belum diset.' };
   const port = 443;
