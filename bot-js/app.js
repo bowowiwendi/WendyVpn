@@ -404,6 +404,20 @@ for (const proto of ['ssh', 'vmess', 'vless', 'trojan', 'shadowsocks', 'zivpn'])
 // -> akun dibuat via fungsi create* yang sama dengan akun biasa, sehingga
 // akun biasa (viaCF=false) tetap pakai domain/path/kredensial biasa, dan
 // hanya akun CF (viaCF=true) yang pakai domain/path/kredensial CF.
+// Syarat saldo trial CF (2026-10-27): trial CloudFront hanya untuk user
+// bersaldo >= Rp1.000. Saldo TIDAK dipotong, hanya syarat punya.
+// Admin bebas dari syarat ini (sama seperti trial admin yang unlimited).
+async function cfTrialSaldoOk(telegramId) {
+  try {
+    const admins = config.admins || (config.adminId ? [String(config.adminId)] : []);
+    if (admins.map(String).includes(String(telegramId))) return { ok: true, saldo: 0 };
+    const u = await get('SELECT role FROM users WHERE telegram_id = ?', [telegramId]).catch(() => null);
+    if (u && u.role === 'admin') return { ok: true, saldo: 0 };
+  } catch {}
+  const saldo = await ppob.getSaldo(telegramId).catch(() => 0);
+  return { ok: saldo >= 1000, saldo };
+}
+
 async function trialProtoMenu(ctx, viaCF) {
   await safeCb(ctx);
   const p = viaCF ? 'cf_trial_proto_' : 'trial_proto_';
@@ -428,6 +442,12 @@ async function trialProtoPick(ctx, proto, viaCF) {
   if (!(await vpn.canClaimTrial(ctx.from.id).catch(() => false))) {
     return ctx.reply('❌ Kamu sudah klaim trial dalam 24 jam terakhir. Coba lagi besok.');
   }
+  if (viaCF) {
+    const chk = await cfTrialSaldoOk(ctx.from.id);
+    if (!chk.ok) {
+      return ctx.reply(`❌ <b>Trial CloudFront minimal saldo Rp1.000.</b>\n💰 Saldo kamu: <b>Rp${chk.saldo.toLocaleString('id-ID')}</b>\nSilakan topup dulu.`, { parse_mode: 'HTML' });
+    }
+  }
   sessions.set(ctx.chat.id, { step: 'vpn_username', proto, viaCF, isTrial: true });
   await ctx.reply(
     `🎁 <b>Trial ${PROTO_LABEL[proto]}${viaCF ? ' (CloudFront)' : ''} — Gratis 1 Jam</b>\n\n` +
@@ -438,7 +458,9 @@ async function trialProtoPick(ctx, proto, viaCF) {
 bot.action(/^trial_proto_(.+)$/, (ctx) => trialProtoPick(ctx, ctx.match[1], false));
 bot.action(/^cf_trial_proto_(.+)$/, (ctx) => trialProtoPick(ctx, ctx.match[1], true));
 
-// Buat akun trial: tanpa cek/potong saldo, exp=1 ke API (BUKAN 0 —
+// Buat akun trial: tanpa potong saldo; trial CF dicek saldo >= 1000 di
+// trialProtoPick dan di sini (diulang karena saldo bisa berubah), exp=1
+// ke API (BUKAN 0 —
 // exp=0 di API dibaca jadi 30 hari), masa trial 1 jam dicatat di
 // trial_expires_at dan ditegakkan sweeper, bukan kolom tanggal expiry.
 async function finishTrialVpn(ctx, sess, username, password = '') {
@@ -446,6 +468,12 @@ async function finishTrialVpn(ctx, sess, username, password = '') {
   const { proto, viaCF } = sess;
   if (!(await vpn.canClaimTrial(ctx.from.id).catch(() => false))) {
     return ctx.reply('❌ Kamu sudah klaim trial dalam 24 jam terakhir. Coba lagi besok.');
+  }
+  if (viaCF) {
+    const chk = await cfTrialSaldoOk(ctx.from.id);
+    if (!chk.ok) {
+      return ctx.reply(`❌ <b>Trial CloudFront minimal saldo Rp1.000.</b>\n💰 Saldo kamu: <b>Rp${chk.saldo.toLocaleString('id-ID')}</b>\nSilakan topup dulu.`, { parse_mode: 'HTML' });
+    }
   }
   await ctx.reply('⏳ Membuat akun trial...');
   let r;
