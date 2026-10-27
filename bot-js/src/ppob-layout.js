@@ -70,7 +70,7 @@ module.exports = {
     ['game', '🎮 Game'], ['gas', '🔥 Gas'],
     ['masa-aktif', '⏰ Masa Aktif'], ['sms-telp', '💬 SMS & Telp'],
     ['pln', '💡 PLN'], ['pulsa', '📞 Pulsa'],
-    ['tv', '📺 TV'], ['voucher', '🎫 Voucher'],
+    ['tv', '📺 TV'],
   ],
 
   // ------------------------------------------------------------
