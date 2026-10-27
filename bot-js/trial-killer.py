@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""trial-killer: lapis kedua penghapus trial 1 jam, independen dari proses bot.
+"""trial-killer: lapis kedua penghapus trial 1 jam + akun reguler kedaluwarsa,
+ independen dari proses bot.
 
 Dijalankan cron tiap 5 menit. Membaca vpn_accounts di DB bot, mencari
 trial (is_trial=1) yang trial_expires_at-nya sudah lewat (UTC, sama seperti
@@ -74,11 +75,15 @@ def server_account_gone(proto, username):
     if proto == "ssh":
         r = subprocess.run(["id", username], capture_output=True)
         return r.returncode != 0
-    # VMess/VLess/Trojan/Shadowsocks: klien Xray ditandai '### username '
+    # VMess/VLess/Trojan/Shadowsocks: klien Xray ditandai komentar API
+    # atau email; hilang = keduanya tak ada (komentar saja tak cukup,
+    # klien yatim tanpa komentar tetap konek).
     try:
         with open(XRAY_CONFIG) as f:
             cfg = f.read()
-        return re.search(r"^### " + re.escape(username) + r"( |$)", cfg, re.M) is None
+        has_email = re.search(r'"email": "' + re.escape(username) + r'"', cfg) is not None
+        has_comment = re.search(r"(^### |^## |^#& |^#! |^#!! )" + re.escape(username) + r"( |$)", cfg, re.M) is not None
+        return not has_email and not has_comment
     except Exception:
         return False
 
@@ -93,8 +98,9 @@ def main():
         con = sqlite3.connect(db_path)
         rows = con.execute(
             "SELECT proto, username FROM vpn_accounts "
-            "WHERE is_trial = 1 AND trial_expires_at IS NOT NULL "
-            "AND trial_expires_at < datetime('now')"
+            "WHERE (is_trial = 1 AND trial_expires_at IS NOT NULL "
+            "AND trial_expires_at < datetime('now')) "
+            "OR (is_trial = 0 AND expiry < date('now'))"
         ).fetchall()
     except Exception as e:
         log("ERROR baca DB %s: %s" % (db_path, e))

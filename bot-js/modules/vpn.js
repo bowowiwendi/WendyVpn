@@ -159,7 +159,7 @@ async function createVMess(username, days, viaCF = false) {
   if (!validUser(username)) return { success: false, message: '❌ Username 3-20 karakter, huruf/angka saja.' };
   const uuid = require('crypto').randomUUID();
   const { data } = await api.get('/createvmess', {
-    params: apiParams({ user: username, uuid, exp: days }),
+    params: apiParams({ user: username, uuid, exp: days, cf: viaCF ? '1' : undefined }),
   }).catch(() => ({ data: {} }));
   const host = viaCF ? cf.domain : domain;
   if (viaCF && !cf.domain) return { success: false, message: '❌ Domain CloudFront belum diset.' };
@@ -182,7 +182,7 @@ async function createVMess(username, days, viaCF = false) {
 async function createVLess(username, days, viaCF = false) {
   if (!validUser(username)) return { success: false, message: '❌ Username 3-20 karakter, huruf/angka saja.' };
   const uuid = require('crypto').randomUUID();
-  const { data: dataVL } = await api.get('/createvless', { params: apiParams({ user: username, uuid, exp: days }) }).catch(() => ({ data: {} }));
+  const { data: dataVL } = await api.get('/createvless', { params: apiParams({ user: username, uuid, exp: days, cf: viaCF ? '1' : undefined }) }).catch(() => ({ data: {} }));
   const host = viaCF ? cf.domain : domain;
   if (viaCF && !cf.domain) return { success: false, message: '❌ Domain CloudFront belum diset.' };
   // CF per-user: UUID milik akun sendiri; API harus sukses di semua mode.
@@ -203,7 +203,7 @@ async function createVLess(username, days, viaCF = false) {
 async function createTrojan(username, days, viaCF = false) {
   if (!validUser(username)) return { success: false, message: '❌ Username 3-20 karakter, huruf/angka saja.' };
   const password = require('crypto').randomUUID();
-  const { data: dataTR } = await api.get('/createtrojan', { params: apiParams({ user: username, password, exp: days }) }).catch(() => ({ data: {} }));
+  const { data: dataTR } = await api.get('/createtrojan', { params: apiParams({ user: username, password, exp: days, cf: viaCF ? '1' : undefined }) }).catch(() => ({ data: {} }));
   const host = viaCF ? cf.domain : domain;
   if (viaCF && !cf.domain) return { success: false, message: '❌ Domain CloudFront belum diset.' };
   // CF per-user: password milik akun sendiri; API harus sukses di semua mode.
@@ -353,6 +353,11 @@ async function sweepExpiredTrials() {
 
 async function myAccounts(telegramId) {
   return all('SELECT * FROM vpn_accounts WHERE telegram_id = ? ORDER BY id DESC', [telegramId]);
+}
+
+async function usernameTaken(proto, username) {
+  const row = await get('SELECT 1 FROM vpn_accounts WHERE username = ? AND proto = ?', [username, proto]).catch(() => null);
+  return !!row;
 }
 
 
@@ -513,6 +518,6 @@ module.exports = {
   countAccounts,
   createSSH, cfSSHInfo, createVMess, createVLess, createTrojan, createShadowsocks, createZivpn, fancyBox,
   renewAccount, deleteAccount, saveAccount, myAccounts, validUser, expiryDate,
-  canClaimTrial, recordTrialClaim, sweepExpiredTrials, trialExpiresAtISO,
+  canClaimTrial, recordTrialClaim, sweepExpiredTrials, trialExpiresAtISO, usernameTaken,
   VPN_PRODUCTS, DEFAULT_VPN_PRICE, seedVpnPrices, getVpnPrice, setVpnPrice, listVpnPrices,
 };

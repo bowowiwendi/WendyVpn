@@ -22,14 +22,22 @@ async function cleanupExpired(notifyFn) {
   const rows = await all("SELECT * FROM vpn_accounts WHERE date(expiry) < date('now')");
   let deleted = 0, notified = 0;
   for (const acc of rows) {
-    await vpn.deleteAccount(acc.proto, acc.username).catch(() => {});
+    let res = null;
+    try { res = await vpn.deleteAccount(acc.proto, acc.username); } catch { res = null; }
+    if (!res || !res.success) continue; // gagal hapus di server: baris dipertahankan
     await run('DELETE FROM vpn_accounts WHERE id = ?', [acc.id]);
     deleted++;
-    // Trial yang dihapus: tanpa notif. Reguler: notif 1x.
+    // Trial yang dihapus: tanpa notif. Reguler: notif 1x, ditandai hanya
+    // bila benar terkirim (gagal kirim = coba lagi siklus berikut).
     if (!acc.is_trial && !(await alreadyNotified(acc.id))) {
-      await markNotified(acc.id);
-      if (notifyFn) await notifyFn(acc).catch(() => {});
-      notified++;
+      let sent = true;
+      if (notifyFn) {
+        try { await notifyFn(acc); } catch { sent = false; }
+      }
+      if (sent) {
+        await markNotified(acc.id);
+        notified++;
+      }
     }
   }
   return { deleted, notified };
@@ -42,7 +50,9 @@ async function cleanupOldTrials(maxAgeDays = 3) {
     [maxAgeDays]
   );
   for (const acc of rows) {
-    await vpn.deleteAccount(acc.proto, acc.username).catch(() => {});
+    let res = null;
+    try { res = await vpn.deleteAccount(acc.proto, acc.username); } catch { res = null; }
+    if (!res || !res.success) continue; // gagal hapus di server: baris dipertahankan
     await run('DELETE FROM vpn_accounts WHERE id = ?', [acc.id]);
   }
   return { deleted: rows.length };
