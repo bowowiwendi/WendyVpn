@@ -274,38 +274,53 @@ function botUptime() {
 
 // Caption /start: info akun + waktu/server dalam blockquote
 async function buildWelcomeCaption(ctx) {
+  const t0 = Date.now();
   const { get } = require('./src/db');
   const uid = ctx.from.id;
   const role = await ppob.getRole(uid).catch(() => 'member');
   const saldoVpn = await ppob.getSaldoVpn(uid).catch(() => 0);
   const saldoPpob = await ppob.getSaldoPpob(uid).catch(() => 0);
-  const saldoLama = await ppob.getSaldoLama(uid).catch(() => 0);
-  const saldoLamaTxt = saldoLama > 0 ? `\n💰 SALDO LAMA: ${digi.rp(saldoLama)}` : '';
-  const cnt = await get('SELECT COUNT(*) AS n FROM users').catch(() => ({ n: 0 }));
-  const { waktu, tanggal } = wibParts();
+  const cntVpn = await get(`SELECT COUNT(*) AS n FROM transactions WHERE type LIKE 'vpn_%' OR type LIKE 'renew_%'`).catch(() => ({ n: 0 }));
+  const cntPpob = await get(`SELECT COUNT(*) AS n FROM transactions WHERE type = 'ppob'`).catch(() => ({ n: 0 }));
+  const cntDigital = await get(`SELECT COUNT(*) AS n FROM sewa_orders WHERE status = 'paid'`).catch(() => ({ n: 0 }));
+  const cntUser = await get('SELECT COUNT(*) AS n FROM users').catch(() => ({ n: 0 }));
   const username = ctx.from.username ? '@' + ctx.from.username : '-';
-  return `SELAMAT DATANG DI WENDI STORE 💎
-NIKMATI PENGALAMAN MEMBELI AKUN VPN
-TERCEPAT, AMAN, DAN OTOMATIS 🚀
+  const latency = Date.now() - t0;
+  const nVpn = cntVpn?.n || 0;
+  const nPpob = cntPpob?.n || 0;
+  const nDigital = cntDigital?.n || 0;
+  return `<blockquote>┏━━━━━━━━━━━━━━━━━━━━┓
+    BOT VPN WENDI STORE
+┗━━━━━━━━━━━━━━━━━━━━┛
 
-<blockquote>👁️ INFORMASI AKUN
-💰 SALDO VPN: ${digi.rp(saldoVpn)}\n💰 SALDO PPOB: ${digi.rp(saldoPpob)}${saldoLamaTxt}
-👤 STATUS: ${settings.roleBadge(role)}
-🌐 USERNAME: ${esc(username)}
-🆔 ID PENGGUNA: <code>${uid}</code>
+┏━━━━━━━━━━━━━━━━━━━━┓
+    STATISTIK PEMBELIAN
+┣━━━━━━━━━━━━━━━━━━━━┫
+🌐 Akun VPN : ${nVpn} pembelian
+🛒 PPOB     : ${nPpob} pembelian
+🛍️ Digital  : ${nDigital} pembelian
+📦 Total    : ${nVpn + nPpob + nDigital} pembelian
+👥 Users    : ${cntUser?.n || 0}
+┗━━━━━━━━━━━━━━━━━━━━┛
 
-🕐 WAKTU &amp; SERVER
-⏱️ WAKTU: ${waktu}
-📅 TANGGAL: ${tanggal}
-🖥️ SERVER: 1 | 👥 USER: ${cnt?.n || 0}
-⌚ BOT AKTIF: ${botUptime()}
+┏━━━━━━━━━━━━━━━━━━━━┓
+    STATUS SISTEM
+┣━━━━━━━━━━━━━━━━━━━━┫
+⏱️ Latency : ${latency} ms
+👨‍💻 Admin  : @WendiWibowo
+🔗 Grup   : ${GROUP_WAJIB}
+┗━━━━━━━━━━━━━━━━━━━━┛
 
-☎️ HUBUNGI ADMIN
-📩 @WendiWibowo</blockquote>
-
-📦 ─────────── 📦
-🌐 DIKELOLA OLEH WENDI STORE NETWORK
-📦 ─────────── 📦`;
+┏━━━━━━━━━━━━━━━━━━━━┓
+    INFORMASI AKUN
+┣━━━━━━━━━━━━━━━━━━━━┫
+👤 Username: ${esc(username)}
+🆔 ID Tele : ${uid}
+🏷️ Status  : ${settings.roleBadge(role)}
+💰 VPN     : ${digi.rp(saldoVpn)}
+🛒 PPOB    : ${digi.rp(saldoPpob)}
+🛍️ Digital : Rp 0
+┗━━━━━━━━━━━━━━━━━━━━┛</blockquote>`;
 }
 
 bot.start(async (ctx) => {
