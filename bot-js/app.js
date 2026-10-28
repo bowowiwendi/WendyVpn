@@ -277,7 +277,10 @@ async function buildWelcomeCaption(ctx) {
   const { get } = require('./src/db');
   const uid = ctx.from.id;
   const role = await ppob.getRole(uid).catch(() => 'member');
-  const saldo = await ppob.getSaldo(uid).catch(() => 0);
+  const saldoVpn = await ppob.getSaldoVpn(uid).catch(() => 0);
+  const saldoPpob = await ppob.getSaldoPpob(uid).catch(() => 0);
+  const saldoLama = await ppob.getSaldoLama(uid).catch(() => 0);
+  const saldoLamaTxt = saldoLama > 0 ? `\n💰 SALDO LAMA: ${digi.rp(saldoLama)}` : '';
   const cnt = await get('SELECT COUNT(*) AS n FROM users').catch(() => ({ n: 0 }));
   const { waktu, tanggal } = wibParts();
   const username = ctx.from.username ? '@' + ctx.from.username : '-';
@@ -286,7 +289,7 @@ NIKMATI PENGALAMAN MEMBELI AKUN VPN
 TERCEPAT, AMAN, DAN OTOMATIS 🚀
 
 <blockquote>👁️ INFORMASI AKUN
-💰 SALDO: ${digi.rp(saldo)}
+💰 SALDO VPN: ${digi.rp(saldoVpn)}\n💰 SALDO PPOB: ${digi.rp(saldoPpob)}${saldoLamaTxt}
 👤 STATUS: ${settings.roleBadge(role)}
 🌐 USERNAME: ${esc(username)}
 🆔 ID PENGGUNA: <code>${uid}</code>
@@ -434,7 +437,9 @@ async function cfTrialSaldoOk(telegramId) {
     const u = await get('SELECT role FROM users WHERE telegram_id = ?', [telegramId]).catch(() => null);
     if (u && u.role === 'admin') return { ok: true, saldo: 0 };
   } catch {}
-  const saldo = await ppob.getSaldo(telegramId).catch(() => 0);
+  const saldoVpn = await ppob.getSaldoVpn(telegramId).catch(() => 0);
+  const saldoLama = await ppob.getSaldoLama(telegramId).catch(() => 0);
+  const saldo = saldoVpn + saldoLama;
   return { ok: saldo >= 1000, saldo };
 }
 
@@ -788,7 +793,7 @@ bot.on('text', async (ctx) => {
     const _r1 = await ppob.getRole(ctx.from.id).catch(() => 'member');
     const _p1 = await vpn.getVpnPrice(sess.proto, _r1, sess.viaCF);
     return ctx.reply(
-      'Masukkan <b>durasi (hari)</b>\nHarga: <b>Rp' + _p1.toLocaleString('id-ID') + '/hari</b>\nSaldo kamu: <b>Rp' + (await ppob.getSaldo(ctx.from.id)).toLocaleString('id-ID') + '</b>',
+      'Masukkan <b>durasi (hari)</b>\nHarga: <b>Rp' + _p1.toLocaleString('id-ID') + '/hari</b>\nSaldo VPN kamu: <b>Rp' + (await ppob.getSaldoVpn(ctx.from.id)).toLocaleString('id-ID') + '</b>',
       { parse_mode: 'HTML' }
     );
   }
@@ -802,7 +807,7 @@ bot.on('text', async (ctx) => {
     const _r2 = await ppob.getRole(ctx.from.id).catch(() => 'member');
     const _p2 = await vpn.getVpnPrice(sess.proto, _r2, sess.viaCF);
     return ctx.reply(
-      'Masukkan <b>durasi (hari)</b>\nHarga: <b>Rp' + _p2.toLocaleString('id-ID') + '/hari</b>\nSaldo kamu: <b>Rp' + (await ppob.getSaldo(ctx.from.id)).toLocaleString('id-ID') + '</b>',
+      'Masukkan <b>durasi (hari)</b>\nHarga: <b>Rp' + _p2.toLocaleString('id-ID') + '/hari</b>\nSaldo VPN kamu: <b>Rp' + (await ppob.getSaldoVpn(ctx.from.id)).toLocaleString('id-ID') + '</b>',
       { parse_mode: 'HTML' }
     );
   }
@@ -1178,12 +1183,12 @@ bot.on('text', async (ctx) => {
     const uid = Number(parts[0]);
     const amt = Number((parts[1] || '').replace(/\D/g, ''));
     if (!uid || !amt || amt <= 0) return ctx.reply('❌ Format salah. Contoh: <code>123456 50000</code>', { parse_mode: 'HTML' });
-    const s = await ppob.addSaldo(uid, amt);
-    sessions.delete(chatId);
-    notifGrup(bot, `💰 <b>Topup Saldo</b>\n👤 ID: <code>${uid}</code>\n💵 Rp${amt.toLocaleString('id-ID')}\n✅ Saldo baru: Rp${Number(s).toLocaleString('id-ID')}`);
-    return ctx.reply(`✅ Saldo user <code>${uid}</code> ditambah Rp${amt.toLocaleString('id-ID')}.\nSaldo baru: <b>${digi.rp(s)}</b>`, {
-      parse_mode: 'HTML', reply_markup: adminPanel().reply_markup,
-    });
+    sessions.set(chatId, { step: 'adm_addsaldo_target', uid, amt });
+    await ctx.reply(`💵 <b>Tambah Saldo</b>\n\nUser: <code>${uid}</code>\nNominal: <b>${digi.rp(amt)}</b>\n\nPilih tujuan saldo:`, { parse_mode: 'HTML', reply_markup: Markup.inlineKeyboard([
+      [sBtn('🛡️ Saldo VPN', 'adm_addsaldo_vpn', 'primary')],
+      [sBtn('🛒 Saldo PPOB', 'adm_addsaldo_ppob', 'success')],
+      [sBtn('❌ Batal', 'adm_open', 'danger')],
+    ]).reply_markup });
   }
 
   // Kurangi saldo: format "userId jumlah"
@@ -1193,15 +1198,12 @@ bot.on('text', async (ctx) => {
     const uid = Number(parts[0]);
     const amt = Number((parts[1] || '').replace(/\D/g, ''));
     if (!uid || !amt || amt <= 0) return ctx.reply('❌ Format salah. Contoh: <code>123456 10000</code>', { parse_mode: 'HTML' });
-    const cur = await ppob.getSaldo(uid);
-    if (cur < amt) { sessions.delete(chatId); return ctx.reply(`❌ Saldo user <code>${uid}</code> hanya ${digi.rp(cur)}, tidak bisa dikurangi Rp${amt.toLocaleString('id-ID')}.`, { parse_mode: 'HTML' }); }
-    const { run } = require('./src/db');
-    await run('UPDATE users SET saldo = saldo - ? WHERE telegram_id = ?', [amt, uid]);
-    const s = await ppob.getSaldo(uid);
-    sessions.delete(chatId);
-    return ctx.reply(`✅ Saldo user <code>${uid}</code> dikurangi Rp${amt.toLocaleString('id-ID')}.\nSaldo baru: <b>${digi.rp(s)}</b>`, {
-      parse_mode: 'HTML', reply_markup: adminPanel().reply_markup,
-    });
+    sessions.set(chatId, { step: 'adm_minsaldo_target', uid, amt });
+    await ctx.reply(`➖ <b>Kurangi Saldo</b>\n\nUser: <code>${uid}</code>\nNominal: <b>${digi.rp(amt)}</b>\n\nPilih saldo yang dikurangi:`, { parse_mode: 'HTML', reply_markup: Markup.inlineKeyboard([
+      [sBtn('🛡️ Saldo VPN', 'adm_minsaldo_vpn', 'primary')],
+      [sBtn('🛒 Saldo PPOB', 'adm_minsaldo_ppob', 'success')],
+      [sBtn('❌ Batal', 'adm_open', 'danger')],
+    ]).reply_markup });
   }
 
   // --- Session deposit nominal ---
@@ -1221,7 +1223,7 @@ bot.on('text', async (ctx) => {
     // Jika Pakasir aktif → user pilih metode bayar dulu
     const pakasirReady = await pakasir.isReady().catch(() => false);
     if (pakasirReady) {
-      sessions.set(chatId, { step: 'deposit_method', nominal });
+      sessions.set(chatId, { step: 'deposit_method', nominal, target: sess?.target || 'vpn' });
       const kb = Markup.inlineKeyboard([
         [sBtn('💳 GoPay QRIS', 'dep_method_gopay', 'primary')],
         [sBtn('🧾 Pakasir (QRIS/VA)', 'dep_method_pakasir', 'success')],
@@ -1235,9 +1237,9 @@ bot.on('text', async (ctx) => {
     // Pakasir belum aktif → langsung GoPay seperti sebelumnya
     sessions.delete(chatId);
     await ctx.reply('⏳ Membuat QRIS...');
-    const r = await ppob.createDeposit(ctx.from.id, nominal);
+    const r = await ppob.createDeposit(ctx.from.id, nominal, sess?.target || 'vpn');
     if (!r.success) return ctx.reply(r.message);
-    const caption = `💳 <b>Deposit ${digi.rp(nominal)}</b>\nRef: <code>${r.ref}</code>\n\nScan QRIS di atas untuk bayar. Saldo masuk otomatis setelah pembayaran terdeteksi.`;
+    const caption = `💳 <b>Deposit Saldo ${(sess?.target || 'vpn') === 'ppob' ? 'PPOB' : 'VPN'} ${digi.rp(nominal)}</b>\nRef: <code>${r.ref}</code>\n\nScan QRIS di atas untuk bayar. Saldo masuk otomatis setelah pembayaran terdeteksi.`;
     if (r.qrBuffer) return ctx.replyWithPhoto({ source: r.qrBuffer }, { caption, parse_mode: 'HTML' });
     return ctx.reply(caption + `\n${r.qrUrl || ''}`, { parse_mode: 'HTML' });
   }
@@ -1254,7 +1256,9 @@ async function finishCreateVpn(ctx, sess, username, password = '', days = 30) {
   const perDay = await vpn.getVpnPrice(proto, role, viaCF);
   const totalHarga = perDay * days;
   // Cek saldo
-  const saldo = await ppob.getSaldo(ctx.from.id);
+  const saldoVpn = await ppob.getSaldoVpn(ctx.from.id);
+  const saldoLama = await ppob.getSaldoLama(ctx.from.id).catch(() => 0);
+  const saldo = saldoVpn + saldoLama;
   if (saldo < totalHarga) {
     return ctx.reply(
       `❌ <b>Saldo tidak cukup.</b>\n` +
@@ -1283,7 +1287,7 @@ async function finishCreateVpn(ctx, sess, username, password = '', days = 30) {
   }
   // Potong saldo jika berhasil
   if (r.success) {
-    await ppob.deductSaldo(ctx.from.id, totalHarga);
+    await ppob.deductSaldoVpn(ctx.from.id, totalHarga);
     const { run } = require('./src/db');
     await run('INSERT INTO transactions (telegram_id, type, amount, ref_id, status) VALUES (?,?,?,?,?)',
       [ctx.from.id, 'vpn_' + proto, totalHarga, 'VPN' + Date.now().toString(36).toUpperCase(), 'success']).catch(() => {});
@@ -1600,10 +1604,13 @@ bot.action('menu_reseller', async (ctx) => {
   await safeCb(ctx);
   if (!await isResellerOrAdmin(ctx)) return ctx.reply('❌ Khusus reseller.');
   const role = await ppob.getRole(ctx.from.id).catch(() => 'member');
-  const saldo = await ppob.getSaldo(ctx.from.id).catch(() => 0);
+  const saldoVpn = await ppob.getSaldoVpn(ctx.from.id).catch(() => 0);
+  const saldoPpob = await ppob.getSaldoPpob(ctx.from.id).catch(() => 0);
+  const saldoLama = await ppob.getSaldoLama(ctx.from.id).catch(() => 0);
+  const saldoLamaTxt = saldoLama > 0 ? `\n💳 Saldo lama: <b>Rp${Number(saldoLama).toLocaleString('id-ID')}</b>` : '';
   await ctx.reply(
     `🏪 <b>PANEL RESELLER</b> ${settings.roleBadge(role)}\n━━━━━━━━━━━━━━━━━━\n\n` +
-    `💳 Saldo: <b>Rp${Number(saldo).toLocaleString('id-ID')}</b>\n\n` +
+    `💳 Saldo VPN: <b>Rp${Number(saldoVpn).toLocaleString('id-ID')}</b>\n💳 Saldo PPOB: <b>Rp${Number(saldoPpob).toLocaleString('id-ID')}</b>${saldoLamaTxt}\n\n` +
     `Pilih menu di bawah ini:`,
     { parse_mode: 'HTML', reply_markup: resellerPanel().reply_markup }
   );
@@ -1630,10 +1637,10 @@ bot.action('rsl_prices', async (ctx) => {
 bot.action('rsl_create', async (ctx) => {
   await safeCb(ctx);
   if (!await isResellerOrAdmin(ctx)) return ctx.reply('❌ Khusus reseller.');
-  const saldo = await ppob.getSaldo(ctx.from.id).catch(() => 0);
+  const saldo = await ppob.getSaldoVpn(ctx.from.id).catch(() => 0);
   await ctx.reply(
     `➕ <b>Buat Akun VPN</b>\n━━━━━━━━━━━━━━━━━━\n\n` +
-    `💳 Saldo kamu: <b>Rp${Number(saldo).toLocaleString('id-ID')}</b>\n` +
+    `💳 Saldo VPN kamu: <b>Rp${Number(saldo).toLocaleString('id-ID')}</b>\n` +
     `Harga sesuai tarif reseller.\n\nPilih protokol:`,
     { parse_mode: 'HTML', reply_markup: vpnMenu(false).reply_markup }
   );
@@ -1667,9 +1674,12 @@ bot.action('rsl_history', async (ctx) => {
 bot.action('rsl_saldo', async (ctx) => {
   await safeCb(ctx);
   if (!await isResellerOrAdmin(ctx)) return ctx.reply('❌ Khusus reseller.');
-  const saldo = await ppob.getSaldo(ctx.from.id).catch(() => 0);
+  const saldoVpn = await ppob.getSaldoVpn(ctx.from.id).catch(() => 0);
+  const saldoPpob = await ppob.getSaldoPpob(ctx.from.id).catch(() => 0);
+  const saldoLama = await ppob.getSaldoLama(ctx.from.id).catch(() => 0);
+  const saldoLamaTxt = saldoLama > 0 ? `\n💰 Saldo lama: <b>Rp${Number(saldoLama).toLocaleString('id-ID')}</b>` : '';
   await ctx.reply(
-    `💳 <b>Saldo Saya</b>\n━━━━━━━━━━━━━━━━━━\n\n💰 Saldo: <b>Rp${Number(saldo).toLocaleString('id-ID')}</b>`,
+    `💳 <b>Saldo Saya</b>\n━━━━━━━━━━━━━━━━━━\n\n💰 Saldo VPN: <b>Rp${Number(saldoVpn).toLocaleString('id-ID')}</b>\n💰 Saldo PPOB: <b>Rp${Number(saldoPpob).toLocaleString('id-ID')}</b>${saldoLamaTxt}`,
     {
       parse_mode: 'HTML',
       reply_markup: Markup.inlineKeyboard([
@@ -1731,7 +1741,9 @@ async function finishRenew(ctx, accountId, days) {
   if (!acc) return ctx.reply('❌ Akun tidak ditemukan.');
   const role = await ppob.getRole(ctx.from.id).catch(() => 'member');
   const totalHarga = (await vpn.getVpnPrice(acc.proto, role, !!acc.via_cf)) * days; // harga per role (admin = 0)
-  const saldo = await ppob.getSaldo(ctx.from.id);
+  const saldoVpn = await ppob.getSaldoVpn(ctx.from.id);
+  const saldoLama = await ppob.getSaldoLama(ctx.from.id).catch(() => 0);
+  const saldo = saldoVpn + saldoLama;
   if (saldo < totalHarga) {
     return ctx.reply(
       `❌ <b>Saldo tidak cukup.</b>\n` +
@@ -1757,7 +1769,7 @@ async function finishRenew(ctx, accountId, days) {
     }).catch(() => {});
   } catch (e) {}
   await run('UPDATE vpn_accounts SET expiry = ? WHERE id = ?', [newExpiry, accountId]);
-  await ppob.deductSaldo(ctx.from.id, totalHarga);
+  await ppob.deductSaldoVpn(ctx.from.id, totalHarga);
   await run('INSERT INTO transactions (telegram_id, type, amount, ref_id, status) VALUES (?,?,?,?,?)',
     [ctx.from.id, 'renew_' + acc.proto, totalHarga, 'RNW' + Date.now().toString(36).toUpperCase(), 'success']).catch(() => {});
   const uname = ctx.from.username ? '@' + ctx.from.username : ctx.from.first_name;
@@ -1774,7 +1786,9 @@ async function finishRenew(ctx, accountId, days) {
 // ---------- Menu PPOB ----------
 bot.action('menu_ppob', async (ctx) => {
   await safeCb(ctx);
-  const saldo = await ppob.getSaldo(ctx.from.id);
+  const saldoPpob = await ppob.getSaldoPpob(ctx.from.id);
+  const saldoLama = await ppob.getSaldoLama(ctx.from.id).catch(() => 0);
+  const saldoLamaTxt = saldoLama > 0 ? `\n💰 Saldo lama: <b>${digi.rp(saldoLama)}</b>` : '';
   const role = await ppob.getRole(ctx.from.id).catch(() => 'member');
   await sendMenuPhoto(ctx, 'banner-ppob.webp',
     `🛒 <b>PPOB WENDI STORE</b>
@@ -1783,7 +1797,7 @@ Belanja kebutuhan digital otomatis — cepat, aman & 24 jam.
 ` +
     `👤 Role: <b>${settings.roleBadge(role)}</b>
 ` +
-    `💰 Saldo: <b>${digi.rp(saldo)}</b>
+    `💰 Saldo PPOB: <b>${digi.rp(saldoPpob)}</b>${saldoLamaTxt}
 
 ` +
     `⚡ <i>Harga mengikuti role kamu.</i>
@@ -1814,7 +1828,17 @@ function ppobCategoryKeyboard() {
 
 bot.action('ppob_deposit', async (ctx) => {
   await safeCb(ctx);
-  sessions.set(ctx.chat.id, { step: 'deposit_nominal' });
+  sessions.set(ctx.chat.id, { step: 'deposit_target' });
+  await ctx.reply(`💰 <b>TopUp Saldo</b>\n\nPilih tujuan saldo:`, { parse_mode: 'HTML', reply_markup: Markup.inlineKeyboard([
+    [sBtn('🛡️ Saldo VPN', 'dep_target_vpn', 'primary')],
+    [sBtn('🛒 Saldo PPOB', 'dep_target_ppob', 'success')],
+    [sBtn('❌ Batal', 'cancel_flow', 'danger')],
+  ]).reply_markup });
+});
+
+bot.action('dep_target_vpn', async (ctx) => {
+  await safeCb(ctx);
+  sessions.set(ctx.chat.id, { step: 'deposit_nominal', target: 'vpn' });
   const bonus = await ppob.getBonusConfig().catch(() => ({}));
   const bonusTxt = bonus?.enabled
     ? `\n🎁 <b>Bonus ${bonus.bonus_percent}%</b> untuk topup min. <b>${digi.rp(bonus.min_topup)}</b>!`
@@ -1822,8 +1846,22 @@ bot.action('ppob_deposit', async (ctx) => {
   const depRole0 = await ppob.getRole(ctx.from.id).catch(() => 'member');
   const minDep0 = depRole0 === 'admin' ? 0 : await settings.getMinDeposit(depRole0).catch(() => 10000);
   const minDepTxt = depRole0 === 'admin' ? '(tanpa minimal, khusus admin)' : minDep0 > 0 ? `(min ${digi.rp(minDep0)})` : '(tanpa minimal)';
-  await ctx.reply(`💰 Kirim <b>nominal deposit</b> ${minDepTxt}:${bonusTxt}`, { parse_mode: 'HTML', ...cancelKb() });
+  await ctx.reply(`💰 Kirim <b>nominal deposit</b> untuk <b>Saldo VPN</b> ${minDepTxt}:${bonusTxt}`, { parse_mode: 'HTML', ...cancelKb() });
 });
+
+bot.action('dep_target_ppob', async (ctx) => {
+  await safeCb(ctx);
+  sessions.set(ctx.chat.id, { step: 'deposit_nominal', target: 'ppob' });
+  const bonus = await ppob.getBonusConfig().catch(() => ({}));
+  const bonusTxt = bonus?.enabled
+    ? `\n🎁 <b>Bonus ${bonus.bonus_percent}%</b> untuk topup min. <b>${digi.rp(bonus.min_topup)}</b>!`
+    : '';
+  const depRole0 = await ppob.getRole(ctx.from.id).catch(() => 'member');
+  const minDep0 = depRole0 === 'admin' ? 0 : await settings.getMinDeposit(depRole0).catch(() => 10000);
+  const minDepTxt = depRole0 === 'admin' ? '(tanpa minimal, khusus admin)' : minDep0 > 0 ? `(min ${digi.rp(minDep0)})` : '(tanpa minimal)';
+  await ctx.reply(`💰 Kirim <b>nominal deposit</b> untuk <b>Saldo PPOB</b> ${minDepTxt}:${bonusTxt}`, { parse_mode: 'HTML', ...cancelKb() });
+});
+
 
 // User pilih metode deposit: GoPay QRIS (gateway sendiri)
 bot.action('dep_method_gopay', async (ctx) => {
@@ -1833,9 +1871,9 @@ bot.action('dep_method_gopay', async (ctx) => {
   sessions.delete(ctx.chat.id);
   if (!nominal) return ctx.reply('❌ Sesi kedaluwarsa, ulangi dari menu deposit.');
   await ctx.reply('⏳ Membuat QRIS...');
-  const r = await ppob.createDeposit(ctx.from.id, nominal);
+  const r = await ppob.createDeposit(ctx.from.id, nominal, sess?.target || 'vpn');
   if (!r.success) return ctx.reply(r.message);
-  const caption = `💳 <b>Deposit ${digi.rp(nominal)}</b>\nRef: <code>${r.ref}</code>\n\nScan QRIS di atas untuk bayar. Saldo masuk otomatis setelah pembayaran terdeteksi.`;
+  const caption = `💳 <b>Deposit Saldo ${(sess?.target || 'vpn') === 'ppob' ? 'PPOB' : 'VPN'} ${digi.rp(nominal)}</b>\nRef: <code>${r.ref}</code>\n\nScan QRIS di atas untuk bayar. Saldo masuk otomatis setelah pembayaran terdeteksi.`;
   if (r.qrBuffer) return ctx.replyWithPhoto({ source: r.qrBuffer }, { caption, parse_mode: 'HTML' });
   return ctx.reply(caption + `\n${r.qrUrl || ''}`, { parse_mode: 'HTML' });
 });
@@ -1853,14 +1891,14 @@ bot.action('dep_method_pakasir', async (ctx) => {
     const p = await pakasir.createPayment(nominal, ref, 'qris');
     const { run } = require('./src/db');
     await run(
-      `INSERT INTO transactions (telegram_id, type, amount, ref_id, payment_id, status, gateway)
-       VALUES (?,?,?,?,?,?,?)`,
-      [ctx.from.id, 'deposit', nominal, ref, p.orderId, 'pending', 'pakasir']
+      `INSERT INTO transactions (telegram_id, type, amount, ref_id, payment_id, status, gateway, saldo_target)
+       VALUES (?,?,?,?,?,?,?,?)`,
+      [ctx.from.id, 'deposit', nominal, ref, p.orderId, 'pending', 'pakasir', (sess?.target || 'vpn')]
     );
     // QR dari QRIS string (pakai API QR publik)
     const qrImgUrl = `https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent(p.paymentNumber || p.paymentUrl)}`;
     const caption =
-      `🧾 <b>Deposit via Pakasir ${digi.rp(nominal)}</b>\n` +
+      `🧾 <b>Deposit Saldo ${(sess?.target || 'vpn') === 'ppob' ? 'PPOB' : 'VPN'} via Pakasir ${digi.rp(nominal)}</b>\n` +
       `Ref: <code>${ref}</code>\n\n` +
       `Scan QR atau buka link bayar:\n${p.paymentUrl}\n\n` +
       `Saldo masuk otomatis setelah pembayaran terdeteksi.`;
@@ -2011,8 +2049,11 @@ bot.command('cekorder', async (ctx) => {
 });
 
 bot.command('saldo', async (ctx) => {
-  const s = await ppob.getSaldo(ctx.from.id);
-  await ctx.reply(`💰 Saldo kamu: <b>${digi.rp(s)}</b>`, { parse_mode: 'HTML' });
+  const saldoVpn = await ppob.getSaldoVpn(ctx.from.id).catch(() => 0);
+  const saldoPpob = await ppob.getSaldoPpob(ctx.from.id).catch(() => 0);
+  const saldoLama = await ppob.getSaldoLama(ctx.from.id).catch(() => 0);
+  const lamaTxt = saldoLama > 0 ? `\n💰 Saldo lama: <b>${digi.rp(saldoLama)}</b>` : '';
+  await ctx.reply(`💰 Saldo VPN: <b>${digi.rp(saldoVpn)}</b>\n💰 Saldo PPOB: <b>${digi.rp(saldoPpob)}</b>${lamaTxt}`, { parse_mode: 'HTML' });
 });
 
 bot.command('produk', async (ctx) => {
@@ -2081,12 +2122,14 @@ bot.command('broadcast', async (ctx) => {
 
 bot.command('addsaldo', async (ctx) => {
   if (!await admin.hasAdminAccess(ctx)) return;
-  const [, uid, amt] = ctx.message.text.split(' ');
-  if (!uid || !amt) return ctx.reply('Contoh: <code>/addsaldo 123456 50000</code>', { parse_mode: 'HTML' });
-  const r = await ppob.addSaldo(Number(uid), Number(amt));
+  const parts = ctx.message.text.split(' ');
+  const uid = parts[1]; const amt = parts[2];
+  const target = parts[3] === 'ppob' ? 'ppob' : 'vpn';
+  if (!uid || !amt) return ctx.reply('Contoh: <code>/addsaldo 123456 50000 [vpn|ppob]</code> (default: vpn)', { parse_mode: 'HTML' });
+  const r = await ppob.addSaldoTarget(Number(uid), Number(amt), target);
   const bonusTxt = r.bonus > 0 ? `\n🎁 Bonus: Rp${Number(r.bonus).toLocaleString('id-ID')}` : '';
-  notifGrup(bot, `💰 <b>Topup Saldo</b>\n👤 ID: <code>${uid}</code>\n💵 Rp${Number(amt).toLocaleString('id-ID')}${bonusTxt}\n✅ Saldo baru: Rp${Number(r.saldo).toLocaleString('id-ID')}`);
-  await ctx.reply(`✅ Saldo user <code>${uid}</code> kini ${digi.rp(r.saldo)}${r.bonus > 0 ? ` (termasuk bonus ${digi.rp(r.bonus)})` : ''}`, { parse_mode: 'HTML' });
+  notifGrup(bot, `💰 <b>Topup Saldo ${target === 'ppob' ? 'PPOB' : 'VPN'}</b>\n👤 ID: <code>${uid}</code>\n💵 Rp${Number(amt).toLocaleString('id-ID')}${bonusTxt}\n✅ Saldo baru: Rp${Number(r.saldo).toLocaleString('id-ID')}`);
+  await ctx.reply(`✅ Saldo ${target === 'ppob' ? 'PPOB' : 'VPN'} user <code>${uid}</code> kini ${digi.rp(r.saldo)}${r.bonus > 0 ? ` (termasuk bonus ${digi.rp(r.bonus)})` : ''}`, { parse_mode: 'HTML' });
 });
 
 // ============================================================
@@ -2415,6 +2458,69 @@ bot.action('adm_minsaldo', async (ctx) => {
   await safeCb(ctx);
   sessions.set(ctx.chat.id, { step: 'adm_minsaldo_input', data: {} });
   await ctx.reply('➖ <b>Kurangi Saldo</b>\n\nKetik dengan format:\n<code>userId jumlah</code>\nContoh: <code>123456 10000</code>', { parse_mode: 'HTML', ...cancelKb() });
+});
+
+
+bot.action('adm_addsaldo_vpn', async (ctx) => {
+  if (!await admin.hasAdminAccess(ctx)) { await safeCb(ctx); return; }
+  await safeCb(ctx);
+  const sess = sessions.get(ctx.chat.id);
+  const { uid, amt } = sess || {};
+  sessions.delete(ctx.chat.id);
+  if (!uid || !amt) return ctx.reply('❌ Sesi kedaluwarsa, ulangi dari panel admin.');
+  const r = await ppob.addSaldoVpn(uid, amt);
+  notifGrup(bot, `💰 <b>Topup Saldo VPN</b>\n👤 ID: <code>${uid}</code>\n💵 Rp${amt.toLocaleString('id-ID')}${r.bonus > 0 ? `\n🎁 Bonus: Rp${Number(r.bonus).toLocaleString('id-ID')}` : ''}\n✅ Saldo VPN baru: Rp${Number(r.saldo).toLocaleString('id-ID')}`);
+  return ctx.reply(`✅ Saldo VPN user <code>${uid}</code> ditambah Rp${amt.toLocaleString('id-ID')}.\nSaldo VPN baru: <b>${digi.rp(r.saldo)}</b>${r.bonus > 0 ? ` (termasuk bonus ${digi.rp(r.bonus)})` : ''}`, {
+    parse_mode: 'HTML', reply_markup: adminPanel().reply_markup,
+  });
+});
+
+bot.action('adm_addsaldo_ppob', async (ctx) => {
+  if (!await admin.hasAdminAccess(ctx)) { await safeCb(ctx); return; }
+  await safeCb(ctx);
+  const sess = sessions.get(ctx.chat.id);
+  const { uid, amt } = sess || {};
+  sessions.delete(ctx.chat.id);
+  if (!uid || !amt) return ctx.reply('❌ Sesi kedaluwarsa, ulangi dari panel admin.');
+  const r = await ppob.addSaldoPpob(uid, amt);
+  notifGrup(bot, `💰 <b>Topup Saldo PPOB</b>\n👤 ID: <code>${uid}</code>\n💵 Rp${amt.toLocaleString('id-ID')}${r.bonus > 0 ? `\n🎁 Bonus: Rp${Number(r.bonus).toLocaleString('id-ID')}` : ''}\n✅ Saldo PPOB baru: Rp${Number(r.saldo).toLocaleString('id-ID')}`);
+  return ctx.reply(`✅ Saldo PPOB user <code>${uid}</code> ditambah Rp${amt.toLocaleString('id-ID')}.\nSaldo PPOB baru: <b>${digi.rp(r.saldo)}</b>${r.bonus > 0 ? ` (termasuk bonus ${digi.rp(r.bonus)})` : ''}`, {
+    parse_mode: 'HTML', reply_markup: adminPanel().reply_markup,
+  });
+});
+
+bot.action('adm_minsaldo_vpn', async (ctx) => {
+  if (!await admin.hasAdminAccess(ctx)) { await safeCb(ctx); return; }
+  await safeCb(ctx);
+  const sess = sessions.get(ctx.chat.id);
+  const { uid, amt } = sess || {};
+  sessions.delete(ctx.chat.id);
+  if (!uid || !amt) return ctx.reply('❌ Sesi kedaluwarsa, ulangi dari panel admin.');
+  const cur = await ppob.getSaldoVpn(uid);
+  if (cur < amt) return ctx.reply(`❌ Saldo VPN user <code>${uid}</code> hanya ${digi.rp(cur)}, tidak bisa dikurangi Rp${amt.toLocaleString('id-ID')}.`, { parse_mode: 'HTML' });
+  const { run } = require('./src/db');
+  await run('UPDATE users SET saldo_vpn = saldo_vpn - ? WHERE telegram_id = ?', [amt, uid]);
+  const s = await ppob.getSaldoVpn(uid);
+  return ctx.reply(`✅ Saldo VPN user <code>${uid}</code> dikurangi Rp${amt.toLocaleString('id-ID')}.\nSaldo VPN baru: <b>${digi.rp(s)}</b>`, {
+    parse_mode: 'HTML', reply_markup: adminPanel().reply_markup,
+  });
+});
+
+bot.action('adm_minsaldo_ppob', async (ctx) => {
+  if (!await admin.hasAdminAccess(ctx)) { await safeCb(ctx); return; }
+  await safeCb(ctx);
+  const sess = sessions.get(ctx.chat.id);
+  const { uid, amt } = sess || {};
+  sessions.delete(ctx.chat.id);
+  if (!uid || !amt) return ctx.reply('❌ Sesi kedaluwarsa, ulangi dari panel admin.');
+  const cur = await ppob.getSaldoPpob(uid);
+  if (cur < amt) return ctx.reply(`❌ Saldo PPOB user <code>${uid}</code> hanya ${digi.rp(cur)}, tidak bisa dikurangi Rp${amt.toLocaleString('id-ID')}.`, { parse_mode: 'HTML' });
+  const { run } = require('./src/db');
+  await run('UPDATE users SET saldo_ppob = saldo_ppob - ? WHERE telegram_id = ?', [amt, uid]);
+  const s = await ppob.getSaldoPpob(uid);
+  return ctx.reply(`✅ Saldo PPOB user <code>${uid}</code> dikurangi Rp${amt.toLocaleString('id-ID')}.\nSaldo PPOB baru: <b>${digi.rp(s)}</b>`, {
+    parse_mode: 'HTML', reply_markup: adminPanel().reply_markup,
+  });
 });
 
 // Hasil penjualan
@@ -3066,7 +3172,7 @@ setInterval(async () => {
   try {
     const { all, run } = require('./src/db');
     const pending = await all(
-      `SELECT telegram_id, amount, ref_id, payment_id, gateway FROM transactions
+      `SELECT telegram_id, amount, ref_id, payment_id, gateway, saldo_target FROM transactions
        WHERE type = 'deposit' AND status = 'pending' AND payment_id != ''
          AND created_at > datetime('now','-1 day')`
     ).catch(() => []);
@@ -3104,7 +3210,7 @@ setInterval(async () => {
           [tx.ref_id]
         );
         if (!r.changes) continue; // sudah diproses (anti dobel kredit)
-        const s = await ppob.addSaldo(tx.telegram_id, tx.amount);
+        const s = await ppob.addSaldoTarget(tx.telegram_id, tx.amount, tx.saldo_target || 'vpn');
         // Otomatis jadi reseller bila total topup mencapai batas (diatur admin)
         try {
           const minRes = await settings.getResellerMinTopup();

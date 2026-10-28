@@ -91,12 +91,13 @@ async function setBonusConfig(minTopup, percent) {
   return getBonusConfig();
 }
 
-async function applyTopupBonus(telegramId, amount) {
+async function applyTopupBonus(telegramId, amount, target = 'vpn') {
   const cfg = await getBonusConfig();
   if (!cfg.enabled || Number(amount) < Number(cfg.min_topup)) return 0;
   const bonus = Math.floor(Number(amount) * Number(cfg.bonus_percent) / 100);
   if (bonus > 0) {
-    await run('UPDATE users SET saldo = saldo + ? WHERE telegram_id = ?', [bonus, telegramId]);
+    const bonusCol = target === 'ppob' ? 'saldo_ppob' : 'saldo_vpn';
+    await run(`UPDATE users SET ${bonusCol} = ${bonusCol} + ? WHERE telegram_id = ?`, [bonus, telegramId]);
     await run('INSERT INTO transactions (telegram_id, type, amount, ref_id, status) VALUES (?,?,?,?,?)',
       [telegramId, 'bonus', bonus, refId('BONUS'), 'success']).catch(() => {});
   }
@@ -116,8 +117,75 @@ async function deductSaldo(telegramId, amount) {
   return { success: true, saldo: await getSaldo(telegramId) };
 }
 
+// ---------- Saldo terpisah: VPN / PPOB (+ saldo lama sebagai cadangan) ----------
+// saldo_vpn: beli/renew VPN. saldo_ppob: beli PPOB + refund PPOB.
+// Kolom lama `saldo` tidak lagi diisi; sisanya (bila ada) tetap bisa dipakai
+// untuk keduanya sampai habis (fallback di deduct*).
+async function getSaldoVpn(telegramId) {
+  const row = await get('SELECT saldo_vpn FROM users WHERE telegram_id = ?', [telegramId]);
+  return row?.saldo_vpn || 0;
+}
+async function getSaldoPpob(telegramId) {
+  const row = await get('SELECT saldo_ppob FROM users WHERE telegram_id = ?', [telegramId]);
+  return row?.saldo_ppob || 0;
+}
+async function getSaldoLama(telegramId) {
+  const row = await get('SELECT saldo FROM users WHERE telegram_id = ?', [telegramId]);
+  return row?.saldo || 0;
+}
+async function addSaldoVpn(telegramId, amount) {
+  await run(
+    `INSERT INTO users (telegram_id, saldo_vpn) VALUES (?, ?)
+     ON CONFLICT(telegram_id) DO UPDATE SET saldo_vpn = saldo_vpn + ?`,
+    [telegramId, amount, amount]
+  );
+  const bonus = await applyTopupBonus(telegramId, amount, 'vpn').catch(() => 0);
+  return { saldo: await getSaldoVpn(telegramId), saldo_vpn: await getSaldoVpn(telegramId), bonus };
+}
+async function addSaldoPpob(telegramId, amount) {
+  await run(
+    `INSERT INTO users (telegram_id, saldo_ppob) VALUES (?, ?)
+     ON CONFLICT(telegram_id) DO UPDATE SET saldo_ppob = saldo_ppob + ?`,
+    [telegramId, amount, amount]
+  );
+  const bonus = await applyTopupBonus(telegramId, amount, 'ppob').catch(() => 0);
+  return { saldo: await getSaldoPpob(telegramId), saldo_ppob: await getSaldoPpob(telegramId), bonus };
+}
+async function addSaldoTarget(telegramId, amount, target) {
+  return target === 'ppob' ? addSaldoPpob(telegramId, amount) : addSaldoVpn(telegramId, amount);
+}
+async function deductSaldoVpn(telegramId, amount) {
+  // Atomik 1 query: potong saldo_vpn dulu, sisanya dari saldo lama.
+  const r = await run(
+    `UPDATE users SET saldo_vpn = CASE WHEN saldo_vpn >= ? THEN saldo_vpn - ? ELSE 0 END,
+     saldo = saldo - (CASE WHEN saldo_vpn >= ? THEN 0 ELSE ? - saldo_vpn END)
+     WHERE telegram_id = ? AND (saldo_vpn + saldo) >= ?`,
+    [amount, amount, amount, amount, telegramId, amount]
+  );
+  if (!r.changes) {
+    const vpn = await getSaldoVpn(telegramId);
+    const lama = await getSaldoLama(telegramId);
+    return { success: false, message: `❌ <b>Saldo VPN kurang.</b>\nSaldo VPN: <b>${digi.rp(vpn)}</b>${lama > 0 ? `\nSaldo lama: <b>${digi.rp(lama)}</b>` : ''}` };
+  }
+  return { success: true, saldo_vpn: await getSaldoVpn(telegramId) };
+}
+async function deductSaldoPpob(telegramId, amount) {
+  const r = await run(
+    `UPDATE users SET saldo_ppob = CASE WHEN saldo_ppob >= ? THEN saldo_ppob - ? ELSE 0 END,
+     saldo = saldo - (CASE WHEN saldo_ppob >= ? THEN 0 ELSE ? - saldo_ppob END)
+     WHERE telegram_id = ? AND (saldo_ppob + saldo) >= ?`,
+    [amount, amount, amount, amount, telegramId, amount]
+  );
+  if (!r.changes) {
+    const ppobBal = await getSaldoPpob(telegramId);
+    const lama = await getSaldoLama(telegramId);
+    return { success: false, message: `❌ <b>Saldo PPOB kurang.</b>\nSaldo PPOB: <b>${digi.rp(ppobBal)}</b>${lama > 0 ? `\nSaldo lama: <b>${digi.rp(lama)}</b>` : ''}` };
+  }
+  return { success: true, saldo_ppob: await getSaldoPpob(telegramId) };
+}
+
 // ---------- Deposit via QRIS P2P Gateway ----------
-async function createDeposit(telegramId, amount) {
+async function createDeposit(telegramId, amount, target = 'vpn') {
   const { gatewayUrl, apiKey } = config.p2p;
   if (!apiKey) return { success: false, message: '❌ Gateway QRIS belum dikonfigurasi.' };
   // Idempoten: pakai ulang deposit pending <30 menit (anti QR ganda saat retry/timeout)
@@ -125,8 +193,9 @@ async function createDeposit(telegramId, amount) {
     `SELECT ref_id, payment_id, amount FROM transactions
      WHERE telegram_id = ? AND type = 'deposit' AND status = 'pending'
        AND payment_id != '' AND created_at > datetime('now','-30 minutes')
+       AND COALESCE(NULLIF(saldo_target,''),'vpn') = ?
      ORDER BY id DESC LIMIT 1`,
-    [telegramId]).catch(() => null);
+    [telegramId, target]).catch(() => null);
   let ref, paymentId;
   if (existing) {
     ref = existing.ref_id; paymentId = existing.payment_id; amount = existing.amount;
@@ -141,8 +210,8 @@ async function createDeposit(telegramId, amount) {
       return { success: false, message: '❌ Gagal membuat QRIS deposit.' };
     }
     paymentId = data.id;
-    await run('INSERT INTO transactions (telegram_id, type, amount, ref_id, payment_id, status) VALUES (?,?,?,?,?,?)',
-      [telegramId, 'deposit', amount, ref, paymentId, 'pending']);
+    await run('INSERT INTO transactions (telegram_id, type, amount, ref_id, payment_id, status, saldo_target) VALUES (?,?,?,?,?,?,?)',
+      [telegramId, 'deposit', amount, ref, paymentId, 'pending', target]);
   }
   const qrUrl = gatewayUrl + '/api/qr/' + paymentId + '.png';
   let qrBuffer = null;
@@ -156,7 +225,7 @@ async function createDeposit(telegramId, amount) {
 
 // ---------- Beli produk ----------
 async function buyProduct(telegramId, buyerSkuCode, customerNo, priceSell) {
-  const cek = await deductSaldo(telegramId, priceSell);
+  const cek = await deductSaldoPpob(telegramId, priceSell);
   if (!cek.success) return cek;
   const ref = refId('PPOB');
   await run('INSERT INTO transactions (telegram_id, type, amount, ref_id, sku, status) VALUES (?,?,?,?,?,?)',
@@ -191,11 +260,11 @@ async function buyProduct(telegramId, buyerSkuCode, customerNo, priceSell) {
       };
     }
     // gagal -> refund
-    await addSaldo(telegramId, priceSell);
+    await addSaldoPpob(telegramId, priceSell);
     await run('UPDATE transactions SET status = ? WHERE ref_id = ?', ['failed', ref]);
     return { success: false, message: `❌ <b>Transaksi gagal.</b>\n${esc(res?.message || 'unknown')}\n💰 Saldo dikembalikan.` };
   } catch (e) {
-    await addSaldo(telegramId, priceSell);
+    await addSaldoPpob(telegramId, priceSell);
     await run('UPDATE transactions SET status = ? WHERE ref_id = ?', ['failed', ref]);
     return { success: false, message: `❌ <b>Error:</b> ${esc(e.message)}\n💰 Saldo dikembalikan.` };
   }
@@ -222,7 +291,7 @@ async function checkOrder(ref) {
     const map = { sukses: 'success', success: 'success', gagal: 'failed', failed: 'failed' };
     const final = map[status] || 'pending';
     await run('UPDATE transactions SET status = ? WHERE ref_id = ?', [final, cleanRef]);
-    if (final === 'failed') await addSaldo(tx.telegram_id, tx.amount); // refund
+    if (final === 'failed') await addSaldoPpob(tx.telegram_id, tx.amount); // refund
     return {
       success: true,
       status: final,
@@ -619,4 +688,4 @@ async function getHistory(telegramId, limit = 10) {
   };
 }
 
-module.exports = { getSaldo, addSaldo, deductSaldo, createDeposit, buyProduct, checkOrder, productList, productKeyboard, providerKeyboard, refId, getHistory, getRole, setRole, VALID_ROLES, getBonusConfig, setBonusConfig, applyTopupBonus, CATEGORY_GROUPS, CATEGORY_ORDER, CATEGORY_LABELS, searchItems, hasProviders, getProviderNames, getProviderDefs, filterByProvider, getActiveMargin, sellPriceOfAsync };
+module.exports = { getSaldo, addSaldo, deductSaldo, getSaldoVpn, getSaldoPpob, getSaldoLama, addSaldoVpn, addSaldoPpob, addSaldoTarget, deductSaldoVpn, deductSaldoPpob, createDeposit, buyProduct, checkOrder, productList, productKeyboard, providerKeyboard, refId, getHistory, getRole, setRole, VALID_ROLES, getBonusConfig, setBonusConfig, applyTopupBonus, CATEGORY_GROUPS, CATEGORY_ORDER, CATEGORY_LABELS, searchItems, hasProviders, getProviderNames, getProviderDefs, filterByProvider, getActiveMargin, sellPriceOfAsync };

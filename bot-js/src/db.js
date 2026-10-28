@@ -31,10 +31,15 @@ async function init() {
     telegram_id INTEGER PRIMARY KEY,
     username TEXT,
     saldo INTEGER DEFAULT 0,
+    saldo_vpn INTEGER DEFAULT 0,
+    saldo_ppob INTEGER DEFAULT 0,
     created_at TEXT DEFAULT (datetime('now')),
     role TEXT DEFAULT 'member'
   )`);
   await run(`ALTER TABLE users ADD COLUMN role TEXT DEFAULT 'member'`).catch(() => {});
+  await run(`ALTER TABLE users ADD COLUMN saldo_vpn INTEGER DEFAULT 0`).catch(() => {});
+  await run(`ALTER TABLE users ADD COLUMN saldo_ppob INTEGER DEFAULT 0`).catch(() => {});
+  await run(`UPDATE users SET saldo_vpn = COALESCE(saldo_vpn,0), saldo_ppob = COALESCE(saldo_ppob,0), saldo = COALESCE(saldo,0)`).catch(() => {});
 
   await run(`CREATE TABLE IF NOT EXISTS vpn_accounts (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -62,11 +67,13 @@ async function init() {
     ref_id TEXT UNIQUE,
     payment_id TEXT DEFAULT '',
     status TEXT DEFAULT 'pending',
-    created_at TEXT DEFAULT (datetime('now'))
+    created_at TEXT DEFAULT (datetime('now')),
+    saldo_target TEXT DEFAULT ''
   )`);
   await run(`ALTER TABLE transactions ADD COLUMN payment_id TEXT DEFAULT ''`).catch(() => {});
   await run(`ALTER TABLE transactions ADD COLUMN sku TEXT DEFAULT ''`).catch(() => {});
   await run(`ALTER TABLE transactions ADD COLUMN gateway TEXT DEFAULT 'gopay'`).catch(() => {});
+  await run(`ALTER TABLE transactions ADD COLUMN saldo_target TEXT DEFAULT ''`).catch(() => {});
 
   // Konfigurasi Pakasir (payment link QRIS/VA) — diatur admin via panel bot
   await run(`CREATE TABLE IF NOT EXISTS pakasir_config (
