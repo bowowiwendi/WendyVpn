@@ -191,7 +191,7 @@ async function getServers() {
   return all('SELECT * FROM servers ORDER BY id');
 }
 
-const vpnMenu = (cf = false) => {
+const vpnMenu = (cf = false, back = 'menu_main') => {
   const p = cf ? 'cf_' : '';
   return Markup.inlineKeyboard([
     [sBtn('🖥️ SSH', `${p}mk_ssh`, 'danger'), sBtn('📡 VMess', `${p}mk_vmess`, 'success')],
@@ -200,7 +200,7 @@ const vpnMenu = (cf = false) => {
     [sBtn('⚡ Zivpn UDP', `${p}mk_zivpn`, 'success')],
     [sBtn('🎁 Trial 1 Jam (Gratis)', `${p}mk_trial`, 'primary')],
     [sBtn('💰 Topup Saldo', 'ppob_deposit', 'success')],
-    [sBtn('🔙 Kembali', 'menu_main', 'danger')],
+    [sBtn('🔙 Kembali', back, 'danger')],
   ]);
 };
 
@@ -368,14 +368,36 @@ bot.action('menu_main', async (ctx) => {
 // ---------- Submenu VPN (dari tombol 🌐 Menu VPN) ----------
 bot.action('menu_vpn_home', async (ctx) => {
   await safeCb(ctx);
+  await ctx.reply(
+    `<b>🌐 MENU VPN</b>\n\nPilih menu untuk membuat akun, trial, perpanjang, cek masa aktif, hapus akun, atau melihat daftar akun kamu.`,
+    { parse_mode: 'HTML', reply_markup: Markup.inlineKeyboard([
+      [sBtn('➕ Buat Akun', 'menu_vpn_buat', 'primary'), sBtn('⏳ Trial Akun', 'mk_trial', 'primary')],
+      [sBtn('♻️ Perpanjang Akun', 'menu_renew_nama', 'success'), sBtn('🔍 Cek Masa Aktif', 'menu_cek_aktif', 'success')],
+      [sBtn('🗑️ Hapus Akun Saya', 'menu_hapus_nama', 'danger'), sBtn('📁 Lihat Akun Saya', 'menu_akun', 'primary')],
+      [sBtn('⬅️ Kembali', 'menu_main', 'danger')],
+    ]).reply_markup }
+  );
+});
+
+// Pilih layanan VPN (Premium / CloudFront) — dulu isi menu_vpn_home
+bot.action('menu_vpn_buat', async (ctx) => {
+  await safeCb(ctx);
   await sendMenuPhoto(ctx, 'banner-utama.webp',
-    `🌐 <b>MENU VPN</b>
-━━━━━━━━━━━━━━━━━━
-Pilih layanan VPN:`,
+    `🌐 <b>MENU VPN</b>\n━━━━━━━━━━━━━━━━━━\nPilih layanan VPN:`,
     Markup.inlineKeyboard([
       [sBtn('🛰️ VPN Premium', 'menu_vpn', 'success'), sBtn('☁️ VPN CloudFront', 'menu_cf', 'primary')],
-      [sBtn('🔙 Kembali', 'menu_main', 'danger')],
+      [sBtn('🔙 Kembali', 'menu_vpn_home', 'danger')],
     ]));
+});
+
+bot.action('menu_cek_aktif', async (ctx) => {
+  await safeCb(ctx);
+  const { all } = require('./src/db');
+  const rows = await all('SELECT proto, username, expiry, via_cf FROM vpn_accounts WHERE telegram_id = ? ORDER BY expiry ASC', [ctx.from.id]).catch(() => []);
+  const kb = Markup.inlineKeyboard([[sBtn('⬅️ Kembali', 'menu_vpn_home', 'danger')]]).reply_markup;
+  if (!rows.length) return ctx.reply('📭 Kamu belum punya akun VPN.', { parse_mode: 'HTML', reply_markup: kb });
+  const lines = rows.map((a, i) => `${i + 1}. <b>${esc(a.proto.toUpperCase())}</b> <code>${esc(a.username)}</code>\n   📅 Exp: ${esc(a.expiry)}${a.via_cf ? ' ☁️CF' : ''}`).join('\n');
+  await ctx.reply(`🔍 <b>Cek Masa Aktif</b>\n━━━━━━━━━━━━━━━━━━\n\n${lines}`, { parse_mode: 'HTML', reply_markup: kb });
 });
 
 // ---------- Menu VPN ----------
@@ -396,7 +418,7 @@ bot.action('menu_vpn', async (ctx) => {
     `👻 <b>Shadowsocks</b> — simpel & cepat</blockquote>
 
 ` +
-    `Pilih protokol di bawah ini:`, vpnMenu(false));
+    `Pilih protokol di bawah ini:`, vpnMenu(false, 'menu_vpn_buat'));
 });
 
 bot.action('menu_cf', async (ctx) => {
@@ -415,7 +437,7 @@ bot.action('menu_cf', async (ctx) => {
     `⚡ <b>VLess</b>  🛡️ <b>Trojan</b>
 
 ` +
-    `Pilih protokol di bawah ini:`, vpnMenu(true));
+    `Pilih protokol di bawah ini:`, vpnMenu(true, 'menu_vpn_buat'));
 });
 
 // ---------- Buat akun VPN ----------
