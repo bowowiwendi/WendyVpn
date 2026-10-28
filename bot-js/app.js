@@ -58,6 +58,16 @@ const sBtn = (text, data, style) => {
  // userId -> messageId (menu bergambar terakhir)
 const ASSETS_DIR = path.join(__dirname, 'assets');
 
+// ---------- Cache file_id foto menu: upload sekali, kirim ulang pakai file_id ----------
+// file_id stabil per bot; disimpan di disk agar selamat dari restart.
+// Ketukan pertama tiap gambar tetap mengunggah (sekali), ketukan berikutnya tanpa upload.
+const PHOTO_FILEIDS_PATH = path.join(__dirname, 'photo-fileids.json');
+let photoFileIds = {};
+try { photoFileIds = JSON.parse(fs.readFileSync(PHOTO_FILEIDS_PATH, 'utf8')); } catch (e) { photoFileIds = {}; }
+function savePhotoFileIds() {
+  try { fs.writeFileSync(PHOTO_FILEIDS_PATH, JSON.stringify(photoFileIds)); } catch (e) {}
+}
+
 // ---------- Helper: kirim menu bergambar (ala BotVPN2) ----------
 async function sendMenuPhoto(ctx, imageFile, caption, keyboard) {
   const userId = ctx.from?.id;
@@ -78,13 +88,25 @@ async function sendMenuPhoto(ctx, imageFile, caption, keyboard) {
 
   let sent = null;
   try {
-    if (fs.existsSync(imgPath)) {
+    const cachedId = photoFileIds[imageFile];
+    if (cachedId) {
+      try {
+        sent = await ctx.replyWithPhoto(cachedId, { caption, parse_mode: 'HTML', reply_markup: replyMarkup });
+      } catch (e) {
+        sent = null; // file_id tak berlaku lagi -> unggah ulang di bawah
+      }
+    }
+    if (!sent) {
+      if (!fs.existsSync(imgPath)) throw new Error('gambar tidak ada');
       sent = await ctx.replyWithPhoto(
         { source: fs.createReadStream(imgPath) },
         { caption, parse_mode: 'HTML', reply_markup: replyMarkup }
       );
-    } else {
-      throw new Error('gambar tidak ada');
+      const photos = sent?.photo;
+      if (photos && photos.length) {
+        photoFileIds[imageFile] = photos[photos.length - 1].file_id;
+        savePhotoFileIds();
+      }
     }
   } catch (e) {
     // fallback ke teks biasa
