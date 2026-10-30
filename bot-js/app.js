@@ -161,6 +161,7 @@ const adminPanel = () => Markup.inlineKeyboard([
   [sBtn('💲 Harga VPN/Role', 'adm_vpnprices', 'primary'), sBtn('👥 Kelola Role', 'adm_roles', 'primary')],
   [sBtn('🌐 Edit Domain', 'adm_editdomain', 'primary'), sBtn('📋 List Server', 'adm_listserver', 'success')],
   [sBtn('🔌 Edit API Base', 'adm_editapi', 'primary')],
+  [sBtn('🔑 Edit API Key', 'adm_editkey', 'primary')],
   [sBtn('💵 Tambah Saldo', 'adm_addsaldo', 'success'), sBtn('➖ Kurangi Saldo', 'adm_minsaldo', 'danger')],
   [sBtn('📊 Hasil Penjualan', 'adm_sales', 'primary'), sBtn('📑 Log Topup', 'adm_topuplog', 'primary')],
   [sBtn('📦 Backup DB', 'adm_backupdb', 'success'), sBtn('♻️ Restore DB', 'adm_restoredb', 'danger')],
@@ -1153,8 +1154,17 @@ bot.on('text', async (ctx) => {
     if (!await admin.hasAdminAccess(ctx)) { sessions.delete(chatId); return ctx.reply('❌ Khusus admin.'); }
     if (!/^https?:\/\//.test(apiBase)) return ctx.reply('❌ API base harus diawali http:// atau https://. Coba lagi:');
     sess.data.api_base = apiBase;
+    sess.step = 'adm_addserver_key';
+    return ctx.reply(`➕ <b>Tambah Server</b>\n\nNama: <b>${esc(sess.data.nama)}</b>\nDomain: <code>${esc(sess.data.domain)}</code>\nAPI: <code>${esc(apiBase)}</code>\n\nKetik <b>API key (auth) server</b> — ketik <b>-</b> bila API tanpa auth:`, { parse_mode: 'HTML' });
+  }
+
+  // Tambah server: api_key (boleh kosong bila API tanpa auth)
+  if (sess?.step === 'adm_addserver_key') {
+    const key = ctx.message.text.trim();
+    if (!await admin.hasAdminAccess(ctx)) { sessions.delete(chatId); return ctx.reply('❌ Khusus admin.'); }
+    sess.data.api_auth = (key === '-') ? '' : key;
     sess.step = 'adm_addserver_harga';
-    return ctx.reply(`➕ <b>Tambah Server</b>\n\nNama: <b>${esc(sess.data.nama)}</b>\nDomain: <code>${esc(sess.data.domain)}</code>\nAPI: <code>${esc(apiBase)}</code>\n\nKetik <b>harga per hari</b> (angka saja, contoh: 500):`, { parse_mode: 'HTML' });
+    return ctx.reply(`➕ <b>Tambah Server</b>\n\nNama: <b>${esc(sess.data.nama)}</b>\nDomain: <code>${esc(sess.data.domain)}</code>\nAPI: <code>${esc(sess.data.api_base)}</code>\n🔑 Key: <b>${sess.data.api_auth ? 'terisi' : 'kosong (tanpa auth)'}</b>\n\nKetik <b>harga per hari</b> (angka saja, contoh: 500):`, { parse_mode: 'HTML' });
   }
 
   // Tambah server: harga -> simpan
@@ -1163,11 +1173,11 @@ bot.on('text', async (ctx) => {
     if (!await admin.hasAdminAccess(ctx)) { sessions.delete(chatId); return ctx.reply('❌ Khusus admin.'); }
     if (!harga || harga < 0) return ctx.reply('❌ Harga tidak valid. Ketik angka saja (contoh: 500):');
     const { run } = require('./src/db');
-    const r = await run('INSERT INTO servers (nama, domain, api_base, harga) VALUES (?,?,?,?)',
-      [sess.data.nama, sess.data.domain, sess.data.api_base, harga]);
+    const r = await run('INSERT INTO servers (nama, domain, api_base, api_auth, harga) VALUES (?,?,?,?,?)',
+      [sess.data.nama, sess.data.domain, sess.data.api_base, sess.data.api_auth || '', harga]);
     sessions.delete(chatId);
     return ctx.reply(
-      `✅ <b>Server ditambahkan!</b>\n\n🆔 ID: <code>${r.id}</code>\n📝 Nama: <b>${esc(sess.data.nama)}</b>\n🌐 Domain: <code>${esc(sess.data.domain)}</code>\n🔌 API: <code>${esc(sess.data.api_base)}</code>\n💲 Harga: <b>Rp${harga.toLocaleString('id-ID')}/hari</b>`,
+      `✅ <b>Server ditambahkan!</b>\n\n🆔 ID: <code>${r.id}</code>\n📝 Nama: <b>${esc(sess.data.nama)}</b>\n🌐 Domain: <code>${esc(sess.data.domain)}</code>\n🔌 API: <code>${esc(sess.data.api_base)}</code>\n🔑 Key: <b>${sess.data.api_auth ? 'terisi' : 'kosong (tanpa auth)'}</b>\n💲 Harga: <b>Rp${harga.toLocaleString('id-ID')}/hari</b>`,
       { parse_mode: 'HTML', reply_markup: adminPanel().reply_markup }
     );
   }
@@ -1196,6 +1206,19 @@ bot.on('text', async (ctx) => {
     await run('UPDATE servers SET nama = ? WHERE id = ?', [nama, sess.data.serverId]);
     sessions.delete(chatId);
     return ctx.reply(`✅ Nama server diperbarui menjadi <b>${esc(nama)}</b>`, {
+      parse_mode: 'HTML', reply_markup: adminPanel().reply_markup,
+    });
+  }
+
+  // Edit API key: ketik key baru (atau - untuk kosong; nilai tidak ditampilkan)
+  if (sess?.step === 'adm_editkey_input') {
+    const key = ctx.message.text.trim();
+    if (!await admin.hasAdminAccess(ctx)) { sessions.delete(chatId); return ctx.reply('❌ Khusus admin.'); }
+    const apiAuth = (key === '-') ? '' : key;
+    const { run } = require('./src/db');
+    await run('UPDATE servers SET api_auth = ? WHERE id = ?', [apiAuth, sess.data.serverId]);
+    sessions.delete(chatId);
+    return ctx.reply(`✅ API key server diperbarui (${apiAuth ? 'terisi' : 'kosong / tanpa auth'})`, {
       parse_mode: 'HTML', reply_markup: adminPanel().reply_markup,
     });
   }
@@ -2380,6 +2403,29 @@ bot.action(/^adm_editapi_(\d+)$/, async (ctx) => {
   await ctx.reply(`🔌 <b>Edit API Base</b>\n\nServer: <b>${esc(s.nama)}</b>\nAPI saat ini: <code>${esc(s.api_base || '-')}</code>\n\nKetik <b>API base baru</b>:`, { parse_mode: 'HTML', ...cancelKb() });
 });
 
+bot.action('adm_editkey', async (ctx) => {
+  if (!await admin.hasAdminAccess(ctx)) { await safeCb(ctx); return; }
+  await safeCb(ctx);
+  const rows = await getServers();
+  if (!rows.length) return ctx.reply('❌ Belum ada server. Tambah dulu via ➕ Tambah Server.');
+  const kb = rows.map((s) => [sBtn(`🔑 ${s.nama}`, `adm_editkey_${s.id}`, 'primary')]);
+  kb.push([sBtn('🔙 Kembali', 'adm_back', 'danger')]);
+  await ctx.reply('🔑 <b>Edit API Key Server</b>\n\nPilih server:', {
+    parse_mode: 'HTML', reply_markup: { inline_keyboard: kb },
+  });
+});
+
+bot.action(/^adm_editkey_(\d+)$/, async (ctx) => {
+  if (!await admin.hasAdminAccess(ctx)) { await safeCb(ctx); return; }
+  await safeCb(ctx);
+  const id = parseInt(ctx.match[1], 10);
+  const { get } = require('./src/db');
+  const s = await get('SELECT * FROM servers WHERE id = ?', [id]);
+  if (!s) return ctx.reply('⚠️ Server tidak ditemukan.');
+  sessions.set(ctx.chat.id, { step: 'adm_editkey_input', data: { serverId: id } });
+  await ctx.reply(`🔑 <b>Edit API Key</b>\n\nServer: <b>${esc(s.nama)}</b>\nKey saat ini: <b>${s.api_auth ? 'terisi' : 'kosong'}</b>\n\nKetik <b>API key baru</b> (atau <b>-</b> untuk kosong):`, { parse_mode: 'HTML', ...cancelKb() });
+});
+
 // List server
 bot.action('adm_listserver', async (ctx) => {
   if (!await admin.hasAdminAccess(ctx)) { await safeCb(ctx); return; }
@@ -2387,7 +2433,7 @@ bot.action('adm_listserver', async (ctx) => {
   const rows = await getServers();
   if (!rows.length) return ctx.reply('❌ Belum ada server. Tambah dulu via ➕ Tambah Server.');
   const lines = rows.map((s, i) =>
-    `${i + 1}. <b>${esc(s.nama)}</b>\n   🆔 ID: <code>${s.id}</code>\n   🌐 Domain: <code>${esc(s.domain || '-')}</code>\n   🔌 API: <code>${esc(s.api_base || '-')}</code>\n   💲 Harga: <b>Rp${Number(s.harga).toLocaleString('id-ID')}/hari</b>`
+    `${i + 1}. <b>${esc(s.nama)}</b>\n   🆔 ID: <code>${s.id}</code>\n   🌐 Domain: <code>${esc(s.domain || '-')}</code>\n   🔌 API: <code>${esc(s.api_base || '-')}</code>\n   🔑 Key: <b>${s.api_auth ? 'terisi' : 'kosong'}</b>\n   💲 Harga: <b>Rp${Number(s.harga).toLocaleString('id-ID')}/hari</b>`
   );
   await ctx.reply(`📋 <b>Daftar Server (${rows.length})</b>\n\n${lines.join('\n\n')}`, {
     parse_mode: 'HTML',
