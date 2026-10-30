@@ -160,6 +160,7 @@ const adminPanel = () => Markup.inlineKeyboard([
   [sBtn('💲 Edit Harga', 'adm_editharga', 'primary'), sBtn('📝 Edit Nama', 'adm_editnama', 'primary')],
   [sBtn('💲 Harga VPN/Role', 'adm_vpnprices', 'primary'), sBtn('👥 Kelola Role', 'adm_roles', 'primary')],
   [sBtn('🌐 Edit Domain', 'adm_editdomain', 'primary'), sBtn('📋 List Server', 'adm_listserver', 'success')],
+  [sBtn('🔌 Edit API Base', 'adm_editapi', 'primary')],
   [sBtn('💵 Tambah Saldo', 'adm_addsaldo', 'success'), sBtn('➖ Kurangi Saldo', 'adm_minsaldo', 'danger')],
   [sBtn('📊 Hasil Penjualan', 'adm_sales', 'primary'), sBtn('📑 Log Topup', 'adm_topuplog', 'primary')],
   [sBtn('📦 Backup DB', 'adm_backupdb', 'success'), sBtn('♻️ Restore DB', 'adm_restoredb', 'danger')],
@@ -445,7 +446,19 @@ const PROTO_LABEL = { ssh: 'SSH', vmess: 'VMess', vless: 'VLess', trojan: 'Troja
 
 async function handleCreate(ctx, proto, viaCF) {
   const chatId = ctx.chat.id;
-  sessions.set(chatId, { step: 'vpn_username', proto, viaCF });
+  // Pilih server dulu bila ada server terdaftar dengan api_base;
+  // bila tidak ada, langsung ke input username (perilaku lama).
+  const servers = await vpn.listBuyServers().catch(() => []);
+  if (servers.length) {
+    sessions.set(chatId, { pendingProto: proto, pendingCf: viaCF });
+    const rows = [[sBtn(`🏠 Server Utama (${config.vpn.domain})`, 'vpn_srv_0', 'primary')]];
+    for (const sv of servers) rows.push([sBtn(`🌐 ${sv.nama} (${sv.domain})`, `vpn_srv_${sv.id}`, 'success')]);
+    rows.push([sBtn('🔙 Kembali', viaCF ? 'menu_cf' : 'menu_vpn', 'danger')]);
+    await ctx.reply('🌐 <b>Pilih Server</b>\n\nAkun akan dibuat di server yang kamu pilih:', { parse_mode: 'HTML', reply_markup: Markup.inlineKeyboard(rows) });
+    await safeCb(ctx);
+    return;
+  }
+  sessions.set(chatId, { step: 'vpn_username', proto, viaCF, serverId: 0 });
   await ctx.reply(
     `✏️ <b>Buat Akun ${PROTO_LABEL[proto]}${viaCF ? ' (CloudFront)' : ''}</b>\n\n` +
       `Kirim <b>username</b> (3-20 karakter, huruf/angka):`,
@@ -458,6 +471,22 @@ for (const proto of ['ssh', 'vmess', 'vless', 'trojan', 'shadowsocks', 'zivpn'])
   bot.action(`mk_${proto}`, (ctx) => handleCreate(ctx, proto, false));
   bot.action(`cf_mk_${proto}`, (ctx) => handleCreate(ctx, proto, true));
 }
+
+// ---------- Pilih server saat beli (lanjut ke input username) ----------
+bot.action(/^vpn_srv_(\d+)$/, async (ctx) => {
+  await safeCb(ctx);
+  const sess = sessions.get(ctx.chat.id);
+  if (!sess?.pendingProto) return ctx.reply('❌ Sesi pembelian tidak ditemukan. Ulangi dari menu.');
+  const proto = sess.pendingProto;
+  const viaCF = !!sess.pendingCf;
+  const serverId = Number(ctx.match[1]);
+  sessions.set(ctx.chat.id, { step: 'vpn_username', proto, viaCF, serverId });
+  await ctx.reply(
+    `✏️ <b>Buat Akun ${PROTO_LABEL[proto]}${viaCF ? ' (CloudFront)' : ''}</b>\n\n` +
+      `Kirim <b>username</b> (3-20 karakter, huruf/angka):`,
+    { parse_mode: 'HTML', ...cancelKb() }
+  );
+});
 
 // ---------- Trial 1 jam, gratis, 1x/24 jam per telegram_id (biasa+CF digabung) ----------
 // Alur: tombol trial -> pilih protokol -> kirim username -> (SSH/Zivpn: password)
@@ -816,7 +845,7 @@ bot.on('text', async (ctx) => {
     if (!vpn.validUser(username)) {
       return ctx.reply('❌ Username tidak valid (3-20 karakter, huruf/angka). Coba lagi:');
     }
-    if (await vpn.usernameTaken(sess.proto, username).catch(() => false)) {
+    if (await vpn.usernameTaken(sess.proto, username, sess.serverId || 0).catch(() => false)) {
       return ctx.reply('❌ Username sudah dipakai untuk ' + sess.proto.toUpperCase() + '. Pakai nama lain:');
     }
     if (sess.proto === 'ssh' || sess.proto === 'zivpn') {
@@ -1114,8 +1143,18 @@ bot.on('text', async (ctx) => {
     if (!domain || domain.length < 4) return ctx.reply('❌ Domain tidak valid. Coba lagi:');
     if (!await admin.hasAdminAccess(ctx)) { sessions.delete(chatId); return ctx.reply('❌ Khusus admin.'); }
     sess.data.domain = domain;
+    sess.step = 'adm_addserver_api';
+    return ctx.reply(`➕ <b>Tambah Server</b>\n\nNama: <b>${esc(sess.data.nama)}</b>\nDomain: <code>${esc(domain)}</code>\n\nKetik <b>API base server</b> (contoh: http://127.0.0.1:5888 atau https://api.server.com):`, { parse_mode: 'HTML' });
+  }
+
+  // Tambah server: api_base
+  if (sess?.step === 'adm_addserver_api') {
+    const apiBase = ctx.message.text.trim();
+    if (!await admin.hasAdminAccess(ctx)) { sessions.delete(chatId); return ctx.reply('❌ Khusus admin.'); }
+    if (!/^https?:\/\//.test(apiBase)) return ctx.reply('❌ API base harus diawali http:// atau https://. Coba lagi:');
+    sess.data.api_base = apiBase;
     sess.step = 'adm_addserver_harga';
-    return ctx.reply(`➕ <b>Tambah Server</b>\n\nNama: <b>${esc(sess.data.nama)}</b>\nDomain: <code>${esc(domain)}</code>\n\nKetik <b>harga per hari</b> (angka saja, contoh: 500):`, { parse_mode: 'HTML' });
+    return ctx.reply(`➕ <b>Tambah Server</b>\n\nNama: <b>${esc(sess.data.nama)}</b>\nDomain: <code>${esc(sess.data.domain)}</code>\nAPI: <code>${esc(apiBase)}</code>\n\nKetik <b>harga per hari</b> (angka saja, contoh: 500):`, { parse_mode: 'HTML' });
   }
 
   // Tambah server: harga -> simpan
@@ -1124,11 +1163,11 @@ bot.on('text', async (ctx) => {
     if (!await admin.hasAdminAccess(ctx)) { sessions.delete(chatId); return ctx.reply('❌ Khusus admin.'); }
     if (!harga || harga < 0) return ctx.reply('❌ Harga tidak valid. Ketik angka saja (contoh: 500):');
     const { run } = require('./src/db');
-    const r = await run('INSERT INTO servers (nama, domain, harga) VALUES (?,?,?)',
-      [sess.data.nama, sess.data.domain, harga]);
+    const r = await run('INSERT INTO servers (nama, domain, api_base, harga) VALUES (?,?,?,?)',
+      [sess.data.nama, sess.data.domain, sess.data.api_base, harga]);
     sessions.delete(chatId);
     return ctx.reply(
-      `✅ <b>Server ditambahkan!</b>\n\n🆔 ID: <code>${r.id}</code>\n📝 Nama: <b>${esc(sess.data.nama)}</b>\n🌐 Domain: <code>${esc(sess.data.domain)}</code>\n💲 Harga: <b>Rp${harga.toLocaleString('id-ID')}/hari</b>`,
+      `✅ <b>Server ditambahkan!</b>\n\n🆔 ID: <code>${r.id}</code>\n📝 Nama: <b>${esc(sess.data.nama)}</b>\n🌐 Domain: <code>${esc(sess.data.domain)}</code>\n🔌 API: <code>${esc(sess.data.api_base)}</code>\n💲 Harga: <b>Rp${harga.toLocaleString('id-ID')}/hari</b>`,
       { parse_mode: 'HTML', reply_markup: adminPanel().reply_markup }
     );
   }
@@ -1157,6 +1196,19 @@ bot.on('text', async (ctx) => {
     await run('UPDATE servers SET nama = ? WHERE id = ?', [nama, sess.data.serverId]);
     sessions.delete(chatId);
     return ctx.reply(`✅ Nama server diperbarui menjadi <b>${esc(nama)}</b>`, {
+      parse_mode: 'HTML', reply_markup: adminPanel().reply_markup,
+    });
+  }
+
+  // Edit API base: ketik API base baru
+  if (sess?.step === 'adm_editapi_input') {
+    const apiBase = ctx.message.text.trim();
+    if (!await admin.hasAdminAccess(ctx)) { sessions.delete(chatId); return ctx.reply('❌ Khusus admin.'); }
+    if (!/^https?:\/\//.test(apiBase)) return ctx.reply('❌ API base harus diawali http:// atau https://. Coba lagi:');
+    const { run } = require('./src/db');
+    await run('UPDATE servers SET api_base = ? WHERE id = ?', [apiBase, sess.data.serverId]);
+    sessions.delete(chatId);
+    return ctx.reply(`✅ API base server diperbarui menjadi <code>${esc(apiBase)}</code>`, {
       parse_mode: 'HTML', reply_markup: adminPanel().reply_markup,
     });
   }
@@ -1284,8 +1336,9 @@ bot.on('text', async (ctx) => {
 
 async function finishCreateVpn(ctx, sess, username, password = '', days = 30) {
   sessions.delete(ctx.chat.id);
-  const { proto, viaCF } = sess;
-  if (await vpn.usernameTaken(proto, username).catch(() => false)) {
+  const { proto, viaCF, serverId } = sess;
+  const srv = await vpn.getServer(serverId).catch(() => null);
+  if (await vpn.usernameTaken(proto, username, serverId || 0).catch(() => false)) {
     return ctx.reply('❌ Username sudah dipakai untuk ' + proto.toUpperCase() + '. Pakai nama lain.');
   }
   // Harga VPN per role (diatur admin di tabel vpn_prices; role admin = 0/modal)
@@ -1311,14 +1364,14 @@ async function finishCreateVpn(ctx, sess, username, password = '', days = 30) {
     if (proto === 'ssh') {
       r = viaCF
         ? vpn.cfSSHInfo(username, password, days)
-        : await vpn.createSSH(username, password, days, 1);
+        : await vpn.createSSH(username, password, days, 1, srv);
       // Untuk mode CF, akun SSH tetap dibuat di server dulu
-      if (viaCF && r.success) await vpn.createSSH(username, password, days, 1).catch(() => {});
-    } else if (proto === 'vmess') r = await vpn.createVMess(username, days, viaCF);
-    else if (proto === 'vless') r = await vpn.createVLess(username, days, viaCF);
-    else if (proto === 'shadowsocks') r = await vpn.createShadowsocks(username, days, viaCF);
-    else if (proto === 'zivpn') r = await vpn.createZivpn(username, password, days);
-    else r = await vpn.createTrojan(username, days, viaCF);
+      if (viaCF && r.success) await vpn.createSSH(username, password, days, 1, srv).catch(() => {});
+    } else if (proto === 'vmess') r = await vpn.createVMess(username, days, viaCF, srv);
+    else if (proto === 'vless') r = await vpn.createVLess(username, days, viaCF, srv);
+    else if (proto === 'shadowsocks') r = await vpn.createShadowsocks(username, days, viaCF, srv);
+    else if (proto === 'zivpn') r = await vpn.createZivpn(username, password, days, srv);
+    else r = await vpn.createTrojan(username, days, viaCF, srv);
   } catch (e) {
     r = { success: false, message: `❌ Error: ${esc(e.message)}` };
   }
@@ -1330,9 +1383,9 @@ async function finishCreateVpn(ctx, sess, username, password = '', days = 30) {
       [ctx.from.id, 'vpn_' + proto, totalHarga, 'VPN' + Date.now().toString(36).toUpperCase(), 'success']).catch(() => {});
     // Notif ke grup
     const uname = ctx.from.username ? '@' + ctx.from.username : ctx.from.first_name;
-    notifGrup(bot, `🛒 <b>Pembelian VPN</b>\n👤 ${uname}\n📦 ${proto.toUpperCase()}${viaCF ? ' (CF)' : ''} - ${days} hari\n💰 Rp${totalHarga.toLocaleString('id-ID')}`);
+    notifGrup(bot, `🛒 <b>Pembelian VPN</b>\n👤 ${uname}\n📦 ${proto.toUpperCase()}${viaCF ? ' (CF)' : ''} - ${days} hari\n🌐 Server: <b>${esc(srv ? srv.nama : 'Utama')}</b>\n💰 Rp${totalHarga.toLocaleString('id-ID')}`);
   }
-  if (r.success) await vpn.saveAccount(ctx.from.id, proto, username, r.expiry, 0, viaCF ? 1 : 0);
+  if (r.success) await vpn.saveAccount(ctx.from.id, proto, username, r.expiry, 0, viaCF ? 1 : 0, null, serverId || 0);
   // Tombol download .hc jika berhasil dan HC tersedia
   let extra = { parse_mode: 'HTML' };
   if (r.success && (await hc.hcEnabled()) && ['vmess', 'vless', 'trojan', 'ssh'].includes(proto)) {
@@ -1340,7 +1393,7 @@ async function finishCreateVpn(ctx, sess, username, password = '', days = 30) {
     hcCache.set(cacheKey, {
       proto, username,
       uuid: r.uuid || '', password: r.password || '',
-      domain: viaCF ? config.cloudfront.domain : config.vpn.domain,
+      domain: viaCF ? config.cloudfront.domain : (srv?.domain || config.vpn.domain),
     });
     // Hapus cache lama (max 100 entri)
     if (hcCache.size > 100) {
@@ -1532,7 +1585,8 @@ bot.command('hapusakun', async (ctx) => {
   const { get } = require('./src/db');
   const acc = await get('SELECT * FROM vpn_accounts WHERE username = ? AND proto = ?', [username, proto]).catch(() => null);
   if (!acc) return ctx.reply('❌ Akun tidak ditemukan di database bot.');
-  const r = await vpn.deleteAccount(proto, username);
+  const srv = await vpn.getServer(acc.server_id).catch(() => null);
+  const r = await vpn.deleteAccount(proto, username, srv);
   await ctx.reply(r.success ? `🗑️ ${r.message}` : `❌ Gagal: ${esc(r.message || 'API error')}`, { parse_mode: 'HTML' });
 });
 bot.action('menu_hapus_nama', async (ctx) => {
@@ -1545,7 +1599,8 @@ bot.action(/^delconfadm_(\d+)$/, async (ctx) => {
   const { get } = require('./src/db');
   const acc = await get('SELECT * FROM vpn_accounts WHERE id = ?', [ctx.match[1]]).catch(() => null);
   if (!acc) return ctx.reply('❌ Akun tidak ditemukan.');
-  const r = await vpn.deleteAccount(acc.proto, acc.username);
+  const srv = await vpn.getServer(acc.server_id).catch(() => null);
+  const r = await vpn.deleteAccount(acc.proto, acc.username, srv);
   await ctx.reply(r.success ? `🗑️ ${r.message}` : `❌ Gagal: ${esc(r.message || 'API error')}`, { parse_mode: 'HTML' });
 });
 
@@ -1767,7 +1822,8 @@ bot.action(/^delconf_(\d+)$/, async (ctx) => {
   const { get } = require('./src/db');
   const acc = await get('SELECT * FROM vpn_accounts WHERE id = ? AND telegram_id = ?', [ctx.match[1], ctx.from.id]);
   if (!acc) return ctx.reply('❌ Akun tidak ditemukan.');
-  const r = await vpn.deleteAccount(acc.proto, acc.username);
+  const srv = await vpn.getServer(acc.server_id).catch(() => null);
+  const r = await vpn.deleteAccount(acc.proto, acc.username, srv);
   await ctx.reply(r.success ? `🗑️ ${r.message}` : `❌ Gagal menghapus: ${esc(r.message || 'API error')}`, { parse_mode: 'HTML' });
 });
 
@@ -1800,8 +1856,11 @@ async function finishRenew(ctx, accountId, days) {
   try {
     const axios = require('axios');
     const config = require('./src/config');
-    await axios.get(`${config.vpn.apiBase}/renew`, {
-      params: { auth: config.vpn.apiAuth, proto: acc.proto, user: acc.username, exp: days },
+    const srv = await vpn.getServer(acc.server_id).catch(() => null);
+    const renewBase = (srv && srv.api_base) || config.vpn.apiBase;
+    const renewAuth = (srv && srv.api_auth) || config.vpn.apiAuth;
+    await axios.get(`${renewBase}/renew`, {
+      params: { auth: renewAuth, proto: acc.proto, user: acc.username, exp: days },
       timeout: 25000,
     }).catch(() => {});
   } catch (e) {}
@@ -2298,6 +2357,29 @@ bot.action(/^adm_editdomain_(\d+)$/, async (ctx) => {
   await ctx.reply(`🌐 <b>Edit Domain</b>\n\nServer: <b>${esc(s.nama)}</b>\nDomain saat ini: <code>${esc(s.domain || '-')}</code>\n\nKetik <b>domain baru</b>:`, { parse_mode: 'HTML', ...cancelKb() });
 });
 
+bot.action('adm_editapi', async (ctx) => {
+  if (!await admin.hasAdminAccess(ctx)) { await safeCb(ctx); return; }
+  await safeCb(ctx);
+  const rows = await getServers();
+  if (!rows.length) return ctx.reply('❌ Belum ada server. Tambah dulu via ➕ Tambah Server.');
+  const kb = rows.map((s) => [sBtn(`🔌 ${s.nama}`, `adm_editapi_${s.id}`, 'primary')]);
+  kb.push([sBtn('🔙 Kembali', 'adm_back', 'danger')]);
+  await ctx.reply('🔌 <b>Edit API Base Server</b>\n\nPilih server:', {
+    parse_mode: 'HTML', reply_markup: { inline_keyboard: kb },
+  });
+});
+
+bot.action(/^adm_editapi_(\d+)$/, async (ctx) => {
+  if (!await admin.hasAdminAccess(ctx)) { await safeCb(ctx); return; }
+  await safeCb(ctx);
+  const id = parseInt(ctx.match[1], 10);
+  const { get } = require('./src/db');
+  const s = await get('SELECT * FROM servers WHERE id = ?', [id]);
+  if (!s) return ctx.reply('⚠️ Server tidak ditemukan.');
+  sessions.set(ctx.chat.id, { step: 'adm_editapi_input', data: { serverId: id } });
+  await ctx.reply(`🔌 <b>Edit API Base</b>\n\nServer: <b>${esc(s.nama)}</b>\nAPI saat ini: <code>${esc(s.api_base || '-')}</code>\n\nKetik <b>API base baru</b>:`, { parse_mode: 'HTML', ...cancelKb() });
+});
+
 // List server
 bot.action('adm_listserver', async (ctx) => {
   if (!await admin.hasAdminAccess(ctx)) { await safeCb(ctx); return; }
@@ -2305,7 +2387,7 @@ bot.action('adm_listserver', async (ctx) => {
   const rows = await getServers();
   if (!rows.length) return ctx.reply('❌ Belum ada server. Tambah dulu via ➕ Tambah Server.');
   const lines = rows.map((s, i) =>
-    `${i + 1}. <b>${esc(s.nama)}</b>\n   🆔 ID: <code>${s.id}</code>\n   🌐 Domain: <code>${esc(s.domain || '-')}</code>\n   💲 Harga: <b>Rp${Number(s.harga).toLocaleString('id-ID')}/hari</b>`
+    `${i + 1}. <b>${esc(s.nama)}</b>\n   🆔 ID: <code>${s.id}</code>\n   🌐 Domain: <code>${esc(s.domain || '-')}</code>\n   🔌 API: <code>${esc(s.api_base || '-')}</code>\n   💲 Harga: <b>Rp${Number(s.harga).toLocaleString('id-ID')}/hari</b>`
   );
   await ctx.reply(`📋 <b>Daftar Server (${rows.length})</b>\n\n${lines.join('\n\n')}`, {
     parse_mode: 'HTML',

@@ -23,7 +23,7 @@ async function cleanupExpired(notifyFn) {
   let deleted = 0, notified = 0;
   for (const acc of rows) {
     let res = null;
-    try { res = await vpn.deleteAccount(acc.proto, acc.username); } catch { res = null; }
+    try { res = await vpn.deleteAccount(acc.proto, acc.username, await vpn.getServer(acc.server_id).catch(() => null)); } catch { res = null; }
     if (!res || !res.success) continue; // gagal hapus di server: baris dipertahankan
     await run('DELETE FROM vpn_accounts WHERE id = ?', [acc.id]);
     deleted++;
@@ -51,7 +51,7 @@ async function cleanupOldTrials(maxAgeDays = 3) {
   );
   for (const acc of rows) {
     let res = null;
-    try { res = await vpn.deleteAccount(acc.proto, acc.username); } catch { res = null; }
+    try { res = await vpn.deleteAccount(acc.proto, acc.username, await vpn.getServer(acc.server_id).catch(() => null)); } catch { res = null; }
     if (!res || !res.success) continue; // gagal hapus di server: baris dipertahankan
     await run('DELETE FROM vpn_accounts WHERE id = ?', [acc.id]);
   }
