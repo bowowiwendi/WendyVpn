@@ -26,17 +26,30 @@ TMPDIR=$(mktemp -d)
 trap 'rm -rf "$TMPDIR"' EXIT
 cd "$TMPDIR"
 
-echo "[install_dropbear2019] Download source Dropbear ${VERSION}..."
-wget --timeout=30 --tries=2 -q "$URL" -O dropbear.tar.gz
+echo "[install_dropbear2019] Download source Dropbear ${VERSION} (3x percobaan)..."
+DL_OK=0
+for i in 1 2 3; do
+    if wget --timeout=30 --tries=2 -q "$URL" -O dropbear.tar.gz && tar tzf dropbear.tar.gz >/dev/null 2>&1; then DL_OK=1; break; fi
+    sleep 5
+done
+[ "$DL_OK" = 1 ] || { echo "[install_dropbear2019] Gagal unduh source Dropbear."; exit 1; }
 tar xzf dropbear.tar.gz
 cd "dropbear-DROPBEAR_${VERSION}"
 
+# Tarball 2019.78 tidak menyertakan configure maupun config.h.in — generate
+# dulu (tanpa autoheader, configure gagal di config.h.in). Pola dari v4.
+if [ ! -f configure ]; then apt-get install -y autoconf >/dev/null 2>&1; autoconf >/dev/null 2>&1; fi
+if [ ! -f config.h.in ]; then autoheader >/dev/null 2>&1; fi
+
 echo "[install_dropbear2019] Aktifkan algoritma lama di default_options.h..."
+# 2019.78 default sudah legacy lengkap (CBC, 3DES, SHA1-96, GROUP1): sed ini
+# hanya menegaskan nilainya. DSS SENGAJA tidak dimatikan (berbeda dengan
+# fix_dropbear.sh untuk 2020.81): di 2019.78 DSS masih bagian dari legacy
+# lengkap, dan kunci host DSS dibangkitkan di bawah agar ssh-dss ditawarkan.
 sed -i 's/^#define DROPBEAR_ENABLE_CBC_MODE 0/#define DROPBEAR_ENABLE_CBC_MODE 1/' default_options.h
 sed -i 's/^#define DROPBEAR_3DES 0/#define DROPBEAR_3DES 1/' default_options.h
 sed -i 's/^#define DROPBEAR_SHA1_96_HMAC 0/#define DROPBEAR_SHA1_96_HMAC 1/' default_options.h
 sed -i 's/^#define DROPBEAR_DH_GROUP1_CLIENTONLY 1/#define DROPBEAR_DH_GROUP1_CLIENTONLY 0/' default_options.h
-sed -i 's/^#define DROPBEAR_DSS 1/#define DROPBEAR_DSS 0/' default_options.h
 
 echo "[install_dropbear2019] Build (2-5 menit)..."
 if ! ./configure --prefix=/usr --sysconfdir=/etc --disable-pam >/dev/null 2>&1 \
@@ -51,6 +64,10 @@ echo "[install_dropbear2019] Install binary..."
 install -m 755 dropbear /usr/sbin/dropbear
 install -m 755 dropbearkey /usr/sbin/dropbearkey
 install -m 755 dropbearconvert /usr/sbin/dropbearconvert
+
+# Kunci host DSS wajib ada agar ssh-dss ditawarkan (tanpa kunci ini DSS
+# diam-diam tidak aktif). Pola dari v4.
+[ ! -f /etc/dropbear/dropbear_dss_host_key ] && /usr/sbin/dropbearkey -t dss -f /etc/dropbear/dropbear_dss_host_key
 
 echo "[install_dropbear2019] Mencegah apt menimpa build khusus..."
 apt-mark hold dropbear dropbear-bin >/dev/null 2>&1 || true
