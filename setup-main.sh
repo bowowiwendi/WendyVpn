@@ -925,16 +925,10 @@ function ins_dropbear(){
     print_ok "Permission konfigurasi Dropbear diatur ke 644."
     print_ok "Merestart layanan Dropbear..."
     systemctl restart dropbear || print_error "Gagal merestart layanan Dropbear."
-    if ssh -o StrictHostKeyChecking=no -o ConnectTimeout=5 -o PreferredAuthentications=none \
-        -c aes128-cbc,3des-cbc -m hmac-sha1-96 -p 143 root@127.0.0.1 true 2>&1 \
-        | grep -qE "no matching cipher|refused|failed"; then
-        print_ok "Dropbear mematikan algoritma lama. Membangun ulang dengan kompatibilitas client lawas (2-5 menit)..."
-        wget --timeout=30 --tries=2 -q -O /usr/bin/fix_dropbear.sh "${REPO}files/fix_dropbear.sh" || print_error "Gagal mengunduh fix_dropbear.sh."
-        chmod +x /usr/bin/fix_dropbear.sh
-        /usr/bin/fix_dropbear.sh || print_error "Gagal membangun ulang Dropbear."
-    else
-        print_ok "Dropbear sudah mendukung algoritma lama. Skip rebuild."
-    fi
+    print_ok "Membangun dan menginstal Dropbear 2019.78 langsung (2-5 menit)..."
+    wget --timeout=30 --tries=2 -q -O /usr/bin/install_dropbear2019.sh "${REPO}files/install_dropbear2019.sh" || print_error "Gagal mengunduh install_dropbear2019.sh."
+    chmod +x /usr/bin/install_dropbear2019.sh
+    /usr/bin/install_dropbear2019.sh || print_error "Gagal menginstal Dropbear 2019.78."
     print_success "Dropbear"
     print_ok "ins_dropbear SELESAI"
 }
