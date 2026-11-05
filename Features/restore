@@ -103,6 +103,13 @@ function restore() {
     [[ -f shadow ]] && cp shadow /etc/ && echo "  ✓ shadow"
     [[ -f gshadow ]] && cp gshadow /etc/ && echo "  ✓ gshadow"
     [[ -f crontab ]] && cp crontab /etc/ && echo "  ✓ crontab"
+    # Backup otomatis harus tetap aktif setelah restore: crontab dari
+    # backup bisa tidak memuat cron bot-backup, sehingga cron installer
+    # hilang. Pastikan ada (idempotent: hanya tambah bila belum ada).
+    if ! grep -q "bot-backup" /etc/crontab 2>/dev/null; then
+        echo "0 0 * * * root bot-backup" >> /etc/crontab
+        echo "  ✓ cron bot-backup ditambahkan"
+    fi
 
     # VPN databases
     [[ -f .ssh.db ]] && cp .ssh.db /etc/ssh/ && echo "  ✓ ssh.db"

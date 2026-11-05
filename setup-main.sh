@@ -1237,6 +1237,13 @@ function ins_backup() {
 EOF
     touch /home/files
     print_ok "File placeholder /home/files dibuat."
+    print_ok "Memastikan cron backup otomatis aktif..."
+    if ! grep -q "bot-backup" /etc/crontab 2>/dev/null; then
+        echo "0 0 * * * root bot-backup" >> /etc/crontab
+        print_ok "Cron backup ditambahkan (0 0 * * * root bot-backup)."
+    else
+        print_ok "Cron backup sudah ada."
+    fi
     print_ok ""
     print_ok "⚠️  KONFIGURASI RCLONE DIPERLUKAN!"
     print_ok "Jalankan perintah berikut setelah instalasi selesai:"
