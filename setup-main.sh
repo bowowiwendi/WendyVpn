@@ -1210,6 +1210,8 @@ function enable_services(){
     systemctl enable --now cron || print_error "Gagal mengaktifkan cron."
     systemctl enable --now netfilter-persistent || print_error "Gagal mengaktifkan netfilter-persistent."
     systemctl restart nginx || print_error "Gagal merestart nginx."
+    # 2026-11-07: enable xray agar auto-start habis reboot harian (cron /sbin/reboot 03:09); tanpanya xray off tiap pagi sampai start manual.
+    systemctl enable xray || print_error "Gagal mengaktifkan xray."
     systemctl restart xray || print_error "Gagal merestart xray."
     systemctl restart cron || print_error "Gagal merestart cron."
     systemctl restart haproxy || print_error "Gagal merestart haproxy."
