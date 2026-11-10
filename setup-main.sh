@@ -342,6 +342,13 @@ function first_setup() {
     # dari source dengan dukungan systemd, lalu ganti binary-nya.
     if command -v haproxy >/dev/null 2>&1 && [ "$(haproxy -v 2>/dev/null | head -1 | sed 's/[^0-9.]//g' | cut -d. -f1-2)" = "2.0" ]; then
         print_ok "HAProxy sudah 2.0, lewati instalasi."
+    elif apt-cache policy libpcre3-dev 2>/dev/null | grep -q "Candidate: (none)"; then
+        # 2026-11-10 Debian 13: libpcre3-dev (PCRE1) sudah dihapus dari repo;
+        # HAProxy 2.0.33 butuh PCRE1 (USE_PCRE=1) sehingga build source tidak
+        # mungkin di sini. Pakai HAProxy distro (Debian 13 = 3.0.11; config
+        # sc teruji valid dan WS 101 di 3.0.11). Jangan paksa build.
+        print_ok "libpcre3-dev tidak tersedia (Debian 13+), pakai HAProxy distro..."
+        apt install -y haproxy || print_error "Gagal menginstal HAProxy distro."
     elif true; then
         print_ok "Mengganti HAProxy stok dengan 2.0.33 (build source)..."
         apt install -y libssl-dev libpcre3-dev libsystemd-dev gcc make wget || print_error "Gagal menginstal dependensi build HAProxy."
@@ -358,6 +365,7 @@ Description=HAProxy Load Balancer
 After=network.target
 [Service]
 Type=notify
+RuntimeDirectory=haproxy
 ExecStartPre=/usr/sbin/haproxy -c -f /etc/haproxy/haproxy.cfg
 ExecStart=/usr/sbin/haproxy -Ws -f /etc/haproxy/haproxy.cfg -p /run/haproxy.pid
 ExecReload=/bin/kill -USR2 $MAINPID
@@ -367,7 +375,13 @@ Restart=on-failure
 WantedBy=multi-user.target
 HAPROXYUNIT
     systemctl daemon-reload 2>/dev/null || true
-    print_success "HAProxy Installation"
+    # 2026-11-10: jangan klaim sukses bila binary tidak ada (dulu print
+    # success jalan walau build 2.0.33 gagal di Debian 13).
+    if command -v haproxy >/dev/null 2>&1; then
+        print_success "HAProxy Installation"
+    else
+        print_error "HAProxy tidak terpasang (build source dan fallback distro gagal)."
+    fi
     print_ok "first_setup SELESAI"
 }
 
